@@ -1,0 +1,31 @@
+# Local reference material and generated disassembly/assets. These may contain
+# copyrighted game data and must not be committed.
+/asm/
+/assets/
+/baserom/
+/SLES_500.44
+/SLES_500.44.rom
+*.rom
+*.iso
+*.bin
+*.img
+*.chd
+*.cue
+*.gcm
+*.wbfs
+*.wud
+*.elf
+
+# Local SDK, generated files, build output, and logs.
+/build/
+/build-sn/
+/toolchain/
+/tools/ghidra_12.2_PUBLIC/
+/undefined_funcs_auto.txt
+/undefined_syms_auto.txt
+/progress/assets/
+/progress/.function_source_baseline.json
+__pycache__/
+*.py[cod]
+.venv/
+*.log

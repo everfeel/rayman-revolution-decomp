@@ -1,0 +1,64 @@
+name: Rayman Revolution (PAL)
+sha1: 8a47cf3d4ca5a9b21380a494c8d6fcdf62d3207a
+options:
+  basename: SLES_500.44
+  target_path: build/SLES_500.44.rom
+  elf_path: build/SLES_500.44.elf
+  base_path: ..
+  platform: ps2
+  compiler: EEGCC
+
+  gp_value: 0x0039A3F0
+
+  asm_path: asm
+  src_path: src
+  build_path: build
+  asset_path: assets
+  ld_script_path: build/SLES_500.44.ld
+  ld_dependencies: True
+  ld_wildcard_sections: True
+  ld_bss_contains_common: True
+  find_file_boundaries: True
+  create_c_files: True
+  disassemble_all: True
+  generate_asm_macros_files: False
+  use_legacy_include_asm: True
+  matchings_path: matchings
+  nonmatchings_path: nonmatchings
+  section_order:
+    - .text
+    - .data
+    - .rodata
+    - .gcc_except_table
+    - .lit4
+    - .sdata
+    - .sbss
+    - .bss
+  auto_link_sections:
+    - .data
+    - .rodata
+    - .gcc_except_table
+    - .lit4
+    - .sdata
+    - .sbss
+    - .bss
+
+segments:
+  - name: main
+    type: code
+    start: 0x000000
+    vram: 0x00100000
+    bss_size: 0x0007D1D8
+    subalign: null
+    subsegments:
+      - [0x000000, c, core/main]
+      - [0x12E820, textbin, main/vutext]
+      - [0x152100, data, main/data]
+      - [0x2889F0, databin, main/vudata]
+      - [0x288B00, rodata, main/rodata]
+      - [0x292280, gcc_except_table, main/gcc_except_table]
+      - [0x292400, lit4, main/lit4]
+      - [0x292F00, sdata, main/sdata]
+      - { type: sbss, vram: 0x00393C00, name: main/sbss }
+      - { type: bss, vram: 0x00393E00, name: main/bss }
+  - [0x293BF0]

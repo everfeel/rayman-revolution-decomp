@@ -1,0 +1,7 @@
+splat64[mips]==0.50.0
+spimdisasm==1.42.4
+rabbitizer==1.16.2
+n64img==0.3.3
+pygfxd==1.0.5
+crunch64==0.6.2
+pyelftools

@@ -1,0 +1,34 @@
+# C translation units in retail address order. Keep this list synchronized with
+# the function-address ranges in each source file.
+game/startup.c
+gameplay/initialization.c
+audio/mpeg_thread.c
+misc/early_runtime.c
+audio/sound_dispatch.c
+misc/region_0010_tail.c
+gameplay/region_0011_before_player.c
+player/rayman_init.c
+gameplay/region_0011_tail.c
+math/region_0012.c
+math/region_0013.c
+rendering/region_0014.c
+rendering/region_0015.c
+audio/region_0015.c
+misc/region_0015_tail.c
+resources/region_0016_before_file_io.c
+file_io/region_0016.c
+resources/region_0016_tail.c
+engine/region_0017.c
+rendering/region_0018.c
+engine/region_0019.c
+engine/region_001A.c
+engine/region_001B.c
+platform/region_001C.c
+media/region_001D.c
+gameplay/region_001E.c
+gameplay/region_001F_before_audio.c
+audio/animation_sound_events.c
+gameplay/region_001F_tail.c
+gameplay/region_0020.c
+file_io/region_0021.c
+misc/region_0022.c
