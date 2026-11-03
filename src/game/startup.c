@@ -44,6 +44,10 @@ void func_001000E0(void) {
 
 /* Main-loop and lifecycle helpers. */
 
+extern u8 D_00252230[9];
+void func_001007F8(void);
+extern void func_00100CD0(void);
+
 s32 func_001000E8(void)
 {
     return func_00100360();
@@ -137,8 +141,6 @@ void func_00100288(void)
 
 INCLUDE_ASM(const s32, "core/main", func_001002A0);
 
-extern u8 D_00252230[9];
-
 s32 func_00100360(void)
 {
     return D_00252230[0] == 2;
@@ -160,7 +162,21 @@ INCLUDE_ASM(const s32, "core/main", func_00100460);
 
 INCLUDE_ASM(const s32, "core/main", func_00100728);
 
-INCLUDE_ASM(const s32, "core/main", func_001007F8);
+void func_001007F8(void)
+{
+    register s32 state __asm__("$3");
+    register s32 active_state __asm__("$4");
+
+    if (func_00100360() == 0) {
+        func_00100CD0();
+        active_state = 2;
+        state = D_00252230[0];
+        if (state != active_state) {
+            func_001010F8();
+            func_001028C8();
+        }
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00100848);
 
@@ -170,7 +186,15 @@ INCLUDE_ASM(const s32, "core/main", func_00100BD0);
 
 INCLUDE_ASM(const s32, "core/main", func_00100CD0);
 
-INCLUDE_ASM(const s32, "core/main", func_00100F58);
+extern s32 D_00392F24;
+extern s32 func_0010CA50(void *);
+extern void func_0014AD90(void *, s32, s32);
+
+void func_00100F58(void *arg)
+{
+    s32 result = func_0010CA50(arg);
+    func_0014AD90(arg, D_00392F24, result);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00100F88);
 
@@ -178,7 +202,40 @@ INCLUDE_ASM(const s32, "core/main", func_00101068);
 
 INCLUDE_ASM(const s32, "core/main", func_001010F8);
 
-INCLUDE_ASM(const s32, "core/main", func_00101260);
+typedef struct StartupCountState {
+    u8 unk00[0x34];
+    u8 flags;
+} StartupCountState;
+
+typedef struct StartupCountComponent {
+    u32 unk00;
+    StartupCountState *state;
+} StartupCountComponent;
+
+typedef struct StartupCountObject {
+    u32 unk00;
+    StartupCountComponent *component;
+} StartupCountObject;
+
+typedef struct StartupCountNode {
+    StartupCountObject *object;
+    struct StartupCountNode *next;
+} StartupCountNode;
+
+s32 func_00101260(void *entity)
+{
+    StartupCountNode *node =
+        *(StartupCountNode **)(*(void **)((u8 *)entity + 4));
+    s32 total = 0;
+
+    while (node != 0) {
+        StartupCountState *state = node->object->component->state;
+        total += (state->flags >> 1) & 1;
+        node = node->next;
+    }
+
+    return total;
+}
 
 typedef struct StartupItemList {
     u8 unk00[0x30];
@@ -242,7 +299,52 @@ INCLUDE_ASM(const s32, "core/main", func_00101828);
 void func_001018B8(void) {
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001018C0);
+typedef struct StartupDevice {
+    u8 unk00[0x148];
+    void *object;
+} StartupDevice;
+
+typedef struct StartupContainer {
+    u8 unk00[0x1C];
+    StartupDevice *device;
+} StartupContainer;
+
+typedef struct StartupContext {
+    u8 unk00[8];
+    StartupContainer *container;
+} StartupContext;
+
+typedef struct StartupRoot {
+    u8 unk00[4];
+    StartupContext *context;
+} StartupRoot;
+
+typedef struct StartupDeviceObject {
+    u32 unk00;
+    u32 flags;
+    u8 unk08[0x9C];
+    s32 value;
+} StartupDeviceObject;
+
+void func_001018C0(StartupRoot *root, s32 value)
+{
+    StartupContainer *container = root->context->container;
+    StartupDevice *device;
+    StartupDeviceObject *object;
+
+    if (container == 0) {
+        return;
+    }
+    device = container->device;
+    object = (StartupDeviceObject *)device->object;
+    if (object == 0) {
+        return;
+    }
+    object->value = value;
+    if (value == 0) {
+        object->flags &= 0xFFFEFFFF;
+    }
+}
 
 typedef struct StartupStatus {
     s32 type;
@@ -309,9 +411,24 @@ StartupStatus *func_00101908(StartupStatusRoot *root)
     return status;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00101980);
+extern void func_0012A628(void);
+extern void func_0012BA18(void);
 
-INCLUDE_ASM(const s32, "core/main", func_001019A0);
+void func_00101980(void **ptr)
+{
+    ptr[0] = func_0012A628;
+    ptr[1] = func_0012BA18;
+}
+
+s32 func_001019A0(void *a0)
+{
+    void *v1 = *(void **)((u8 *)a0 + 4);
+    void *v2 = *(void **)(v1);
+    void *v3 = *(void **)((u8 *)v2 + 4);
+    if (v3 == 0)
+        return 0;
+    return *(s32 *)((u8 *)v3 + 0x18);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001019C8);
 
@@ -321,7 +438,20 @@ INCLUDE_ASM(const s32, "core/main", func_00101B20);
 
 INCLUDE_ASM(const s32, "core/main", func_00101BF0);
 
-INCLUDE_ASM(const s32, "core/main", func_00101CB8);
+extern void func_00112E18(void);
+extern void func_00112B38(void);
+extern void func_00119140(void);
+extern void func_0015BA18(void);
+extern void func_00113798(void);
+
+void func_00101CB8(void)
+{
+    func_00112E18();
+    func_00112B38();
+    func_00119140();
+    func_0015BA18();
+    func_00113798();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00101CF0);
 
@@ -329,8 +459,35 @@ INCLUDE_ASM(const s32, "core/main", func_00101D90);
 
 INCLUDE_ASM(const s32, "core/main", func_00101E30);
 
-INCLUDE_ASM(const s32, "core/main", func_00102138);
+extern void func_00112120(void);
+extern void func_001D4568(void);
+
+void func_00102138(void)
+{
+    func_00101068();
+    func_00112120();
+    func_001D4568();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00102160);
 
-INCLUDE_ASM(const s32, "core/main", func_00102298);
+typedef struct StartupTreeNode {
+    u32 unk00[2];
+    struct StartupTreeNode *child;
+    u32 unk0C[2];
+    struct StartupTreeNode *next;
+    u32 unk18[5];
+    u32 flags;
+} StartupTreeNode;
+
+void func_00102298(StartupTreeNode *node)
+{
+    StartupTreeNode *child;
+
+    node->flags |= 0xEFFFFFFF;
+    child = node->child;
+    while (child != 0) {
+        func_00102298(child);
+        child = child->next;
+    }
+}

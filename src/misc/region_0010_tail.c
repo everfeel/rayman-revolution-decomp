@@ -5,10 +5,19 @@
 
 
 extern s32 D_00392FD8;
+extern s32 D_00392F24;
 
-INCLUDE_ASM(const s32, "core/main", func_00103AD8);
+extern s32 D_002536C0[];
 
-INCLUDE_ASM(const s32, "core/main", func_00103AF0);
+void func_00103AD8(s32 value, s32 index)
+{
+    D_002536C0[index] = value;
+}
+
+s32 func_00103AF0(s32 index)
+{
+    return D_002536C0[index];
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00103B08);
 
@@ -27,19 +36,52 @@ INCLUDE_ASM(const s32, "core/main", func_00103F20);
 void func_00103FE8(void) {
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00103FF0);
+extern void func_001497A0(void);
+extern void func_00104748(s32, s32);
+extern void func_00111950(s32);
+
+void func_00103FF0(void)
+{
+    func_001497A0();
+    func_00104748(1, D_00392F24);
+    func_00111950(1);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00104020);
 
-INCLUDE_ASM(const s32, "core/main", func_00104030);
+extern void func_00104020(s32);
 
-INCLUDE_ASM(const s32, "core/main", func_00104058);
+void func_00104030(void)
+{
+    func_001497A0();
+    func_00104020(3);
+    func_00111950(3);
+}
+
+extern void func_001062F8(void);
+extern void func_001003B0(void);
+
+void func_00104058(void)
+{
+    func_001497A0();
+    func_00104020(2);
+    func_00111950(2);
+    func_001062F8();
+    func_001003B0();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00104090);
 
 INCLUDE_ASM(const s32, "core/main", func_001040F0);
 
-INCLUDE_ASM(const s32, "core/main", func_00104720);
+extern void func_00104020(s32);
+
+void func_00104720(void)
+{
+    func_001497A0();
+    func_00104020(4);
+    func_00111950(4);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00104748);
 
@@ -79,7 +121,12 @@ INCLUDE_ASM(const s32, "core/main", func_00106188);
 
 INCLUDE_ASM(const s32, "core/main", func_00106278);
 
-INCLUDE_ASM(const s32, "core/main", func_001062A8);
+extern s32 *func_00106278(s32);
+
+s32 func_001062A8(s32 index)
+{
+    return *func_00106278(index);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001062C8);
 
@@ -87,7 +134,24 @@ INCLUDE_ASM(const s32, "core/main", func_001062F8);
 
 INCLUDE_ASM(const s32, "core/main", func_00106380);
 
-INCLUDE_ASM(const s32, "core/main", func_00106400);
+typedef struct RuntimeFlagValue {
+    u8 unk00[0x10];
+    s32 value;
+} RuntimeFlagValue;
+
+typedef struct RuntimeFlagRecord {
+    s32 type;
+    RuntimeFlagValue *value;
+} RuntimeFlagRecord;
+
+s32 func_00106400(RuntimeFlagRecord *record)
+{
+    if (record->type != 2) {
+        return 0;
+    }
+
+    return record->value->value != 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00106428);
 
