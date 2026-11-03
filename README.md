@@ -11,9 +11,9 @@ Contributions are always welcome, in any form!
 # Rayman Revolution (PAL) decompilation project
 
 <!-- BEGIN GENERATED PROGRESS -->
-![Progress: 14.81% complete, 836 matching, 0 not matching, 4,809 not started](progress/progress.svg)
+![Progress: 14.86% complete, 839 matching, 0 not matching, 4,806 not started](progress/progress.svg)
 
-**14.81% complete** (836 / 5,645 functions). **Matching:** 836 · **Not matching:** 0 · **Not started:** 4,809.
+**14.86% complete** (839 / 5,645 functions). **Matching:** 839 · **Not matching:** 0 · **Not started:** 4,806.
 <!-- END GENERATED PROGRESS -->
 
 This project is a work-in-progress matching decompilation of the PAL PlayStation 2 main executable, `SLES_500.44`. It uses generated MIPS disassembly as a reference while replacing functions with C or hand-written assembly. The build links an ELF at the original addresses so its file-backed main image can be compared byte-for-byte with the reference executable.

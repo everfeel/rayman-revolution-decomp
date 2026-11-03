@@ -76,7 +76,57 @@ INCLUDE_ASM(const s32, "core/main", func_00100188);
 
 INCLUDE_ASM(const s32, "core/main", func_001001C0);
 
-INCLUDE_ASM(const s32, "core/main", func_001001F0);
+typedef struct StartupConfig {
+    u8 unk00[0x50];
+    s32 unk50;
+    s32 unk54;
+    u8 unk58[0x10];
+    s32 unk68;
+    s32 unk6C;
+    s32 unk70;
+    s32 unk74;
+    s32 unk78;
+    s32 unk7C;
+    u8 unk80[0x10];
+} StartupConfig;
+
+typedef struct StartupState {
+    u8 unk00[0x44];
+    s16 unk44;
+    s16 unk46;
+} StartupState;
+
+extern u8 D_00252274[5];
+extern s32 D_00392F10;
+
+s32 func_001001F0(void)
+{
+    StartupConfig config;
+    u8 *startup_data = D_00252274;
+
+    if (func_00116F00(&config, startup_data) != 0) {
+        StartupState *startup_state = (StartupState *)(startup_data - 0x44);
+
+        config.unk70 = 0;
+        config.unk68 = 0;
+        config.unk74 = 1000;
+        config.unk50 = 100;
+        config.unk6C = 1000;
+        config.unk54 = 100;
+        config.unk78 = 0;
+        config.unk7C = 0;
+
+        if (func_00117078(
+                startup_state->unk44, (u8 *)&config + 0x20, startup_data + 2
+            ) != 0) {
+            func_00117A60(
+                startup_state->unk44, startup_state->unk46, &D_00392F10
+            );
+        }
+    }
+
+    return 1;
+}
 
 void func_00100288(void)
 {
@@ -130,7 +180,52 @@ INCLUDE_ASM(const s32, "core/main", func_001010F8);
 
 INCLUDE_ASM(const s32, "core/main", func_00101260);
 
-INCLUDE_ASM(const s32, "core/main", func_001012A0);
+typedef struct StartupItemList {
+    u8 unk00[0x30];
+    void **items;
+    s32 count;
+} StartupItemList;
+
+typedef struct StartupNode {
+    u8 unk00[0x20];
+    struct StartupEntity **entity;
+} StartupNode;
+
+typedef struct StartupEntity {
+    u8 unk00[4];
+    StartupItemList *items;
+} StartupEntity;
+
+typedef struct StartupManager {
+    u8 unk00[4];
+    StartupNode *node;
+} StartupManager;
+
+extern u8 D_00252398[];
+
+s32 func_001012A0(void)
+{
+    StartupManager *manager;
+    StartupEntity *entity;
+    StartupItemList *items;
+    s32 total;
+    s32 count;
+    void **item;
+
+    manager = *(StartupManager **)D_00252398;
+    entity = *manager->node->entity;
+    total = func_00101260(entity);
+    items = entity->items;
+    count = items->count;
+    item = items->items;
+    while (count > 0) {
+        total += func_00101260(*item);
+        count--;
+        item++;
+    }
+
+    return total;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00101320);
 
@@ -149,7 +244,70 @@ void func_001018B8(void) {
 
 INCLUDE_ASM(const s32, "core/main", func_001018C0);
 
-INCLUDE_ASM(const s32, "core/main", func_00101908);
+typedef struct StartupStatus {
+    s32 type;
+    struct StartupStatusItem *item;
+    u8 unk08[0x14];
+    struct StartupStatus *next;
+} StartupStatus;
+
+typedef struct StartupStatusItem {
+    u32 unk00;
+    s32 enabled;
+} StartupStatusItem;
+
+typedef struct StartupStatusEntry {
+    u8 unk00[0xA4];
+    StartupStatus *status;
+} StartupStatusEntry;
+
+typedef struct StartupStatusContext {
+    u8 unk00[0x1C];
+    struct StartupStatusContext *next;
+    u8 unk20[0x128];
+    StartupStatusEntry *entry;
+} StartupStatusContext;
+
+typedef struct StartupStatusContainer {
+    u8 unk00[8];
+    StartupStatusContext *context;
+} StartupStatusContainer;
+
+typedef struct StartupStatusRoot {
+    u32 unk00;
+    StartupStatusContainer *container;
+} StartupStatusRoot;
+
+StartupStatus *func_00101908(StartupStatusRoot *root)
+{
+    StartupStatusContext *context = root->container->context;
+    StartupStatusEntry *entry;
+    StartupStatus *status;
+
+    if (context == 0) {
+        return 0;
+    }
+
+    context = context->next;
+    entry = context->entry;
+    if (entry == 0) {
+        return 0;
+    }
+
+    status = entry->status;
+    if (status != 0 && status->type != 2) {
+        do {
+            status = status->next;
+        } while (status != 0 && status->type != 2);
+    }
+
+    if (status != 0 && status->item->enabled == 0) {
+        entry->status = 0;
+        status = 0;
+    }
+
+    return status;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00101980);
 
