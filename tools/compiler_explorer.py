@@ -479,9 +479,10 @@ def compile_function(
         )
         if function_end is None:
             return None, f"Compiler emitted an incomplete section for {symbol}."
-        function_assembly = [
+        function_assembly = ["\t.set reorder"]
+        function_assembly.extend(
             line for line in assembly_lines if re.match(r"^\s*\.extern\b", line)
-        ]
+        )
         index = 0
         while index < len(assembly_lines):
             section_name = assembly_section_name(assembly_lines[index])

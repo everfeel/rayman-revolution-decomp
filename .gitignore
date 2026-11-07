@@ -22,6 +22,7 @@
 /build-sn/
 /toolchain/
 /tools/ghidra_12.2_PUBLIC/
+/tools/.local/
 /undefined_funcs_auto.txt
 /undefined_syms_auto.txt
 /progress/assets/

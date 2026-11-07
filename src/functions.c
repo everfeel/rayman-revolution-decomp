@@ -25,14 +25,21 @@ extern u8 D_00252230[9];
 void func_001007F8(void);
 extern s32 func_00100CD0(void);
 
-s32 func_001000E8(void)
+int func_00100360();
+
+int func_001000E8(void)
 {
-    return func_00100360();
+    int result = func_00100360();
+    return result;
 }
 
-s32 func_00100108(void) { return func_00100378(); }
+s32 func_00100108(void) { 
+    return func_00100378(); 
+}
 
-void func_00100128(void) { func_001007F8(); }
+void func_00100128(void) { 
+    func_001007F8();
+ }
 
 extern int D_00392F00;
 

@@ -11,9 +11,9 @@ Contributions are always welcome, in any form!
 # Rayman Revolution (PAL) decompilation project
 
 <!-- BEGIN GENERATED PROGRESS -->
-![Progress: 15.13% complete, 854 matching, 4 not matching, 4,787 not started](progress/progress.svg)
+![Progress: 15.15% complete, 855 matching, 3 not matching, 4,787 not started](progress/progress.svg)
 
-**15.13% complete** (854 / 5,645 functions). **Matching:** 854 · **Not matching:** 4 · **Not started:** 4,787.
+**15.15% complete** (855 / 5,645 functions). **Matching:** 855 · **Not matching:** 3 · **Not started:** 4,787.
 <!-- END GENERATED PROGRESS -->
 
 This project is a work-in-progress matching decompilation of the PAL PlayStation 2 main executable, `SLES_500.44`. Generated MIPS disassembly serves as the reference while functions are replaced with C or hand-written assembly. The project build links an ELF using the original layout so whole-image and per-function output can be compared with the authorized reference executable.
@@ -65,6 +65,8 @@ Run the following commands in PowerShell from the project root.
 
    These paths are relative to the project root. The compiler and linker are not included in this repository or the Python requirements. Do not copy SDK files into a public repository.
 
+   The Windows SDK compiler is the default C compiler frontend and is also used to assemble C compiler output and project `.s` files.
+
 4. Generate the local disassembly and linker inputs:
 
    ```powershell
@@ -81,6 +83,8 @@ Run the following commands in PowerShell from the project root.
    ```
 
 The build produces `build\SLES_500.44.elf`, logs diagnostics to `build\build.log`, and refreshes the function progress reports. C functions smaller than their retail size are padded with trailing nops so following functions retain their expected addresses; larger functions are not truncated or padded. The linker also prevents `.lit4` from moving earlier than its retail start when preceding sections shrink, reducing avoidable GP-relative range errors. Oversized functions can still shift later addresses, and genuine GP-range or section-overlap errors can still occur. Once setup is complete, the first successful baseline build should match the configured main image. Whole-image comparison covers the main load image, not DVP overlays.
+
+The project build and C playground use the Windows SDK EE compiler for C compilation, assembly, and linking. Both explicitly enable assembler instruction reordering after `macro.inc` sets `.set noreorder`, so C-generated delay slots are scheduled consistently in the build and playground.
 
 ## Working on a function
 

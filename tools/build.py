@@ -70,6 +70,28 @@ def compile_source(command, label, log):
     return True
 
 
+def enable_assembler_reordering(assembly_path):
+    """Override macro.inc's noreorder setting for compiler-generated C code."""
+    assembly = assembly_path.read_text(encoding="utf-8")
+    macro_include = re.search(
+        r'(?m)^[ \t]*\.include[ \t]+"include/macro\.inc"[ \t]*$', assembly
+    )
+    if not macro_include:
+        raise ValueError(
+            f"{assembly_path}: compiler output does not include include/macro.inc"
+        )
+    no_app = re.search(
+        r"(?m)^[ \t]*#NO_APP[ \t]*$", assembly[macro_include.end():]
+    )
+    if not no_app:
+        raise ValueError(
+            f"{assembly_path}: missing #NO_APP after include/macro.inc"
+        )
+    insertion = macro_include.end() + no_app.end()
+    assembly = assembly[:insertion] + "\n\t.set reorder" + assembly[insertion:]
+    assembly_path.write_text(assembly, encoding="utf-8", newline="\n")
+
+
 def retail_function_sizes():
     assembly_root = ROOT / "asm" / "nonmatchings"
     if not assembly_root.is_dir():
@@ -154,6 +176,15 @@ def compile_c_source(source, object_path, common_flags, log, function_sizes):
         f"compile {relative.as_posix()}",
         log,
     ):
+        return None
+
+    try:
+        enable_assembler_reordering(assembly_path)
+    except (OSError, UnicodeError, ValueError) as error:
+        fail(
+            f"could not configure assembler reordering in "
+            f"{relative.as_posix()}: {error}"
+        )
         return None
 
     assemble = [
@@ -374,7 +405,7 @@ def source_modules():
 
 def main():
     if not COMPILER.is_file():
-        return fail(f"SDK compiler not found: {COMPILER}")
+        return fail(f"SDK compiler/assembler not found: {COMPILER}")
     if not LINKER.is_file():
         return fail(f"SDK linker not found: {LINKER}")
 
