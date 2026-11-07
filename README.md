@@ -30,7 +30,7 @@ The repository contains source code, tools, configuration, and generated progres
 
 - Windows for the supported SN Systems ProDG PS2 EE toolchain.
 - Python 3 and the Windows `py` launcher.
-- A legally obtained SN Systems ProDG PS2 SDK whose EE GCC compiler and linker are named `ee-gcc.exe` and `ee-ld.exe`.
+- A legally obtained SN Systems ProDG PS2 EE toolchain with EE GCC version `2.9-ee-991111b/r4`; its compiler and linker must be named `ee-gcc.exe` and `ee-ld.exe`.
 - An authorized PAL `SLES_500.44` executable that matches the version checked by the setup script.
 - Optionally, Ghidra for interactive disassembly and analysis. It is not required by the build scripts; keep its distribution local and out of Git.
 
@@ -66,6 +66,7 @@ Run the following commands in PowerShell from the project root.
    These paths are relative to the project root. The compiler and linker are not included in this repository or the Python requirements. Do not copy SDK files into a public repository.
 
    The Windows SDK compiler is the default C compiler frontend and is also used to assemble C compiler output and project `.s` files.
+   The required compiler version is EE GCC `2.9-ee-991111b/r4`.
 
 4. Generate the local disassembly and linker inputs:
 
@@ -205,6 +206,7 @@ Edit project C source under `src\` and hand-written function assembly under `src
 - **Missing `baserom\SLES_500.44` or SHA-1 mismatch:** confirm the file is the authorized PAL executable revision supported by this project and is placed at the exact path above.
 - **Pinned disassembly-tool version error:** invoke the project virtual environment's Python as shown, then reinstall `requirements.txt`.
 - **Missing `ee-gcc.exe` or `ee-ld.exe`:** check that your legally obtained SDK is installed at the project-relative `toolchain\sn-prodg-24\...` paths.
+- **Unexpected compiler version:** use the required EE GCC version `2.9-ee-991111b/r4`.
 - **`asm\data` or linker inputs missing:** run `tools\setup_asm.py` successfully before building.
 - **Multiple reference assemblies found:** update to the latest `function_assembly.py`; it now prefers the project's canonical `asm\nonmatchings\` inventory when both Splat output categories contain a function.
 - **Dashboard reports unavailable or stale build inputs:** run `tools\build.py` successfully, then restart or refresh the dashboard.
