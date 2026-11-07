@@ -1,5 +1,6 @@
 # Local reference material and generated disassembly/assets. These may contain
-# copyrighted game data and must not be committed.
+# copyrighted game data and must not be committed. /asm/ is root-anchored;
+# hand-written project assembly under src/asm/ remains eligible for Git.
 /asm/
 /assets/
 /baserom/
@@ -25,6 +26,8 @@
 /undefined_syms_auto.txt
 /progress/assets/
 /progress/.function_source_baseline.json
+# Playground drafts and saved experiment profiles are local working state.
+/progress/.playground/
 __pycache__/
 *.py[cod]
 .venv/

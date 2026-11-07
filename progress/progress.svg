@@ -1,15 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="180" viewBox="0 0 720 180" role="img" aria-labelledby="title description">
-<title id="title">Decompilation progress: 15.16% complete</title>
-<desc id="description">856 matching, 0 not matching, and 4,789 not started out of 5,645 functions.</desc>
+<title id="title">Decompilation progress: 15.13% complete</title>
+<desc id="description">854 matching, 4 not matching, and 4,787 not started out of 5,645 functions.</desc>
 <rect width="720" height="180" rx="16" fill="#10111a"/>
 <text x="24" y="42" fill="#f1f1f7" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="600">Decompilation progress</text>
-<text x="696" y="44" text-anchor="end" fill="#d3d4ff" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">15.16%</text>
+<text x="696" y="44" text-anchor="end" fill="#d3d4ff" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">15.13%</text>
 <rect x="24" y="90" width="672" height="22" rx="11" fill="#252738"/>
 <clipPath id="bar-clip"><rect x="24" y="90" width="672" height="22" rx="11"/></clipPath>
 <g clip-path="url(#bar-clip)">
-<rect x="24.00" y="90" width="101.90" height="22" fill="#63c99b"/><rect x="125.90" y="90" width="570.10" height="22" fill="#555767"/>
+<rect x="24.00" y="90" width="101.66" height="22" fill="#63c99b"/><rect x="125.66" y="90" width="0.48" height="22" fill="#cf765e"/><rect x="126.14" y="90" width="569.86" height="22" fill="#555767"/>
 </g>
-<circle cx="24" cy="147" r="5" fill="#63c99b"/><text x="36" y="152" fill="#c0c1d0" font-size="14">Matching: 856</text>
-<circle cx="252" cy="147" r="5" fill="#cf765e"/><text x="264" y="152" fill="#c0c1d0" font-size="14">Not matching: 0</text>
-<circle cx="480" cy="147" r="5" fill="#a7a9c1"/><text x="492" y="152" fill="#c0c1d0" font-size="14">Not started: 4,789</text>
+<circle cx="24" cy="147" r="5" fill="#63c99b"/><text x="36" y="152" fill="#c0c1d0" font-size="14">Matching: 854</text>
+<circle cx="252" cy="147" r="5" fill="#cf765e"/><text x="264" y="152" fill="#c0c1d0" font-size="14">Not matching: 4</text>
+<circle cx="480" cy="147" r="5" fill="#a7a9c1"/><text x="492" y="152" fill="#c0c1d0" font-size="14">Not started: 4,787</text>
 </svg>

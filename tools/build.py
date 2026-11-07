@@ -4,7 +4,10 @@
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+
+from compare import Elf32LE
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +31,19 @@ STATUS_SCRIPT = ROOT / "tools" / "status.py"
 INCBIN = re.compile(r'^(\s*)\.incbin\s+"([^"]+)"\s*$')
 AUTO_SYMBOL = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(0x[0-9A-Fa-f]+);$")
 MODULE_MANIFEST = ROOT / "src" / "modules.txt"
+FUNCTION_HEADER = re.compile(
+    r"(?m)^\s*(?:matching|nonmatching)\s+"
+    r"(func_[0-9A-Fa-f]{8})\s*,\s*(0x[0-9A-Fa-f]+)\s*$"
+)
+C_FUNCTION = re.compile(r"(?m)^\s*\.ent\s+(func_[0-9A-Fa-f]{8})\s*$")
+LIT4_MIN_OFFSET = 0x292400
+
+
+@dataclass(frozen=True)
+class SourceModule:
+    path: Path
+    optimization: str = "-O2"
+    preserve_frame_pointer: bool = False
 
 
 def fail(message):
@@ -52,6 +68,126 @@ def compile_source(command, label, log):
         print("\n".join(result.stdout.splitlines()[-60:]), file=sys.stderr)
         return False
     return True
+
+
+def retail_function_sizes():
+    assembly_root = ROOT / "asm" / "nonmatchings"
+    if not assembly_root.is_dir():
+        raise FileNotFoundError(f"missing retail function assembly: {assembly_root}")
+
+    sizes = {}
+    for path in sorted(assembly_root.rglob("func_*.s")):
+        source = path.read_text(encoding="utf-8")
+        for match in FUNCTION_HEADER.finditer(source):
+            name = match.group(1)
+            if name in sizes:
+                raise ValueError(f"duplicate retail function size for {name}")
+            sizes[name] = int(match.group(2), 16)
+    if not sizes:
+        raise ValueError(f"no retail function sizes found under {assembly_root}")
+    return sizes
+
+
+def pad_undersized_functions(assembly_path, object_path, retail_sizes):
+    assembly = assembly_path.read_text(encoding="utf-8")
+    functions = C_FUNCTION.findall(assembly)
+    if not functions:
+        return assembly, 0, 0
+    if len(functions) != len(set(functions)):
+        raise ValueError(f"{assembly_path}: duplicate C function entries")
+
+    object_elf = Elf32LE(object_path)
+    padded = 0
+    total_padding = 0
+    for name in functions:
+        retail_size = retail_sizes.get(name)
+        if retail_size is None:
+            continue
+        symbol = object_elf.symbol(name)
+        if symbol["type"] != 2 or symbol["size"] <= 0:
+            raise ValueError(
+                f"{object_path}: {name} has no nonempty function symbol"
+            )
+        padding = retail_size - symbol["size"]
+        if padding <= 0:
+            continue
+        if padding % 4:
+            raise ValueError(
+                f"{name}: required padding of {padding} bytes is not instruction-aligned"
+            )
+
+        end_pattern = re.compile(
+            rf"(?m)^([ \t]*)\.end[ \t]+{re.escape(name)}[ \t]*$"
+        )
+        matches = list(end_pattern.finditer(assembly))
+        if len(matches) != 1:
+            raise ValueError(
+                f"{assembly_path}: expected one .end for {name}, found {len(matches)}"
+            )
+        match = matches[0]
+        replacement = (
+            f"{match.group(1)}.space {padding}, 0\n"
+            f"{match.group(0)}"
+        )
+        assembly = assembly[:match.start()] + replacement + assembly[match.end():]
+        padded += 1
+        total_padding += padding
+
+    return assembly, padded, total_padding
+
+
+def compile_c_source(source, object_path, common_flags, log, function_sizes):
+    relative = source.relative_to(ROOT)
+    assembly_path = BUILD / "c-input" / relative.with_suffix(".s")
+    assembly_path.parent.mkdir(parents=True, exist_ok=True)
+    object_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if not compile_source(
+        [
+            str(COMPILER),
+            *common_flags,
+            "-S",
+            str(source),
+            "-o",
+            str(assembly_path),
+        ],
+        f"compile {relative.as_posix()}",
+        log,
+    ):
+        return None
+
+    assemble = [
+        str(COMPILER),
+        *common_flags,
+        "-c",
+        str(assembly_path),
+        "-o",
+        str(object_path),
+    ]
+    if not compile_source(
+        assemble,
+        f"assemble {relative.as_posix()}",
+        log,
+    ):
+        return None
+
+    try:
+        assembly, padded, padding_bytes = pad_undersized_functions(
+            assembly_path, object_path, function_sizes
+        )
+        if padded:
+            assembly_path.write_text(assembly, encoding="utf-8", newline="\n")
+            if not compile_source(
+                assemble,
+                f"assemble padded {relative.as_posix()}",
+                log,
+            ):
+                return None
+    except (OSError, UnicodeError, ValueError) as error:
+        fail(f"could not pad short C functions in {relative.as_posix()}: {error}")
+        return None
+
+    return padded, padding_bytes
 
 
 def assembly_input(source):
@@ -83,7 +219,28 @@ def assembly_input(source):
     return generated
 
 
-def make_legacy_linker_script():
+def compile_assembly_source(source, object_path, common_flags, log):
+    object_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        assembler_source = assembly_input(source)
+    except (OSError, ValueError) as error:
+        fail(f"could not prepare assembly source {source.relative_to(ROOT)}: {error}")
+        return False
+    return compile_source(
+        [
+            str(COMPILER),
+            *common_flags,
+            "-c",
+            str(assembler_source),
+            "-o",
+            str(object_path),
+        ],
+        f"assemble {source.relative_to(ROOT).as_posix()}",
+        log,
+    )
+
+
+def make_legacy_linker_script(output_path=None):
     script = LINKER_SCRIPT.read_text(encoding="utf-8")
     script = script.replace("    HIDDEN(__romPos = 0);", "    __romPos = 0;")
     script = re.sub(
@@ -92,6 +249,15 @@ def make_legacy_linker_script():
         script,
     )
     script = script.replace("ALIGN(., 16)", "ALIGN(16)")
+    lit4_marker = "        main_LIT4_START = .;\n"
+    if script.count(lit4_marker) != 1:
+        raise ValueError("linker script must contain exactly one main_LIT4_START")
+    script = script.replace(
+        lit4_marker,
+        f"        . = ({LIT4_MIN_OFFSET:#x} > .) ? "
+        f"{LIT4_MIN_OFFSET:#x} : .;\n" + lit4_marker,
+        1,
+    )
     script = re.sub(r"(?m)^\s*\w+_VRAM = ADDR\([^\n]+\);\n", "", script)
     script = re.sub(r"(?m)^\s*__romPos \+= SIZEOF\(\.main\);\n", "", script)
     script = re.sub(r"(?m)^\s*__romPos = ALIGN\(__romPos, 16\);\n", "", script)
@@ -115,7 +281,7 @@ def make_legacy_linker_script():
         "        . = 0x7D204;\n        main_BSS_END = .;",
         1,
     )
-    legacy_script = BUILD / "SLES_500.44.sn.ld"
+    legacy_script = output_path or BUILD / "SLES_500.44.sn.ld"
     legacy_script.write_text(script, encoding="ascii", newline="\n")
     return legacy_script
 
@@ -130,26 +296,79 @@ def source_modules():
     for line_number, line in enumerate(
         MODULE_MANIFEST.read_text(encoding="utf-8").splitlines(), start=1
     ):
-        source_name = line.strip()
-        if not source_name or source_name.startswith("#"):
+        fields = line.split()
+        if not fields or fields[0].startswith("#"):
             continue
+        source_name = fields[0]
         relative = Path(source_name.replace("/", "\\"))
-        if relative.is_absolute() or relative.suffix != ".c" or ".." in relative.parts:
+        if (
+            relative.is_absolute()
+            or relative.suffix not in {".c", ".s"}
+            or ".." in relative.parts
+        ):
             raise ValueError(
                 f"{MODULE_MANIFEST.relative_to(ROOT)}:{line_number}: "
-                f"invalid source path {source_name!r}"
+                f"invalid C or assembly source path {source_name!r}"
             )
+        flags = fields[1:]
+        optimization_flags = [flag for flag in flags if flag.startswith("-O")]
+        frame_pointer_flags = [
+            flag for flag in flags if flag == "-fno-omit-frame-pointer"
+        ]
+        unknown_flags = [
+            flag
+            for flag in flags
+            if flag not in {"-O0", "-O1", "-O2", "-O3", "-fno-omit-frame-pointer"}
+        ]
+        if relative.suffix == ".c":
+            if unknown_flags:
+                raise ValueError(
+                    f"{MODULE_MANIFEST.relative_to(ROOT)}:{line_number}: "
+                    f"unsupported compiler flag(s): {', '.join(unknown_flags)}"
+                )
+            if len(optimization_flags) > 1:
+                raise ValueError(
+                    f"{MODULE_MANIFEST.relative_to(ROOT)}:{line_number}: "
+                    "specify at most one optimization flag"
+                )
+            if len(frame_pointer_flags) > 1:
+                raise ValueError(
+                    f"{MODULE_MANIFEST.relative_to(ROOT)}:{line_number}: "
+                    "specify -fno-omit-frame-pointer at most once"
+                )
+            optimization = optimization_flags[0] if optimization_flags else "-O2"
+            preserve_frame_pointer = bool(frame_pointer_flags)
+        else:
+            if flags:
+                raise ValueError(
+                    f"{MODULE_MANIFEST.relative_to(ROOT)}:{line_number}: "
+                    "compiler flags can only be set for C sources"
+                )
+            optimization = "-O2"
+            preserve_frame_pointer = False
         source = ROOT / "src" / relative
         if not source.is_file():
             raise FileNotFoundError(
                 f"{MODULE_MANIFEST.relative_to(ROOT)}:{line_number}: "
                 f"missing source {source.relative_to(ROOT)}"
             )
-        modules.append(source)
+        modules.append(
+            SourceModule(source, optimization, preserve_frame_pointer)
+        )
     if not modules:
         raise ValueError(f"{MODULE_MANIFEST.relative_to(ROOT)} has no source files")
-    if len(set(modules)) != len(modules):
+    module_paths = [module.path for module in modules]
+    if len(set(module_paths)) != len(module_paths):
         raise ValueError(f"{MODULE_MANIFEST.relative_to(ROOT)} contains duplicate paths")
+    main_source = ROOT / "src" / "main.c"
+    if modules[0].path != main_source:
+        raise ValueError(
+            f"{MODULE_MANIFEST.relative_to(ROOT)} must list main.c first"
+        )
+    if sum(module.path == main_source for module in modules) != 1:
+        raise ValueError(
+            f"{MODULE_MANIFEST.relative_to(ROOT)} must list main.c exactly once"
+        )
     return modules
 
 
@@ -173,41 +392,43 @@ def main():
     BUILD.mkdir(parents=True, exist_ok=True)
     LOG.write_text("", encoding="utf-8")
     objects = []
-    common_flags = ["-O2", "-G4", "-Iinclude", "-Isrc", "-Wa,-I,include,-I,."]
-
-    main_source = ROOT / "src" / "main.c"
-    if not main_source.is_file():
-        return fail(f"missing C source: {main_source.relative_to(ROOT)}")
-    main_object = BUILD / "src" / "main.c.o"
-    main_object.parent.mkdir(parents=True, exist_ok=True)
-    if not compile_source(
-        [str(COMPILER), *common_flags, "-c", str(main_source), "-o", str(main_object)],
-        "compile src/main.c",
-        LOG,
-    ):
-        return 1
-    objects.append(main_object)
+    common_flags = ["-G4", "-Iinclude", "-Isrc", "-Wa,-I,include,-I,."]
+    try:
+        function_sizes = retail_function_sizes()
+    except (OSError, UnicodeError, ValueError) as error:
+        return fail(f"could not read retail function sizes: {error}")
+    padded_functions = 0
+    padding_bytes = 0
 
     try:
         modules = source_modules()
     except (OSError, UnicodeError, ValueError) as error:
         return fail(f"could not read C source manifest: {error}")
-    for source in modules:
+    for module in modules:
+        source = module.path
         relative = source.relative_to(ROOT)
         object_path = BUILD / relative.parent / f"{source.name}.o"
-        object_path.parent.mkdir(parents=True, exist_ok=True)
-        if not compile_source(
-            [
-                str(COMPILER),
-                *common_flags,
-                "-c",
-                str(source),
-                "-o",
-                str(object_path),
-            ],
-            f"compile {relative.as_posix()}",
-            LOG,
-        ):
+        if source.suffix == ".c":
+            compile_result = compile_c_source(
+                source,
+                object_path,
+                [
+                    *common_flags,
+                    module.optimization,
+                    *(
+                        ["-fno-omit-frame-pointer"]
+                        if module.preserve_frame_pointer
+                        else []
+                    ),
+                ],
+                LOG,
+                function_sizes,
+            )
+            if compile_result is None:
+                return 1
+            padded_functions += compile_result[0]
+            padding_bytes += compile_result[1]
+        elif not compile_assembly_source(source, object_path, common_flags, LOG):
             return 1
         objects.append(object_path)
 
@@ -218,22 +439,7 @@ def main():
         relative = source.relative_to(ROOT)
         object_path = BUILD / relative.parent / f"{source.name}.o"
         object_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            assembler_source = assembly_input(source)
-        except (OSError, ValueError) as error:
-            return fail(str(error))
-        if not compile_source(
-            [
-                str(COMPILER),
-                *common_flags,
-                "-c",
-                str(assembler_source),
-                "-o",
-                str(object_path),
-            ],
-            f"assemble {relative.as_posix()}",
-            LOG,
-        ):
+        if not compile_assembly_source(source, object_path, common_flags, LOG):
             return 1
         objects.append(object_path)
 
@@ -281,6 +487,10 @@ def main():
         return status_result.returncode
 
     print(f"Built {OUTPUT.relative_to(ROOT)} from {len(objects)} objects.")
+    print(
+        f"Padded {padded_functions} undersized C functions "
+        f"with {padding_bytes} bytes of trailing nops."
+    )
     print(f"Build diagnostics: {LOG.relative_to(ROOT)}")
     print(status_result.stdout, end="")
     return 0

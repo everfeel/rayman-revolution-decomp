@@ -43,6 +43,9 @@ FUNCTION_DEFINITION = re.compile(
 INLINE_ASM_FUNCTION = re.compile(
     r'"glabel\s+(func_[0-9A-Fa-f]{8})\\n"'
 )
+ASSEMBLY_DEFINITION = re.compile(
+    r"(?m)^\s*glabel\s+(func_[0-9A-Fa-f]{8})\s*$"
+)
 
 CSV_FIELDS = (
     "function",
@@ -98,12 +101,17 @@ def function_inventory():
 def project_implementations(inventory):
     asm_references = set()
     c_definitions = set()
-    source_files = [*SOURCE_ROOT.rglob("*.c"), *SOURCE_ROOT.rglob("*.inc")]
+    source_files = [
+        *SOURCE_ROOT.rglob("*.c"),
+        *SOURCE_ROOT.rglob("*.inc"),
+        *SOURCE_ROOT.rglob("*.s"),
+    ]
     for path in sorted(source_files):
         source = path.read_text(encoding="utf-8")
         asm_references.update(INCLUDE_ASM.findall(source))
         c_definitions.update(FUNCTION_DEFINITION.findall(source))
         c_definitions.update(INLINE_ASM_FUNCTION.findall(source))
+        c_definitions.update(ASSEMBLY_DEFINITION.findall(source))
 
     baseline = {}
     if SOURCE_BASELINE.is_file():
@@ -361,9 +369,9 @@ def write_html(rows, counts, generated_at):
         )
 
     cards = (
-        ("Not started", counts["NOT STARTED"], "not-started"),
-        ("Not matching", counts["NOT MATCHING"], "not-matching"),
-        ("Matching", counts["MATCHING"], "matching"),
+        ("Not yet implemented", counts["NOT STARTED"], "not-started"),
+        ("Implemented, not matching", counts["NOT MATCHING"], "not-matching"),
+        ("Matching retail", counts["MATCHING"], "matching"),
     )
     cards_html = "\n".join(
         f'<article class="card {css_class}"><span>{title}</span>'
@@ -377,9 +385,9 @@ def write_html(rows, counts, generated_at):
         f'{html.escape(title)} <span class="filter-count">{counts[status]:,}</span>'
         "</button>"
         for status, title, css_class in (
-            ("MATCHING", "Matching", "matching"),
-            ("NOT MATCHING", "Not matching", "not-matching"),
-            ("NOT STARTED", "Not started", "not-started"),
+            ("MATCHING", "Matching retail", "matching"),
+            ("NOT MATCHING", "Implemented, differs", "not-matching"),
+            ("NOT STARTED", "Not implemented", "not-started"),
         )
     )
     document = f"""<!doctype html>
@@ -446,31 +454,99 @@ code {{ color: #c6c8ff; font-family: Consolas, monospace; }}
 .results {{ display: flex; justify-content: space-between; gap: 12px; padding: 11px 14px; color: #85879b; font-size: .82rem; }}
 .results strong {{ color: #d0d1e2; font-weight: 650; }}
 .empty {{ display: none; padding: 36px 16px; color: #9294a8; text-align: center; }}
+.tabs {{ display: flex; gap: 8px; margin: 24px 0 0; border-bottom: 1px solid #252738; }}
+.tab {{ padding: 11px 15px; color: #a7a9c1; background: transparent; border: 0; border-bottom: 2px solid transparent; font: inherit; cursor: pointer; }}
+.tab[aria-selected="true"] {{ color: #e0e1f4; border-bottom-color: #8286d1; }}
+.view-panel {{ display: none; }}
+.view-panel.active {{ display: block; }}
+.workspace {{ margin-top: 24px; padding: 20px; background: #0c0d13; border: 1px solid #252738; border-radius: 14px; }}
+.workspace-bar {{ display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }}
+.workspace select, .workspace button, .workspace input {{ padding: 9px 12px; color: #e0e1f4; background: #17192a; border: 1px solid #3a3d71; border-radius: 8px; font: inherit; }}
+.workspace button {{ cursor: pointer; }}
+.workspace select, .workspace input {{ min-width: min(320px, 100%); }}
+.function-search {{ flex: 1 1 280px; }}
+.checkbox-control {{ display: inline-flex; align-items: center; gap: 7px; color: #c5c6db; white-space: nowrap; }}
+.workspace .checkbox-control input {{ width: auto; min-width: 0; margin: 0; padding: 0; accent-color: #999cff; }}
+.workspace textarea, .workspace pre {{ width: 100%; min-width: 0; height: min(65vh, 680px); margin: 0; padding: 14px; overflow: auto; color: #d1d2e0; background: #08090f; border: 1px solid #252738; border-radius: 8px; font: 13px/1.55 Consolas, monospace; tab-size: 4; white-space: pre; }}
+.workspace textarea {{ resize: vertical; outline-color: #777bb8; }}
+.workspace-panes {{ display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }}
+.workspace-panes h3 {{ color: #b6b7c8; font-size: .9rem; }}
+.workspace-status {{ min-height: 1.5em; margin: 0 0 12px; color: #a7a9c1; }}
+.playground-controls {{ justify-content: flex-start; padding: 14px; margin: 18px 0 14px; background: #10111a; border: 1px solid #252738; border-radius: 10px; }}
+.workspace-bar label {{ color: #aeb0c4; font-size: .82rem; font-weight: 650; }}
+.workspace select:focus, .workspace input:focus, .workspace button:focus-visible, .tab:focus-visible, .status-filter:focus-visible {{ outline: 2px solid #999cff; outline-offset: 2px; }}
+.workspace button {{ background: #282b4b; border-color: #494d7e; transition: background .16s ease, transform .16s ease; }}
+.workspace button:hover {{ background: #35395f; transform: translateY(-1px); }}
+.playground-match-notice {{ display: flex; align-items: flex-start; gap: 10px; max-width: none; margin: 0 0 12px; padding: 13px 16px; color: #b5f5ce; background: #10251c; border: 1px solid #38835c; border-radius: 10px; line-height: 1.5; }}
+.playground-match-notice::before {{ content: "LATEST BUILD"; flex: 0 0 auto; margin-top: 2px; color: #79d6a5; font-size: .67rem; font-weight: 750; letter-spacing: .08em; }}
+.playground-match-notice[hidden] {{ display: none; }}
+.workspace-status {{ padding: 11px 14px; background: #10111a; border: 1px solid #252738; border-radius: 9px; line-height: 1.5; }}
+.result-status {{ color: #d5d6e5; }}
+.result-match {{ color: #b5f5ce; border-color: #38835c; background: #10251c; }}
+.result-diff {{ color: #ffd2c5; border-color: #784239; background: #30191a; }}
+.result-pending {{ color: #d7ddff; border-color: #3a4164; background: #171a2c; }}
+.result-error {{ color: #ffd2c5; border-color: #784239; background: #30191a; }}
+.playground-editor {{ margin: 0 0 20px; }}
+.playground-editor h3 {{ margin: 18px 0 8px; color: #e0e1f4; font-size: 1rem; }}
+.playground-editor textarea {{ display: block; height: min(42vh, 420px); min-height: 240px; border-color: #32354a; line-height: 1.6; }}
+.playground-editor textarea:focus {{ border-color: #777bb8; box-shadow: 0 0 0 2px #3a3d7133; }}
+.draft-status {{ min-height: 1.4em; margin: 7px 2px 0; color: #9294a8; font-size: .78rem; }}
+.draft-status.error {{ color: #ffd2c5; }}
+.playground-diff {{ max-height: 58vh; overflow: auto; border: 1px solid #252738; border-radius: 10px; }}
+.playground-diff-row {{ display: grid; grid-template-columns: 76px minmax(0, 1fr) minmax(0, 1fr); gap: 12px; padding: 9px 12px; border-bottom: 1px solid #20212b; font: 12px/1.55 Consolas, monospace; }}
+.playground-diff-row span {{ min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }}
+.playground-diff-row.header {{ position: sticky; top: 0; color: #dfe0f2; background: #191b2d; z-index: 1; font: 650 .76rem/1.4 "Segoe UI", Arial, sans-serif; letter-spacing: .02em; }}
+.playground-diff-row.match {{ background: #10251c; }}
+.playground-diff-row.diff {{ background: #30191a; }}
+.playground-diff-row .offset {{ color: #9294a8; }}
+.playground-diff-empty {{ padding: 18px; color: #9294a8; text-align: center; }}
+.assembly-row {{ display: grid; grid-template-columns: 76px minmax(0, 1fr) minmax(0, 1fr); gap: 10px; padding: 9px 10px; border-bottom: 1px solid #20212b; font: 12px/1.55 Consolas, monospace; }}
+.assembly-row.match {{ background: #10251c; }} .assembly-row.diff {{ background: #30191a; }}
+.results {{ align-items: center; }}
+.table-wrap {{ box-shadow: 0 10px 28px #00000055; }}
+th {{ font-size: .78rem; letter-spacing: .025em; text-transform: uppercase; }}
+tbody tr:nth-child(even) td {{ background: #0e0f16; }}
+tbody tr:hover td {{ background: #17192a; }}
+.tabs {{ gap: 4px; margin-top: 28px; }}
+.tab {{ padding: 12px 16px; border-radius: 8px 8px 0 0; transition: color .16s ease, background .16s ease; }}
+.tab:hover {{ color: #e0e1f4; background: #11121b; }}
+.tab[aria-selected="true"] {{ color: #f1f1f7; background: #131522; }}
+.view-panel.active {{ animation: panel-in .18s ease-out; }}
+@keyframes panel-in {{ from {{ opacity: .7; transform: translateY(3px); }} to {{ opacity: 1; transform: translateY(0); }} }}
+.function-action {{ color: #bfc1ff; background: transparent; border: 0; font: inherit; cursor: pointer; }}
+.function-action:hover {{ text-decoration: underline; }}
 @media (max-width: 900px) {{ .toolbar {{ align-items: stretch; flex-direction: column; }} .search-wrap {{ min-width: 0; }} }}
 @media (max-width: 700px) {{ main {{ padding: 18px 14px 36px; }} .hero {{ padding: 24px 20px; }} .summary {{ grid-template-columns: 1fr; gap: 14px; margin-top: 25px; }} .cards {{ gap: 8px; }} .card {{ padding: 14px 12px; }} .card strong {{ font-size: 1.5rem; }} .section-head {{ align-items: start; flex-direction: column; }} .controls {{ display: grid; grid-template-columns: 1fr; }} .status-filter {{ justify-content: space-between; }} }}
+@media (max-width: 800px) {{ .workspace-panes {{ grid-template-columns: 1fr; }} .workspace textarea, .workspace pre {{ height: 45vh; }} .assembly-row {{ grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1fr); gap: 5px; }} .playground-diff-row {{ grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1fr); gap: 6px; padding: 7px 6px; font-size: 11px; }} }}
 </style>
 </head>
 <body>
 <main>
 <section class="hero">
 <div class="hero-copy">
-<div class="eyebrow">Project progress</div>
+<div class="eyebrow">Decompilation progress</div>
 <h1>Rayman Revolution</h1>
-<div class="subtitle">Main executable - decompilation progress</div>
-<div class="subtitle updated">Updated {html.escape(generated_at)} · {counts["total"]:,} functions tracked</div>
-<div class="subtitle">This page refreshes automatically every 30 seconds.</div>
+<div class="subtitle">PAL PlayStation 2 main executable · SLES_500.44</div>
+<div class="subtitle updated">Progress report · {html.escape(generated_at)} · {counts["total"]:,} functions</div>
+<div class="subtitle">This report refreshes automatically every 30 seconds.</div>
 </div>
 <section class="summary" aria-label="Decompilation progress">
-  <div class="percent">{counts["decomp_percent"]:.2f}%<small>reimplemented and matching</small></div>
+  <div class="percent">{counts["decomp_percent"]:.2f}%<small>implemented and matching retail</small></div>
   <div class="bar" role="progressbar" aria-valuenow="{counts["decomp_percent"]:.2f}" aria-valuemin="0" aria-valuemax="100"><span></span></div>
 </section>
 <section class="cards">{cards_html}</section>
-<p class="note"><strong>Automatic tracking</strong> · Retail assembly fallbacks stay NOT STARTED even when their bytes match. C definitions and changed assembly count as reimplementations; they are MATCHING only when the built bytes match retail.</p>
-<p class="note"><strong>Byte counts</strong> · Original bytes is the size of the retail function. Matching bytes is shown as matching / total; for example, 8 / 8 means all 8 bytes in your built function match the original.</p>
+<p class="note"><strong>How progress is counted</strong> · Functions are counted as implemented when a C definition or edited assembly replaces the retail fallback. They count as matching only when their built bytes match retail.</p>
+<p class="note"><strong>Reading byte counts</strong> · “Matching bytes” shows bytes matched / total retail function size. A full count (for example, 8 / 8) means the complete function matches.</p>
 </section>
+<nav class="tabs" role="tablist" aria-label="Dashboard views">
+  <button class="tab" id="progress-tab" role="tab" aria-selected="true" aria-controls="progress-view">Progress</button>
+  <button class="tab" id="assembly-tab" role="tab" aria-selected="false" aria-controls="assembly-view">Assembly comparison</button>
+  <button class="tab" id="playground-tab" role="tab" aria-selected="false" aria-controls="playground-view">C playground</button>
+</nav>
+<section class="view-panel active" id="progress-view" role="tabpanel" aria-labelledby="progress-tab">
 <section aria-labelledby="functions-heading">
 <div class="section-head">
-  <h2 id="functions-heading">Function breakdown</h2><p>Filter by status, then narrow by name or address.</p>
+  <h2 id="functions-heading">Functions</h2><p>Filter by implementation status or search by name, address, or source file.</p>
 </div>
 <div class="toolbar">
 <div class="controls">
@@ -479,10 +555,10 @@ code {{ color: #c6c8ff; font-family: Consolas, monospace; }}
 </div>
 <label class="search-wrap" for="filter">
   <span class="search-icon" aria-hidden="true">⌕</span>
-  <input id="filter" type="search" placeholder="Search function, address, or file" autocomplete="off">
+  <input id="filter" type="search" placeholder="Search functions…" autocomplete="off">
 </label>
 </div>
-<div class="results" aria-live="polite"><span id="result-count"></span><span>Statuses are detected automatically during build</span></div>
+<div class="results" aria-live="polite"><span id="result-count"></span><span>Status updates after each successful build</span></div>
 <div class="table-wrap">
 <table id="functions">
 <thead><tr><th>Function</th><th>Address</th><th>Status</th><th>Original bytes</th><th>Matching bytes</th><th>First difference</th></tr></thead>
@@ -491,7 +567,48 @@ code {{ color: #c6c8ff; font-family: Consolas, monospace; }}
 <div class="empty" id="empty-state">No functions match these filters. Try another status or search.</div>
 </div>
 </section>
+</section>
+<section class="view-panel" id="assembly-view" role="tabpanel" aria-labelledby="assembly-tab">
+  <div class="workspace">
+    <div class="workspace-bar">
+      <label for="assembly-function">Selected function</label>
+      <input class="function-search" id="assembly-function" type="search" list="function-options" placeholder="Search function name or address…" autocomplete="off" aria-label="Search assembly function">
+      <button type="button" id="open-playground">Edit in playground</button>
+    </div>
+    <p class="workspace-status" id="assembly-status" role="status">Start the dashboard server to compare retail and build output.</p>
+    <div class="assembly-row"><strong>Offset</strong><strong>Retail · bytes</strong><strong>Build · bytes</strong></div>
+    <div id="assembly-output"></div>
+  </div>
+</section>
+<section class="view-panel" id="playground-view" role="tabpanel" aria-labelledby="playground-tab">
+  <div class="workspace">
+    <p class="note">Edit a function and compare its linked bytes with retail. The playground links the selected function at its project ELF address and resolves project calls and globals against their built addresses; stale build inputs and linker errors are reported instead of an approximate result.</p>
+    <div class="workspace-bar playground-controls">
+      <label for="playground-function">Selected function</label>
+      <input class="function-search" id="playground-function" type="search" list="function-options" placeholder="Search function name or address…" autocomplete="off" aria-label="Search playground function">
+      <label for="optimization">Optimization</label>
+      <select id="optimization" disabled><option>-O0</option><option>-O1</option><option selected>-O2</option><option>-O3</option></select>
+      <label class="checkbox-control" for="preserve-frame-pointer" title="Pass -fno-omit-frame-pointer to the playground compiler.">
+        <input id="preserve-frame-pointer" type="checkbox" disabled>
+        Preserve frame pointer
+      </label>
+    </div>
+    <p class="playground-match-notice" id="playground-match-notice" role="status" hidden></p>
+    <p class="draft-status" id="compiler-profile-status" role="status">Compiler settings are saved per function.</p>
+    <p class="workspace-status result-status result-pending" id="playground-status" role="status">Start the dashboard server to compile and link a function.</p>
+    <section class="playground-editor">
+      <h3>Implementation</h3>
+      <textarea id="playground-source" spellcheck="false"></textarea>
+      <p class="draft-status" id="playground-draft-status" role="status">Drafts are saved locally for each function.</p>
+    </section>
+    <div class="playground-diff-row header"><strong>Offset</strong><strong>Retail instructions · bytes</strong><strong>Linked instructions · bytes</strong></div>
+    <div class="playground-diff" id="playground-diff" aria-live="polite">
+      <div class="playground-diff-empty">Edit the C source to see instruction differences.</div>
+    </div>
+  </div>
+</section>
 </main>
+<datalist id="function-options"></datalist>
 <script>
 const filter = document.getElementById("filter");
 const buttons = [...document.querySelectorAll("[data-status-filter]")];
@@ -499,8 +616,37 @@ const rows = [...document.querySelectorAll("#functions tbody tr")];
 const resultCount = document.getElementById("result-count");
 const emptyState = document.getElementById("empty-state");
 const refreshStateKey = "progress-dashboard-refresh";
+const workspaceTabs = [...document.querySelectorAll(".tab")];
+const workspaceViews = [...document.querySelectorAll(".view-panel")];
+const assemblyFunction = document.getElementById("assembly-function");
+const playgroundFunction = document.getElementById("playground-function");
+const functionOptions = document.getElementById("function-options");
+const assemblyStatus = document.getElementById("assembly-status");
+const assemblyOutput = document.getElementById("assembly-output");
+const playgroundStatus = document.getElementById("playground-status");
+const playgroundSource = document.getElementById("playground-source");
+const playgroundDraftStatus = document.getElementById("playground-draft-status");
+const compilerProfileStatus = document.getElementById("compiler-profile-status");
+const playgroundDiff = document.getElementById("playground-diff");
+const playgroundMatchNotice = document.getElementById("playground-match-notice");
+const optimizationControl = document.getElementById("optimization");
+const preserveFramePointerControl = document.getElementById("preserve-frame-pointer");
 let activeStatus = "ALL";
 let saveScrollTimer;
+let compileTimer;
+let draftSaveTimer;
+let profileSaveTimer;
+let draftSaveQueue = Promise.resolve();
+let profileSaveQueue = Promise.resolve();
+let compileRequest = 0;
+let playgroundLoadRequest = 0;
+let assemblyRequest = 0;
+let assemblySymbol = "";
+let playgroundSymbol = "";
+let playgroundDraftDirty = false;
+let compilerProfileDirty = false;
+let functionStatuses = new Map();
+let functionSymbols = new Map();
 
 function applyFilters() {{
   const query = filter.value.trim().toLowerCase();
@@ -527,6 +673,384 @@ function saveViewState() {{
   }}));
 }}
 
+function activateView(name) {{
+  for (const tab of workspaceTabs) {{
+    const active = tab.id === `${{name}}-tab`;
+    tab.setAttribute("aria-selected", String(active));
+  }}
+  for (const panel of workspaceViews) panel.classList.toggle("active", panel.id === `${{name}}-view`);
+}}
+
+async function requestJson(path, options) {{
+  const response = await fetch(path, options);
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || `Request failed (${{response.status}}).`);
+  return result;
+}}
+
+function chooseFunction(symbol) {{
+  for (const input of [assemblyFunction, playgroundFunction]) {{
+    input.value = symbol;
+  }}
+}}
+
+function chooseFunctionFromSearch(input, loader) {{
+  const symbol = functionSymbols.get(input.value.trim().toLowerCase());
+  if (symbol) loader(symbol);
+}}
+
+function renderAssembly(result) {{
+  assemblyOutput.replaceChildren();
+  for (const item of result.instructions) {{
+    const row = document.createElement("div");
+    row.className = `assembly-row ${{item.matches ? "match" : "diff"}}`;
+    for (const text of [item.offset, `${{item.retail}}\\n${{item.retail_bytes}}`, `${{item.compiled}}\\n${{item.compiled_bytes}}`]) {{
+      const cell = document.createElement("span");
+      cell.textContent = text;
+      row.append(cell);
+    }}
+    assemblyOutput.append(row);
+  }}
+  assemblyStatus.textContent = `${{result.symbol}} · ${{result.status}} · retail ${{result.retail_size}} bytes · build ${{result.compiled_size}} bytes${{result.notice ? ` · ${{result.notice}}` : ""}}`;
+}}
+
+async function loadAssembly(symbol) {{
+  if (!symbol) return;
+  const requestId = ++assemblyRequest;
+  assemblySymbol = symbol;
+  chooseFunction(symbol);
+  activateView("assembly");
+  assemblyStatus.textContent = "Loading function assembly…";
+  try {{
+    const result = await requestJson(`/api/assembly?symbol=${{encodeURIComponent(symbol)}}`);
+    if (requestId !== assemblyRequest) return;
+    renderAssembly(result);
+  }} catch (error) {{
+    if (requestId !== assemblyRequest) return;
+    assemblyStatus.textContent = `Could not load assembly: ${{error.message}}`;
+  }}
+}}
+
+async function loadPlaygroundFunction(symbol) {{
+  if (!symbol || (symbol === playgroundSymbol && !playgroundSource.disabled)) return;
+  const loadRequest = ++playgroundLoadRequest;
+  const previousSymbol = playgroundSymbol;
+  window.clearTimeout(draftSaveTimer);
+  window.clearTimeout(profileSaveTimer);
+  if (previousSymbol && playgroundDraftDirty) {{
+    try {{
+      await savePlaygroundDraft(previousSymbol, playgroundSource.value);
+    }} catch (error) {{
+      if (loadRequest === playgroundLoadRequest) {{
+        playgroundFunction.value = previousSymbol;
+        playgroundDraftStatus.textContent = `Could not save draft; kept ${{previousSymbol}} selected: ${{error.message}}`;
+        playgroundDraftStatus.classList.add("error");
+      }}
+      return;
+    }}
+  }}
+  if (previousSymbol && compilerProfileDirty) {{
+    try {{
+      await saveCompilerProfile(previousSymbol, currentCompilerProfile());
+    }} catch (error) {{
+      if (loadRequest === playgroundLoadRequest) {{
+        playgroundFunction.value = previousSymbol;
+        compilerProfileStatus.textContent = `Could not save compiler settings; kept ${{previousSymbol}} selected: ${{error.message}}`;
+        compilerProfileStatus.classList.add("error");
+      }}
+      return;
+    }}
+  }}
+  if (loadRequest !== playgroundLoadRequest) return;
+  playgroundSymbol = symbol;
+  playgroundDraftDirty = false;
+  compilerProfileDirty = false;
+  const alreadyMatches = functionStatuses.get(symbol) === "MATCHING";
+  playgroundMatchNotice.hidden = !alreadyMatches;
+  playgroundMatchNotice.textContent = alreadyMatches
+    ? "This function already matches retail in the latest project build. The result below is separate and reflects only your current playground edit."
+    : "";
+  compileRequest++;
+  window.clearTimeout(compileTimer);
+  chooseFunction(symbol);
+  playgroundSource.disabled = true;
+  optimizationControl.disabled = true;
+  preserveFramePointerControl.disabled = true;
+  playgroundSource.value = "";
+  playgroundDraftStatus.textContent = "Loading this function's local draft…";
+  playgroundDraftStatus.classList.remove("error");
+  compilerProfileStatus.textContent = "Loading this function's compiler settings…";
+  compilerProfileStatus.classList.remove("error");
+  playgroundDiff.replaceChildren();
+  playgroundDiff.append(emptyDiff("Edit the C source to see instruction differences."));
+  playgroundStatus.className = "workspace-status result-status result-pending";
+  playgroundStatus.textContent = "Playground result: loading function…";
+  try {{
+    const [draft, savedProfile] = await Promise.all([
+      requestJson(`/api/draft?symbol=${{encodeURIComponent(symbol)}}`),
+      requestJson(`/api/profile?symbol=${{encodeURIComponent(symbol)}}`)
+    ]);
+    if (loadRequest !== playgroundLoadRequest) return;
+    applyCompilerProfile(savedProfile.profile);
+    optimizationControl.disabled = false;
+    preserveFramePointerControl.disabled = false;
+    compilerProfileStatus.textContent = savedProfile.saved
+      ? "Restored this function's compiler settings; changes are saved locally."
+      : "Default compiler settings; changes are saved per function.";
+    playgroundSource.value = draft.source;
+    playgroundSource.disabled = false;
+    playgroundDraftStatus.textContent = draft.stale
+      ? "The saved draft did not define this function; loaded a fresh starter. The old draft remains saved until you edit."
+      : draft.saved
+        ? "Restored this function's saved local draft."
+        : draft.signature_inferred
+          ? "Starter uses this function's project C signature; edits are saved locally."
+          : "Starter signature is unknown for this function; confirm its return type and parameters.";
+    if (draft.stale) playgroundDraftStatus.classList.add("error");
+    if (draft.saved) {{
+      scheduleCompile();
+    }} else {{
+      setPlaygroundStatus(
+        draft.signature_inferred
+          ? "Playground result: add an implementation before compiling."
+          : "Playground result: confirm this function's signature and add an implementation before compiling.",
+        "pending"
+      );
+    }}
+  }} catch (error) {{
+    if (loadRequest !== playgroundLoadRequest) return;
+    playgroundDraftStatus.textContent = `Could not load this function's draft: ${{error.message}}`;
+    playgroundDraftStatus.classList.add("error");
+    compilerProfileStatus.textContent = `Could not load compiler settings: ${{error.message}}`;
+    compilerProfileStatus.classList.add("error");
+    setPlaygroundStatus(`Playground result: could not load function - ${{error.message}}`, "error");
+  }}
+}}
+
+function currentCompilerProfile() {{
+  return {{
+    optimization: optimizationControl.value,
+    preserve_frame_pointer: preserveFramePointerControl.checked
+  }};
+}}
+
+function applyCompilerProfile(profile) {{
+  optimizationControl.value = profile.optimization;
+  preserveFramePointerControl.checked = profile.preserve_frame_pointer;
+}}
+
+function saveCompilerProfile(symbol, profile) {{
+  const operation = profileSaveQueue.then(async () => {{
+    await requestJson("/api/profile", {{
+      method: "POST",
+      headers: {{ "Content-Type": "application/json" }},
+      body: JSON.stringify({{ symbol, profile }})
+    }});
+    if (playgroundSymbol === symbol && JSON.stringify(currentCompilerProfile()) === JSON.stringify(profile)) {{
+      compilerProfileDirty = false;
+      compilerProfileStatus.textContent = "Compiler settings saved for this function.";
+      compilerProfileStatus.classList.remove("error");
+    }}
+  }});
+  profileSaveQueue = operation.catch(error => {{
+    if (playgroundSymbol === symbol) {{
+      compilerProfileStatus.textContent = `Could not save compiler settings: ${{error.message}}`;
+      compilerProfileStatus.classList.add("error");
+    }}
+  }});
+  return operation;
+}}
+
+function scheduleCompilerProfileSave() {{
+  compilerProfileDirty = true;
+  compilerProfileStatus.textContent = "Saving compiler settings for this function…";
+  compilerProfileStatus.classList.remove("error");
+  window.clearTimeout(profileSaveTimer);
+  if (!playgroundSymbol) return;
+  const symbol = playgroundSymbol;
+  const profile = currentCompilerProfile();
+  profileSaveTimer = window.setTimeout(() => {{
+    saveCompilerProfile(symbol, profile).catch(() => {{}});
+  }}, 300);
+}}
+
+function savePlaygroundDraft(symbol, source) {{
+  const operation = draftSaveQueue.then(async () => {{
+    await requestJson("/api/draft", {{
+      method: "POST",
+      headers: {{ "Content-Type": "application/json" }},
+      body: JSON.stringify({{ symbol, source }})
+    }});
+    if (playgroundSymbol === symbol) {{
+      if (playgroundSource.value === source) {{
+        playgroundDraftDirty = false;
+        playgroundDraftStatus.textContent = "Draft saved locally.";
+        playgroundDraftStatus.classList.remove("error");
+      }}
+    }}
+  }});
+  draftSaveQueue = operation.catch(error => {{
+    if (playgroundSymbol === symbol) {{
+      playgroundDraftStatus.textContent = `Could not save draft: ${{error.message}}`;
+      playgroundDraftStatus.classList.add("error");
+    }}
+  }});
+  return operation;
+}}
+
+function scheduleDraftSave() {{
+  window.clearTimeout(draftSaveTimer);
+  if (!playgroundSymbol) return;
+  const symbol = playgroundSymbol;
+  const source = playgroundSource.value;
+  playgroundDraftStatus.textContent = "Saving draft locally…";
+  playgroundDraftStatus.classList.remove("error");
+  draftSaveTimer = window.setTimeout(() => {{
+    savePlaygroundDraft(symbol, source).catch(() => {{}});
+  }}, 300);
+}}
+
+function setPlaygroundStatus(message, state) {{
+  playgroundStatus.className = `workspace-status result-status result-${{state}}`;
+  playgroundStatus.textContent = message;
+}}
+
+function emptyDiff(message) {{
+  const empty = document.createElement("div");
+  empty.className = "playground-diff-empty";
+  empty.textContent = message;
+  return empty;
+}}
+
+function renderPlaygroundDiff(result) {{
+  playgroundDiff.replaceChildren();
+  if (!result.comparisons.length) {{
+    playgroundDiff.append(emptyDiff("No instructions found for this function."));
+    return;
+  }}
+  for (const comparison of result.comparisons) {{
+    const row = document.createElement("div");
+    row.className = `playground-diff-row ${{comparison.matches ? "match" : "diff"}}`;
+    for (const [className, text] of [
+      ["offset", `+0x${{comparison.offset}}`],
+      ["instruction", `${{comparison.retail || "(no retail instruction)"}}\\n${{comparison.retail_bytes || ""}}`],
+      ["instruction", `${{comparison.compiled || "(no linked instruction)"}}\\n${{comparison.compiled_bytes || ""}}`]
+    ]) {{
+      const cell = document.createElement("span");
+      cell.className = className;
+      cell.textContent = text;
+      row.append(cell);
+    }}
+    playgroundDiff.append(row);
+  }}
+}}
+
+function scheduleCompile() {{
+  window.clearTimeout(compileTimer);
+  compileTimer = window.setTimeout(compilePlayground, 500);
+}}
+
+async function compilePlayground() {{
+  const requestId = ++compileRequest;
+  const symbol = playgroundFunction.value;
+  if (!symbol) return;
+  setPlaygroundStatus("Playground result: compiling and linking…", "pending");
+  try {{
+    const result = await requestJson("/api/compile", {{
+      method: "POST",
+      headers: {{ "Content-Type": "application/json" }},
+      body: JSON.stringify({{
+        symbol,
+        source: playgroundSource.value,
+        ...currentCompilerProfile()
+      }})
+    }});
+    if (requestId !== compileRequest) return;
+    renderPlaygroundDiff(result);
+    const addressNotice = result.compiled_address !== result.retail_address
+      ? `; linked at 0x${{result.compiled_address.toString(16).toUpperCase()}} (retail: 0x${{result.retail_address.toString(16).toUpperCase()}})`
+      : "";
+    const state = result.status === "MATCH" ? "match" : "diff";
+    setPlaygroundStatus(
+      `Playground result: ${{result.status}} - ${{result.matching_bytes}} of ${{result.retail_size}} retail bytes match; linked size: ${{result.compiled_size}} bytes${{addressNotice}}`,
+      state
+    );
+  }} catch (error) {{
+    if (requestId !== compileRequest) return;
+    playgroundDiff.replaceChildren(emptyDiff("Fix the C source or project link error to see the byte comparison."));
+    setPlaygroundStatus(`Playground result: compile/link failed - ${{error.message}}`, "error");
+  }}
+}}
+
+for (const tab of workspaceTabs) {{
+  tab.addEventListener("click", () => {{
+    activateView(tab.id.replace("-tab", ""));
+    if (tab.id === "assembly-tab" && assemblySymbol !== assemblyFunction.value) {{
+      loadAssembly(assemblyFunction.value);
+    }}
+    if (tab.id === "playground-tab" && playgroundSymbol !== playgroundFunction.value) {{
+      loadPlaygroundFunction(playgroundFunction.value);
+    }}
+  }});
+}}
+for (const row of rows) {{
+  const name = row.cells[0].textContent.trim();
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "function-action";
+  button.textContent = name;
+  button.addEventListener("click", () => loadAssembly(name));
+  row.cells[0].replaceChildren(button);
+}}
+assemblyFunction.addEventListener("input", () => chooseFunctionFromSearch(assemblyFunction, loadAssembly));
+playgroundFunction.addEventListener("input", () => chooseFunctionFromSearch(playgroundFunction, loadPlaygroundFunction));
+document.getElementById("open-playground").addEventListener("click", () => {{
+  activateView("playground");
+  loadPlaygroundFunction(assemblyFunction.value);
+}});
+playgroundSource.addEventListener("input", () => {{
+  playgroundDraftDirty = true;
+  scheduleCompile();
+  scheduleDraftSave();
+}});
+optimizationControl.addEventListener("change", () => {{
+  scheduleCompilerProfileSave();
+  scheduleCompile();
+}});
+preserveFramePointerControl.addEventListener("change", () => {{
+  scheduleCompilerProfileSave();
+  scheduleCompile();
+}});
+try {{
+  const functions = rows.map(row => ({{
+    symbol: row.cells[0].querySelector("button").textContent,
+    status: row.cells[2].textContent.trim()
+  }}));
+  functionStatuses = new Map(functions.map(item => [item.symbol, item.status]));
+  functionSymbols = new Map(functions.map(item => [item.symbol.toLowerCase(), item.symbol]));
+  for (const item of functions) {{
+      const address = item.symbol.match(/^func_([0-9a-f]+)$/i);
+      if (address) {{
+        functionSymbols.set(address[1].toLowerCase(), item.symbol);
+        functionSymbols.set(`0x${{address[1].toLowerCase()}}`, item.symbol);
+      }}
+      const option = document.createElement("option");
+    option.value = item.symbol;
+    option.label = item.status;
+    functionOptions.append(option);
+  }}
+  if (functions.length) {{
+    assemblyFunction.value = functions[0].symbol;
+    playgroundFunction.value = functions[0].symbol;
+  }}
+  requestJson("/api/ready").catch(() => {{
+    assemblyStatus.textContent = "Start tools\\\\dashboard.py to compare retail and build assembly.";
+    setPlaygroundStatus("Playground result: unavailable - start tools\\\\dashboard.py to compile and link functions.", "error");
+  }});
+}} catch (error) {{
+  assemblyStatus.textContent = error.message;
+}}
+
 for (const button of buttons) {{
   button.addEventListener("click", () => {{
     activeStatus = button.dataset.statusFilter;
@@ -539,7 +1063,39 @@ filter.addEventListener("input", () => {{
   applyFilters();
   saveViewState();
 }});
-window.addEventListener("pagehide", saveViewState);
+window.addEventListener("pagehide", () => {{
+  saveViewState();
+  window.clearTimeout(draftSaveTimer);
+  window.clearTimeout(profileSaveTimer);
+  if (playgroundSymbol && playgroundDraftDirty) {{
+    const body = new Blob(
+      [JSON.stringify({{ symbol: playgroundSymbol, source: playgroundSource.value }})],
+      {{ type: "application/json" }}
+    );
+    if (!navigator.sendBeacon("/api/draft", body)) {{
+      fetch("/api/draft", {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body,
+        keepalive: true
+      }}).catch(error => console.error("Could not save playground draft:", error));
+    }}
+  }}
+  if (playgroundSymbol && compilerProfileDirty) {{
+    const body = new Blob(
+      [JSON.stringify({{ symbol: playgroundSymbol, profile: currentCompilerProfile() }})],
+      {{ type: "application/json" }}
+    );
+    if (!navigator.sendBeacon("/api/profile", body)) {{
+      fetch("/api/profile", {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body,
+        keepalive: true
+      }}).catch(error => console.error("Could not save compiler profile:", error));
+    }}
+  }}
+}});
 window.addEventListener("scroll", () => {{
   window.clearTimeout(saveScrollTimer);
   saveScrollTimer = window.setTimeout(saveViewState, 150);
@@ -565,10 +1121,15 @@ if (state) {{
     window.scrollTo(0, state.scrollY);
   }}
 }}
-window.setTimeout(() => {{
-  saveViewState();
-  window.location.reload();
-}}, 30000);
+if (location.protocol !== "file:") function refreshProgressView() {{
+  if (location.protocol !== "file:" && document.getElementById("progress-view").classList.contains("active")) {{
+    saveViewState();
+    window.location.reload();
+  }} else {{
+    window.setTimeout(refreshProgressView, 30000);
+  }}
+}}
+window.setTimeout(refreshProgressView, 30000);
 </script>
 </body>
 </html>

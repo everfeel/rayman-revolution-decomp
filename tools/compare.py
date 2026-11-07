@@ -33,7 +33,7 @@ class Elf32LE:
 
         if self.machine != 8:
             raise ValueError(f"{self.path}: expected MIPS ELF (machine 8), got {self.machine}")
-        if self.phentsize < 32 or self.shentsize < 40:
+        if (phnum and self.phentsize < 32) or self.shentsize < 40:
             raise ValueError(f"{self.path}: invalid ELF header table sizes")
 
         self.segments = []

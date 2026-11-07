@@ -11,14 +11,14 @@ Contributions are always welcome, in any form!
 # Rayman Revolution (PAL) decompilation project
 
 <!-- BEGIN GENERATED PROGRESS -->
-![Progress: 15.16% complete, 856 matching, 0 not matching, 4,789 not started](progress/progress.svg)
+![Progress: 15.13% complete, 854 matching, 4 not matching, 4,787 not started](progress/progress.svg)
 
-**15.16% complete** (856 / 5,645 functions). **Matching:** 856 · **Not matching:** 0 · **Not started:** 4,789.
+**15.13% complete** (854 / 5,645 functions). **Matching:** 854 · **Not matching:** 4 · **Not started:** 4,787.
 <!-- END GENERATED PROGRESS -->
 
-This project is a work-in-progress matching decompilation of the PAL PlayStation 2 main executable, `SLES_500.44`. It uses generated MIPS disassembly as a reference while replacing functions with C or hand-written assembly. The build links an ELF at the original addresses so its file-backed main image can be compared byte-for-byte with the reference executable.
+This project is a work-in-progress matching decompilation of the PAL PlayStation 2 main executable, `SLES_500.44`. Generated MIPS disassembly serves as the reference while functions are replaced with C or hand-written assembly. The project build links an ELF using the original layout so whole-image and per-function output can be compared with the authorized reference executable.
 
-This repository contains project code and tooling only. It does not provide the game executable, disc image, extracted game assets, or the proprietary SN Systems toolchain. Generated disassembly and asset files are local inputs and are not intended for commit.
+The repository contains source code, tools, configuration, and generated progress reports. It does not provide the game executable, disc image, extracted game assets, or proprietary SN Systems toolchain. The reference executable, SDK, generated disassembly/assets, and build products are local inputs and must not be committed.
 
 ## Legal
 
@@ -63,7 +63,7 @@ Run the following commands in PowerShell from the project root.
    toolchain\sn-prodg-24\local\sce\ee\gcc\bin\ee-ld.exe
    ```
 
-   These paths are relative to the project root. The compiler and linker are not included in this repository or the Python requirements. do not copy SDK files into a public repository.
+   These paths are relative to the project root. The compiler and linker are not included in this repository or the Python requirements. Do not copy SDK files into a public repository.
 
 4. Generate the local disassembly and linker inputs:
 
@@ -80,11 +80,11 @@ Run the following commands in PowerShell from the project root.
    .\.venv\Scripts\python.exe tools\compare.py image build\SLES_500.44.elf
    ```
 
-The build produces `build\SLES_500.44.elf`, logs diagnostics to `build\build.log`, and refreshes the function progress reports. The first successful baseline should match the configured main image. Main-image comparison does not include DVP overlays; those require separate extraction and comparison.
+The build produces `build\SLES_500.44.elf`, logs diagnostics to `build\build.log`, and refreshes the function progress reports. C functions smaller than their retail size are padded with trailing nops so following functions retain their expected addresses; larger functions are not truncated or padded. The linker also prevents `.lit4` from moving earlier than its retail start when preceding sections shrink, reducing avoidable GP-relative range errors. Oversized functions can still shift later addresses, and genuine GP-range or section-overlap errors can still occur. Once setup is complete, the first successful baseline build should match the configured main image. Whole-image comparison covers the main load image, not DVP overlays.
 
 ## Working on a function
 
-Functions are organized under `src\` by best-effort subsystem and address region. Generated names such as `func_00100130` identify a function by its retail address; they do not imply what it does. Search the source tree for the function name and check call sites and assembly before deciding its signature or behavior.
+Functions are organized in `src\functions.c` in retail address order, with the entry-point code and padding in `src\main.c`. Hand-written assembly modules live under `src\asm\`; generated Splat assembly under the repository-root `asm\` directory is local reference input. The large C translation unit keeps adjacent functions in one link object. Generated names such as `func_00100130` identify a function by its retail address; they do not imply what it does. Search the source tree for the function name and check call sites and assembly before deciding its signature or behavior.
 
 ### Implement it in C
 
@@ -111,23 +111,66 @@ Use the function's actual symbol and size in place of the example values. `MATCH
 .\.venv\Scripts\python.exe tools\compare.py function build\SLES_500.44.elf --symbol func_00100130 --size 0x58 --full
 ```
 
-The whole-image comparison only reports `MATCH` when all included code and data bytes match the reference.
+The whole-image comparison only reports `MATCH` when all included code and data bytes match the reference. Function comparison checks the selected function's retail range; use the progress report or dashboard to see implementation status and matching-byte counts across the project.
+
+### Unified local dashboard
+
+Start the combined progress, function-assembly, and C playground page:
+
+```powershell
+.\.venv\Scripts\python.exe tools\dashboard.py
+```
+
+The dashboard opens at `http://127.0.0.1:8765/` and binds to localhost only. The Progress tab filters and searches the generated function report. Assembly comparison shows retail instructions and bytes beside the current project build. The C playground resolves functions from the current `src\modules.txt` layout, including `main.c`, C modules, and standalone assembly modules. It compiles the selected C implementation with the chosen optimization and frame-pointer settings, links it at its current project address against the built project symbols, and compares the linked result with retail. It reports `MATCH` only when the linked address, size, and every byte match. Missing or stale build inputs, unresolved symbols, and compiler/linker failures are reported as errors rather than approximate matches.
+
+The notice above the playground result describes whether the selected function matches retail in the latest project build. The result below it applies only to the current playground source; editing in the playground does not change project files or the build profile. When the project has a C definition, the starter uses that function's declared return type and parameters; otherwise, verify the placeholder signature yourself. Drafts and per-function compiler settings are saved in the ignored `progress\.playground\` directory. If a saved draft no longer defines the selected function after source files are reorganized, the playground loads a fresh starter and keeps the old draft on disk. Restart the dashboard after changing its Python tools. It needs the SDK compiler, a successful project build, and the generated `progress\main_status.html` report. Press `Ctrl+C` to stop it; use `--port` to select another port or `--no-browser` to suppress automatic browser launch.
+
+The playground links only the selected function at its address in the project ELF and resolves project calls and globals against their built addresses. This keeps symbol addresses stable when trying a different optimization level.
+
+Optimization and **Preserve frame pointer** settings are saved per function in the ignored `progress\.playground\` directory. They apply only to playground compiles and do not change project build flags. For example, `func_00100188` matches retail with an `int` function that returns `func_00220568(D_00252100, main_BSS_START)` at `-O1` with frame-pointer preservation enabled. Treat a playground match as a candidate profile; it does not automatically update project build settings.
+
+### Per-file project compiler settings
+
+`src\modules.txt` determines the order of project C and assembly objects at link time. Keep entries in retail address order: moving a module can shift code and affect later function addresses. C entries can include an optimization level and optionally `-fno-omit-frame-pointer`:
+
+```text
+main.c -O2
+functions.c -O2
+some_module.c -O1 -fno-omit-frame-pointer
+asm/some_function.s
+```
+
+The optimization level defaults to `-O2`; frame pointers are omitted unless `-fno-omit-frame-pointer` is specified. These settings apply to the entire C file, not an individual function. Use separate translation units only when needed, and place them in the correct address order. Assembly modules do not take C compiler flags. After changing the manifest, rebuild and verify the affected function addresses and their neighbors.
+
+For a single function, `function_assembly.py` can print a retail-versus-build assembly comparison in the terminal:
+
+```powershell
+.\.venv\Scripts\python.exe tools\function_assembly.py func_00100130
+```
+
+Add `--web` to open a live local comparison page that refreshes after builds. The standalone compiler explorer is separate: it compiles independent C snippets to assembly and does not compare them with a retail function.
+
+```powershell
+.\.venv\Scripts\python.exe tools\compiler_explorer.py
+```
+
+The dashboard, standalone compiler, and single-function live view accept `--port` and `--no-browser`. The dashboard and compiler explorer default to port `8765`; the single-function view defaults to `8766`.
 
 ## Progress reports
 
-The generated visual summary, dashboard, and per-function details are intended to be included in Git and are refreshed after each successful build:
+The generated visual summary, static dashboard, per-function CSV, and README progress counts are tracked and refreshed after each successful build:
 
-- [HTML progress dashboard](progress/main_status.html) — searchable and filterable when opened locally; GitHub displays the HTML source rather than running it.
+- [Generated dashboard report](progress/main_status.html) — searchable and filterable as a static report; run `tools\dashboard.py` for its assembly and live-playground features. GitHub displays the HTML source rather than running it.
 - [Per-function CSV](progress/functions.csv).
 - The SVG summary above and this README's progress counts.
 
-The tracker scans C sources under `src\`. Untouched extracted retail assembly is `NOT STARTED`, even when it matches the reference. A C implementation or edited function assembly is considered an implementation:
+The tracker scans C sources under `src\` and detects edited function assembly against a local source baseline. Untouched extracted retail assembly is `NOT STARTED`, even when its bytes match the reference. A C implementation or edited function assembly is considered an implementation:
 
 - `NOT STARTED` — no project implementation detected.
 - `NOT MATCHING` — an implementation exists, but its built bytes or address differ.
 - `MATCHING` — an implementation exists and its built bytes match.
 
-The dashboard percentage counts only `MATCHING` functions. It reports the original function size and the number of matching bytes as `matching / original`. The entry-point `nop` at `0x00100000` is padding, not a function, and is excluded. Assembly edits are detected against a local baseline created automatically on the first report run; do not edit `progress\.function_source_baseline.json`.
+The dashboard percentage counts only `MATCHING` functions. It reports the retail function size and matching bytes as `matching / retail size`. The entry-point `nop` at `0x00100000` is padding, not a function, and is excluded. The local baseline is created automatically on the first report run; do not edit `progress\.function_source_baseline.json`.
 
 To regenerate reports from an existing ELF without rebuilding:
 
@@ -137,22 +180,28 @@ To regenerate reports from an existing ELF without rebuilding:
 
 ## Important files and generated paths
 
-- `src\` — C source and module manifest. `src\modules.txt` controls link order; keep entries in retail address order to preserve function addresses.
+- `src\` — project C and hand-written assembly sources. `src\modules.txt` controls object link order and per-C-file compiler settings.
 - `config\splat.yaml` — Splat configuration for the PAL main executable.
 - `include\` — shared C and assembler headers.
-- `tools\` — setup, build, comparison, and progress scripts.
+- `tools\` — setup, build, comparison, progress, dashboard, playground, and live assembly-view scripts.
+- `requirements.txt` — Python dependencies for disassembly and report generation.
 - `baserom\` — local, authorized reference executable; ignored by Git.
-- `asm\`, `assets\` — generated disassembly and extracted data; ignored by Git.
+- `src\asm\` — hand-written assembly source modules listed in `src\modules.txt`; these are project sources and should be committed.
+- `asm\` — generated Splat output and local reference material. `matchings\` and `nonmatchings\` are Splat output categories, not necessarily unique copies of every function; for function lookup, the project uses `nonmatchings\` as its canonical inventory. `data\` contains generated assembly inputs used by the build. Ignored by Git.
+- `assets\` — extracted data generated by Splat; ignored by Git.
 - `toolchain\` — local proprietary SDK; ignored by Git.
 - `tools\ghidra_12.2_PUBLIC\` — optional local Ghidra distribution; ignored by Git.
-- `build\` — generated build output; ignored by Git. The progress dashboard, CSV, and SVG are intentionally kept in Git; the local source baseline is ignored.
+- `build\` — generated ELF, objects, linker inputs, and logs; ignored by Git. The build objects are used by the dashboard playground and should not be removed while using it.
+- `progress\` — generated reports tracked by Git; the local source baseline, playground drafts, and extracted report assets are ignored.
 
-Edit source under `src\` and function assembly under `asm\`; do not edit files under `build\`, which are generated. Run `setup_asm.py` only when intentionally regenerating its inputs.
+Edit project C source under `src\` and hand-written function assembly under `src\asm\`; treat repository-root `asm\` as generated reference input, not project source. Do not edit generated files under `build\`. Run `setup_asm.py` only when intentionally regenerating the local disassembly and linker inputs, and review assembly changes afterward. Always run `tools\build.py` after setup or source regeneration: regenerated assembly makes the existing build objects stale, and the dashboard correctly refuses to link against them. Do not delete the ignored reference executable, SDK, generated `asm\`/`assets\`, or build objects if you plan to build or use the dashboard.
 
 ## Troubleshooting
 
 - **Missing `baserom\SLES_500.44` or SHA-1 mismatch:** confirm the file is the authorized PAL executable revision supported by this project and is placed at the exact path above.
-- **Pinned disassembly-tool version error:** activate the project virtual environment by invoking its Python executable as shown, then reinstall `requirements.txt`.
+- **Pinned disassembly-tool version error:** invoke the project virtual environment's Python as shown, then reinstall `requirements.txt`.
 - **Missing `ee-gcc.exe` or `ee-ld.exe`:** check that your legally obtained SDK is installed at the project-relative `toolchain\sn-prodg-24\...` paths.
 - **`asm\data` or linker inputs missing:** run `tools\setup_asm.py` successfully before building.
+- **Multiple reference assemblies found:** update to the latest `function_assembly.py`; it now prefers the project's canonical `asm\nonmatchings\` inventory when both Splat output categories contain a function.
+- **Dashboard reports unavailable or stale build inputs:** run `tools\build.py` successfully, then restart or refresh the dashboard.
 - **Compiler or linker errors:** inspect `build\build.log` and confirm the SDK is the expected PS2 EE toolchain.
