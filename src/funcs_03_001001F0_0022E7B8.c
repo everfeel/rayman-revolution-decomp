@@ -1,83 +1,6 @@
 #include "common.h"
 
-void func_001000C0(void) {
-    func_001415E8();
-}
-
-void func_001000C8(void) {
-    func_00102548();
-}
-
-void func_001000D0(void) {
-}
-
-void func_001000D8(void) {
-    func_00100460();
-}
-
-void func_001000E0(void) {
-    func_00100728();
-}
-
-/* Main-loop and lifecycle helpers. */
-
 extern u8 D_00252230[9];
-void func_001007F8(void);
-extern s32 func_00100CD0(void);
-
-int func_00100360();
-
-int func_001000E8(void)
-{
-    int result = func_00100360();
-    return result;
-}
-
-s32 func_00100108(void) { 
-    return func_00100378(); 
-}
-
-void func_00100128(void) { 
-    func_001007F8();
- }
-
-extern int D_00392F00;
-
-void func_00100130(void)
-{
-    while (func_001000E8() == 0)
-    {
-        func_001000D8();
-
-        D_00392F00 = 0;
-
-        while (func_00100108() == 0)
-        {
-            func_00100128();
-        }
-
-        func_001000E0();
-    }
-}
-
-extern void *D_00252100[];
-extern unsigned char main_BSS_START[];
-extern int func_00220568(void *arg1, void *arg2);
-
-// matches with -O1 and preserve frame pointer
-int func_00100188(void)
-{
-    return func_00220568(D_00252100, main_BSS_START);
-}
-
-extern void *D_00252100[];
-extern int func_002205C0(int *arg1);
-
-// matches with -O1 and preserve frame pointer
-int func_001001C0(void)
-{
-    return func_002205C0((int *)D_00252100);
-}
 
 typedef struct StartupConfig {
     u8 unk00[0x50];
@@ -138,7 +61,47 @@ void func_00100288(void)
     }
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001002A0);
+extern int D_00393E20;
+extern int D_0039A3F0;
+
+int func_001002A0(void)
+{
+    int Var1;
+    int Var2;
+    int Var3;
+    int result;
+    u32 Var4[12];
+
+    func_0021AE88();
+    func_00224B88(Var4, 48, 0);
+
+    Var4[1] = (s8)func_00100288;
+    Var4[2] = (u8)D_00393E20;
+    Var4[3] = 2048;
+    Var4[5] = 63;
+    Var4[4] = D_0039A3F0;
+
+    Var1 = func_001C0A20(Var4);
+    func_001C0AB0(Var1, 127);
+
+    Var2 = func_001C0B10();
+    func_001C0AB0(Var2, 63);
+
+    func_001000C0();
+    func_001000C8();
+
+    Var2 = func_001001F0() == 0;
+    result = 0;
+
+    if (!Var2)
+    {
+        func_001000D0();
+        func_00100130();
+        return 0;
+    }
+
+    return result;
+}
 
 s32 func_00100360(void)
 {
@@ -155,22 +118,22 @@ s32 func_00100378(void)
 
 /* Startup routines. */
 
-INCLUDE_ASM(const s32, "core/main", func_001003B0);
+INCLUDE_ASM(void, "core/main", func_001003B0);
 
 INCLUDE_ASM(const s32, "core/main", func_00100460);
 
 INCLUDE_ASM(const s32, "core/main", func_00100728);
 
+extern const void func_00100CD0();
+extern const void func_001010F8();
+extern const void func_001028C8();
+
 void func_001007F8(void)
 {
-    register s32 state __asm__("$3");
-    register s32 active_state __asm__("$4");
-
     if (func_00100360() == 0) {
         func_00100CD0();
-        active_state = 2;
-        state = D_00252230[0];
-        if (state != active_state) {
+
+        if (D_00252230[0] != 2) {
             func_001010F8();
             func_001028C8();
         }
@@ -183,7 +146,7 @@ INCLUDE_ASM(const s32, "core/main", func_00100A38);
 
 INCLUDE_ASM(const s32, "core/main", func_00100BD0);
 
-INCLUDE_ASM(const s32, "core/main", func_00100CD0);
+INCLUDE_ASM(const void, "core/main", func_00100CD0);
 
 extern s32 D_00392F24;
 extern u8 func_0010CA50(s32 *);
@@ -197,9 +160,29 @@ void func_00100F58(void *arg)
 
 INCLUDE_ASM(const s32, "core/main", func_00100F88);
 
-INCLUDE_ASM(const s32, "core/main", func_00101068);
+extern u8 D_00252398[];
+extern s32 D_00392F24; 
 
-INCLUDE_ASM(const s32, "core/main", func_001010F8);
+int func_00101068(void)
+{
+  int Var1;
+  int i;
+  int Var2;
+
+  Var1 = *(int *)(*(u8 **)D_00252398 + 8);
+  for (i = func_0014ABD8(Var1); Var1 != 0; i = func_0014ABD8(i))
+  {
+    if (*(s32 *)Var1 == 2)
+    {
+      Var2 = func_0010CA50(Var1);
+      func_0014AD90(Var1, D_00392F24, Var2);
+    }
+    Var1 = i;
+  }
+  func_00100F88(D_00392F24);
+}
+
+INCLUDE_ASM(const void, "core/main", func_001010F8);
 
 typedef struct StartupCountState {
     u8 unk00[0x34];
@@ -257,7 +240,7 @@ typedef struct StartupManager {
     StartupNode *node;
 } StartupManager;
 
-extern u8 D_00252398[];
+//extern u8 D_00252398[];
 
 s32 func_001012A0(void)
 {
@@ -528,7 +511,7 @@ INCLUDE_ASM(const s32, "core/main", func_00102698);
 void func_001028C0(void) {
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001028C8);
+INCLUDE_ASM(void, "core/main", func_001028C8);
 
 INCLUDE_ASM(const s32, "core/main", func_00102A00);
 
@@ -650,7 +633,7 @@ void func_00103FF0(void)
     func_00111950(1);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00104020);
+INCLUDE_ASM(void, "core/main", func_00104020);
 
 extern void func_00104020(s32);
 
@@ -686,7 +669,7 @@ void func_00104720(void)
     func_00111950(4);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00104748);
+INCLUDE_ASM(void, "core/main", func_00104748);
 
 INCLUDE_ASM(const s32, "core/main", func_00104A10);
 
@@ -722,7 +705,7 @@ INCLUDE_ASM(const s32, "core/main", func_001060A0);
 
 INCLUDE_ASM(const s32, "core/main", func_00106188);
 
-INCLUDE_ASM(const s32, "core/main", func_00106278);
+INCLUDE_ASM(s32 *, "core/main", func_00106278);
 
 extern s32 *func_00106278(s32);
 
@@ -733,7 +716,7 @@ s32 func_001062A8(s32 index)
 
 INCLUDE_ASM(const s32, "core/main", func_001062C8);
 
-INCLUDE_ASM(const s32, "core/main", func_001062F8);
+INCLUDE_ASM(void, "core/main", func_001062F8);
 
 INCLUDE_ASM(const s32, "core/main", func_00106380);
 
@@ -1405,7 +1388,7 @@ INCLUDE_ASM(const s32, "core/main", func_001118D0);
 
 INCLUDE_ASM(const s32, "core/main", func_00111910);
 
-INCLUDE_ASM(const s32, "core/main", func_00111950);
+INCLUDE_ASM(void, "core/main", func_00111950);
 
 INCLUDE_ASM(const s32, "core/main", func_001119A0);
 
@@ -1413,7 +1396,7 @@ INCLUDE_ASM(const s32, "core/main", func_001119F8);
 
 INCLUDE_ASM(const s32, "core/main", func_00111FC8);
 
-INCLUDE_ASM(const s32, "core/main", func_00112120);
+INCLUDE_ASM(void, "core/main", func_00112120);
 
 INCLUDE_ASM(const s32, "core/main", func_00112200);
 
@@ -1463,7 +1446,7 @@ INCLUDE_ASM(const s32, "core/main", func_00112AA0);
 
 INCLUDE_ASM(const s32, "core/main", func_00112B10);
 
-INCLUDE_ASM(const s32, "core/main", func_00112B38);
+INCLUDE_ASM(void, "core/main", func_00112B38);
 
 INCLUDE_ASM(const s32, "core/main", func_00112B48);
 
@@ -1518,7 +1501,7 @@ INCLUDE_ASM(const s32, "core/main", func_00113548);
 
 INCLUDE_ASM(const s32, "core/main", func_00113760);
 
-INCLUDE_ASM(const s32, "core/main", func_00113798);
+INCLUDE_ASM(void, "core/main", func_00113798);
 
 s32 func_00113838(const s32 *p) { return *(const s32 *)((const u8 *)p + (32)); }
 
@@ -2441,7 +2424,7 @@ INCLUDE_ASM(const s32, "core/main", func_0012A108);
 
 INCLUDE_ASM(const s32, "core/main", func_0012A468);
 
-INCLUDE_ASM(const s32, "core/main", func_0012A628);
+INCLUDE_ASM(void, "core/main", func_0012A628);
 
 INCLUDE_ASM(const s32, "core/main", func_0012A740);
 
@@ -2471,7 +2454,7 @@ INCLUDE_ASM(const s32, "core/main", func_0012B800);
 
 INCLUDE_ASM(const s32, "core/main", func_0012B908);
 
-INCLUDE_ASM(const s32, "core/main", func_0012BA18);
+INCLUDE_ASM(void, "core/main", func_0012BA18);
 
 INCLUDE_ASM(const s32, "core/main", func_0012D750);
 
@@ -3112,7 +3095,7 @@ INCLUDE_ASM(const s32, "core/main", func_00149738);
 
 INCLUDE_ASM(const s32, "core/main", func_00149770);
 
-INCLUDE_ASM(const s32, "core/main", func_001497A0);
+INCLUDE_ASM(void, "core/main", func_001497A0);
 
 INCLUDE_ASM(const s32, "core/main", func_001497D8);
 
@@ -3176,7 +3159,7 @@ INCLUDE_ASM(const s32, "core/main", func_0014ACB8);
 
 INCLUDE_ASM(const s32, "core/main", func_0014AD50);
 
-INCLUDE_ASM(const s32, "core/main", func_0014AD90);
+INCLUDE_ASM(void, "core/main", func_0014AD90);
 
 INCLUDE_ASM(const s32, "core/main", func_0014AF20);
 
@@ -3939,7 +3922,7 @@ INCLUDE_ASM(const s32, "core/main", func_0015B948);
 
 INCLUDE_ASM(const s32, "core/main", func_0015B9F8);
 
-INCLUDE_ASM(const s32, "core/main", func_0015BA18);
+INCLUDE_ASM(void, "core/main", func_0015BA18);
 
 INCLUDE_ASM(const s32, "core/main", func_0015BAA8);
 
@@ -10036,7 +10019,7 @@ INCLUDE_ASM(const s32, "core/main", func_001D4268);
 
 INCLUDE_ASM(const s32, "core/main", func_001D42D0);
 
-INCLUDE_ASM(const s32, "core/main", func_001D4568);
+INCLUDE_ASM(void, "core/main", func_001D4568);
 
 INCLUDE_ASM(const s32, "core/main", func_001D45C0);
 

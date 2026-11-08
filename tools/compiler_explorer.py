@@ -4,6 +4,7 @@
 import argparse
 import json
 import re
+import shlex
 import subprocess
 import tempfile
 import webbrowser
@@ -28,6 +29,7 @@ COMPILER = (
     / "ee-gcc.exe"
 )
 MAX_SOURCE_BYTES = 128 * 1024
+MAX_COMPILER_FLAGS_LENGTH = 1024
 COMPILE_TIMEOUT_SECONDS = 20
 LINK_TIMEOUT_SECONDS = 60
 COMMON_FLAGS = ["-G4", "-Iinclude", "-Isrc", "-Wa,-I,include,-I,."] 
@@ -162,6 +164,7 @@ def compile_source(source, optimization):
 
 
 SOURCE_FUNCTION = re.compile(
+    r"(?m)^[ \t]*(?:(?:[A-Za-z_][A-Za-z0-9_]*|\*)[ \t*]+)*"
     r"\b(func_[0-9A-Fa-f]{8})\s*\([^;{}]*\)"
     r"(?:\s|/\*[\s\S]*?\*/|//[^\r\n]*)*\{"
 )
@@ -397,8 +400,55 @@ def project_link_snapshots():
     return snapshots
 
 
+def parse_compiler_flags(flags):
+    if not isinstance(flags, str):
+        raise ValueError("Additional compiler flags must be text.")
+    if len(flags) > MAX_COMPILER_FLAGS_LENGTH:
+        raise ValueError(
+            f"Additional compiler flags must be {MAX_COMPILER_FLAGS_LENGTH} "
+            "characters or shorter."
+        )
+    try:
+        parsed_flags = shlex.split(flags)
+    except ValueError as error:
+        raise ValueError(f"Could not parse additional compiler flags: {error}") from error
+    if any(not flag.startswith("-") or flag == "-" for flag in parsed_flags):
+        raise ValueError(
+            "Additional compiler flags must be options; use attached values "
+            "such as -DNAME or -Ipath."
+        )
+    controlled_flags = {
+        "-c",
+        "-S",
+        "-E",
+        "-M",
+        "-MM",
+        "-MD",
+        "-MMD",
+        "-MF",
+        "-MT",
+        "-MQ",
+        "-x",
+        "-o",
+    }
+    if any(
+        flag in controlled_flags
+        or flag.startswith(("-o", "-MF", "-MT", "-MQ"))
+        for flag in parsed_flags
+    ):
+        raise ValueError(
+            "Additional flags cannot override compiler output or input modes."
+        )
+    return parsed_flags
+
+
 def compile_function(
-    source, optimization, symbol, retail_size, preserve_frame_pointer=False
+    source,
+    optimization,
+    symbol,
+    retail_size,
+    preserve_frame_pointer=False,
+    other_flags="",
 ):
     module_path, module_source = module_source_for(symbol)
     linked_source = playground_module_source(module_source, source, symbol)
@@ -410,6 +460,7 @@ def compile_function(
     compiler_flags = (
         ["-fno-omit-frame-pointer"] if preserve_frame_pointer else []
     )
+    additional_flags = parse_compiler_flags(other_flags)
 
     with tempfile.TemporaryDirectory(prefix="ee-playground-") as temporary_directory:
         temporary_path = Path(temporary_directory)
@@ -431,6 +482,7 @@ def compile_function(
                 optimization,
                 *COMMON_FLAGS,
                 *compiler_flags,
+                *additional_flags,
                 "-ffunction-sections",
                 "-fdata-sections",
                 "-S",
@@ -515,6 +567,7 @@ def compile_function(
                 optimization,
                 *COMMON_FLAGS,
                 *compiler_flags,
+                *additional_flags,
                 "-c",
                 str(assembly_path),
                 "-o",
@@ -557,6 +610,7 @@ def compile_function(
                         optimization,
                         *COMMON_FLAGS,
                         *compiler_flags,
+                        *additional_flags,
                         "-c",
                         str(assembly_path),
                         "-o",

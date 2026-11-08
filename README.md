@@ -11,9 +11,9 @@ Contributions are always welcome, in any form!
 # Rayman Revolution (PAL) decompilation project
 
 <!-- BEGIN GENERATED PROGRESS -->
-![Progress: 15.15% complete, 855 matching, 3 not matching, 4,787 not started](progress/progress.svg)
+![Progress: 15.22% complete, 859 matching, 1 not matching, 4,785 not started](progress/progress.svg)
 
-**15.15% complete** (855 / 5,645 functions). **Matching:** 855 · **Not matching:** 3 · **Not started:** 4,787.
+**15.22% complete** (859 / 5,645 functions). **Matching:** 859 · **Not matching:** 1 · **Not started:** 4,785.
 <!-- END GENERATED PROGRESS -->
 
 This project is a work-in-progress matching decompilation of the PAL PlayStation 2 main executable, `SLES_500.44`. Generated MIPS disassembly serves as the reference while functions are replaced with C or hand-written assembly. The project build links an ELF using the original layout so whole-image and per-function output can be compared with the authorized reference executable.
@@ -130,9 +130,9 @@ The dashboard opens at `http://127.0.0.1:8765/` and binds to localhost only. The
 
 The notice above the playground result describes whether the selected function matches retail in the latest project build. The result below it applies only to the current playground source; editing in the playground does not change project files or the build profile. When the project has a C definition, the starter uses that function's declared return type and parameters; otherwise, verify the placeholder signature yourself. Drafts and per-function compiler settings are saved in the ignored `progress\.playground\` directory. If a saved draft no longer defines the selected function after source files are reorganized, the playground loads a fresh starter and keeps the old draft on disk. Restart the dashboard after changing its Python tools. It needs the SDK compiler, a successful project build, and the generated `progress\main_status.html` report. Press `Ctrl+C` to stop it; use `--port` to select another port or `--no-browser` to suppress automatic browser launch.
 
-The playground links only the selected function at its address in the project ELF and resolves project calls and globals against their built addresses. This keeps symbol addresses stable when trying a different optimization level.
+The playground links only the selected function at its address in the project ELF and resolves project calls and globals against their built addresses. This keeps symbol addresses stable when trying a different optimization level. Use the **Other flags** field for additional space-separated compiler options; these flags are saved with the other per-function settings.
 
-Optimization and **Preserve frame pointer** settings are saved per function in the ignored `progress\.playground\` directory. They apply only to playground compiles and do not change project build flags. For example, `func_00100188` matches retail with an `int` function that returns `func_00220568(D_00252100, main_BSS_START)` at `-O1` with frame-pointer preservation enabled. Treat a playground match as a candidate profile; it does not automatically update project build settings.
+Optimization, **Preserve frame pointer**, and **Other flags** settings are saved per function in the ignored `progress\.playground\` directory. They apply only to playground compiles and do not change project build flags. For example, `func_00100188` matches retail with an `int` function that returns `func_00220568(D_00252100, main_BSS_START)` at `-O1` with frame-pointer preservation enabled. Treat a playground match as a candidate profile; it does not automatically update project build settings.
 
 ### Per-file project compiler settings
 

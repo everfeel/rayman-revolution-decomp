@@ -465,6 +465,8 @@ code {{ color: #c6c8ff; font-family: Consolas, monospace; }}
 .workspace button {{ cursor: pointer; }}
 .workspace select, .workspace input {{ min-width: min(320px, 100%); }}
 .function-search {{ flex: 1 1 280px; }}
+.compiler-flags-row {{ display: flex; flex: 1 0 100%; align-items: center; gap: 10px; }}
+.compiler-flags-control {{ flex: 1 1 360px; }}
 .checkbox-control {{ display: inline-flex; align-items: center; gap: 7px; color: #c5c6db; white-space: nowrap; }}
 .workspace .checkbox-control input {{ width: auto; min-width: 0; margin: 0; padding: 0; accent-color: #999cff; }}
 .workspace textarea, .workspace pre {{ width: 100%; min-width: 0; height: min(65vh, 680px); margin: 0; padding: 14px; overflow: auto; color: #d1d2e0; background: #08090f; border: 1px solid #252738; border-radius: 8px; font: 13px/1.55 Consolas, monospace; tab-size: 4; white-space: pre; }}
@@ -592,6 +594,10 @@ tbody tr:hover td {{ background: #17192a; }}
         <input id="preserve-frame-pointer" type="checkbox" disabled>
         Preserve frame pointer
       </label>
+      <div class="compiler-flags-row">
+        <label for="other-flags">Other flags</label>
+        <input class="compiler-flags-control" id="other-flags" type="text" placeholder="-fno-inline -DNAME=value" title="Space-separated compiler options; attach option values such as -DNAME=value." autocomplete="off" disabled>
+      </div>
     </div>
     <p class="playground-match-notice" id="playground-match-notice" role="status" hidden></p>
     <p class="draft-status" id="compiler-profile-status" role="status">Compiler settings are saved per function.</p>
@@ -631,6 +637,7 @@ const playgroundDiff = document.getElementById("playground-diff");
 const playgroundMatchNotice = document.getElementById("playground-match-notice");
 const optimizationControl = document.getElementById("optimization");
 const preserveFramePointerControl = document.getElementById("preserve-frame-pointer");
+const otherFlagsControl = document.getElementById("other-flags");
 let activeStatus = "ALL";
 let saveScrollTimer;
 let compileTimer;
@@ -776,6 +783,7 @@ async function loadPlaygroundFunction(symbol) {{
   playgroundSource.disabled = true;
   optimizationControl.disabled = true;
   preserveFramePointerControl.disabled = true;
+  otherFlagsControl.disabled = true;
   playgroundSource.value = "";
   playgroundDraftStatus.textContent = "Loading this function's local draft…";
   playgroundDraftStatus.classList.remove("error");
@@ -794,6 +802,7 @@ async function loadPlaygroundFunction(symbol) {{
     applyCompilerProfile(savedProfile.profile);
     optimizationControl.disabled = false;
     preserveFramePointerControl.disabled = false;
+    otherFlagsControl.disabled = false;
     compilerProfileStatus.textContent = savedProfile.saved
       ? "Restored this function's compiler settings; changes are saved locally."
       : "Default compiler settings; changes are saved per function.";
@@ -830,13 +839,15 @@ async function loadPlaygroundFunction(symbol) {{
 function currentCompilerProfile() {{
   return {{
     optimization: optimizationControl.value,
-    preserve_frame_pointer: preserveFramePointerControl.checked
+    preserve_frame_pointer: preserveFramePointerControl.checked,
+    other_flags: otherFlagsControl.value
   }};
 }}
 
 function applyCompilerProfile(profile) {{
   optimizationControl.value = profile.optimization;
   preserveFramePointerControl.checked = profile.preserve_frame_pointer;
+  otherFlagsControl.value = profile.other_flags;
 }}
 
 function saveCompilerProfile(symbol, profile) {{
@@ -1018,6 +1029,10 @@ optimizationControl.addEventListener("change", () => {{
   scheduleCompile();
 }});
 preserveFramePointerControl.addEventListener("change", () => {{
+  scheduleCompilerProfileSave();
+  scheduleCompile();
+}});
+otherFlagsControl.addEventListener("input", () => {{
   scheduleCompilerProfileSave();
   scheduleCompile();
 }});

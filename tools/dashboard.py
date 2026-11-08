@@ -51,13 +51,16 @@ def validate_profile(profile):
         raise ValueError("Compiler profile must be a JSON object.")
     optimization = profile.get("optimization", "-O2")
     preserve_frame_pointer = profile.get("preserve_frame_pointer", False)
+    other_flags = profile.get("other_flags", "")
     if optimization not in ("-O0", "-O1", "-O2", "-O3"):
         raise ValueError("Unsupported optimization level in compiler profile.")
     if not isinstance(preserve_frame_pointer, bool):
         raise ValueError("Preserve frame pointer must be true or false.")
+    compiler_explorer.parse_compiler_flags(other_flags)
     return {
         "optimization": optimization,
         "preserve_frame_pointer": preserve_frame_pointer,
+        "other_flags": other_flags,
     }
 
 
@@ -65,7 +68,11 @@ def load_profile(symbol):
     function_reference(symbol)
     path = profile_path(symbol)
     if not path.is_file():
-        return {"optimization": "-O2", "preserve_frame_pointer": False}, False
+        return {
+            "optimization": "-O2",
+            "preserve_frame_pointer": False,
+            "other_flags": "",
+        }, False
     try:
         profile = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
@@ -247,6 +254,7 @@ def compile_function(request):
     source = request.get("source")
     optimization = request.get("optimization", "-O2")
     preserve_frame_pointer = request.get("preserve_frame_pointer", False)
+    other_flags = request.get("other_flags", "")
     if not isinstance(symbol, str) or not FUNCTION_NAME.fullmatch(symbol):
         raise ValueError("Select a valid retail function.")
     function_reference(symbol)
@@ -262,12 +270,18 @@ def compile_function(request):
         raise ValueError("Unsupported optimization level.")
     if not isinstance(preserve_frame_pointer, bool):
         raise ValueError("Preserve frame pointer must be true or false.")
+    compiler_explorer.parse_compiler_flags(other_flags)
     if not re.search(rf"\b{re.escape(symbol)}\s*\(", source):
         raise ValueError(f"C source must define {symbol}.")
 
     reference_path, retail_size, _ = function_reference(symbol)
     compiled, error = compiler_explorer.compile_function(
-        source, optimization, symbol, retail_size, preserve_frame_pointer
+        source,
+        optimization,
+        symbol,
+        retail_size,
+        preserve_frame_pointer,
+        other_flags,
     )
     if error:
         return None, error
