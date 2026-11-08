@@ -1,5 +1,8 @@
 #include "common.h"
 
+// funcs_03_001001F0_0022E7B8.c
+// -O2
+
 extern u8 D_00252230[9];
 
 typedef struct StartupConfig {

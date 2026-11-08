@@ -1,5 +1,8 @@
 #include "common.h"
 
+// funcs_01_001000C0_00100130.c
+// -O2
+
 void func_001000C0(void) {
     func_001415E8();
 }
