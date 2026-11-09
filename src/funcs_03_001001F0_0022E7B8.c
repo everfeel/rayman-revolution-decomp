@@ -64,46 +64,38 @@ void func_00100288(void)
     }
 }
 
-extern int D_00393E20;
-extern int D_0039A3F0;
+extern u8 D_00393E20[];
+extern u32 D_0039A3F0[];
 
 int func_001002A0(void)
 {
-    int Var1;
-    int Var2;
-    int Var3;
-    int result;
     u32 Var4[12];
+    int thread;
 
     func_0021AE88();
     func_00224B88(Var4, 48, 0);
 
-    Var4[1] = (s8)func_00100288;
-    Var4[2] = (u8)D_00393E20;
+    Var4[4] = D_0039A3F0[0];
+    Var4[1] = (u32)func_00100288;
+    Var4[2] = (u32)D_00393E20;
     Var4[3] = 2048;
     Var4[5] = 63;
-    Var4[4] = D_0039A3F0;
 
-    Var1 = func_001C0A20(Var4);
-    func_001C0AB0(Var1, 127);
+    thread = func_001C0A20(Var4);
+    func_001C0AB0(thread, 127);
 
-    Var2 = func_001C0B10();
-    func_001C0AB0(Var2, 63);
+    thread = func_001C0B10();
+    func_001C0AB0(thread, 63);
 
     func_001000C0();
     func_001000C8();
 
-    Var2 = func_001001F0() == 0;
-    result = 0;
-
-    if (!Var2)
-    {
+    if (func_001001F0() != 0) {
         func_001000D0();
         func_00100130();
-        return 0;
     }
 
-    return result;
+    return 0;
 }
 
 s32 func_00100360(void)
@@ -578,24 +570,16 @@ s32 func_00103660(void) { return 0; }
 
 INCLUDE_ASM(const s32, "core/main", func_00103668);
 
-INCLUDE_ASM(const s32, "core/main", func_00103750);
-
-
-/* Source: audio/sound_dispatch.c */
-/* func_00103760 through func_00103760; retail address range 0x00103760-0x00103AD8. */
-
+extern void func_00227040(void *, void *);
+void func_00103750(void *unused, void *arg1)
+{
+    func_00227040(arg1, D_00392F80);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00103760);
 
-
-/* Source: misc/region_0010_tail.c */
-/* func_00103AD8 through func_0010FC40; retail address range 0x00103AD8-0x00110000. */
-
-
-
 extern s32 D_00392FD8;
 extern s32 D_00392F24;
-
 extern s32 D_002536C0[];
 
 void func_00103AD8(s32 value, s32 index)
@@ -636,7 +620,10 @@ void func_00103FF0(void)
     func_00111950(1);
 }
 
-INCLUDE_ASM(void, "core/main", func_00104020);
+void func_00104020(s32 arg0)
+{
+    func_00104748((u8)arg0, D_00392F24);
+}
 
 extern void func_00104020(s32);
 
@@ -884,11 +871,26 @@ INCLUDE_ASM(const s32, "core/main", func_00108D70);
 
 void func_00108F18(s32 *p) { func_0012A740(((s32 *)p)[7]); }
 
-INCLUDE_ASM(const s32, "core/main", func_00108F20);
+void *func_00108F20(void *p)
+{
+    void *res = 0;
+    void **unk4 = *(void ***)((char *)p + 4);
+    if (unk4 != 0) {
+        void **unk8 = *(void ***)((char *)unk4 + 8);
+        if (unk8 != 0) {
+            res = *(void **)((char *)unk8 + 0x1C);
+        }
+    }
+    return res;
+}
 
 u8 *func_00108F40(u8 *p) { return p + 44; }
 
-INCLUDE_ASM(const s32, "core/main", func_00108F48);
+extern void func_001192D0(void *, s32);
+void func_00108F48(void *p, s32 val)
+{
+    func_001192D0(func_00108F40(p), val);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00108F78);
 
@@ -906,7 +908,12 @@ void func_00108FD0(f32 *p, f32 value) { p[8] = value; }
 
 f32 func_00108FD8(const f32 *p) { return p[9]; }
 
-INCLUDE_ASM(const s32, "core/main", func_00108FE0);
+void func_00108FE0(f32 *p, f32 x, f32 y, f32 z)
+{
+    p[1] = x;
+    p[2] = y;
+    p[3] = z;
+}
 
 f32 func_00108FF0(const f32 *p) { return p[1]; }
 
@@ -914,9 +921,29 @@ f32 func_00108FF8(const f32 *p) { return p[2]; }
 
 f32 func_00109000(const f32 *p) { return p[3]; }
 
-INCLUDE_ASM(const s32, "core/main", func_00109008);
+extern void *func_00109030(void);
+void func_00109008(s32 *p)
+{
+    p[7] = (s32)func_00109030();
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00109030);
+extern s32 D_0039347C;
+extern void *func_00157DE8(s32, s32);
+extern void func_00108FB8(f32 *, f32);
+extern void func_00108FE0(f32 *, f32, f32, f32);
+extern void func_00108F48(void *, s32);
+extern s32 func_00146028(void);
+
+void *func_00109030(void)
+{
+    float zero = 0.0f;
+    void *p = func_00157DE8(D_0039347C, 0x34);
+    func_00108FB8((f32 *)p, zero);
+    func_00108FE0((f32 *)p, zero, zero, zero);
+    func_00108F48(p, 1);
+    *(s32 *)((u8 *)p + 0x30) = func_00146028();
+    return p;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001090A8);
 

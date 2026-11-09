@@ -34,6 +34,30 @@ COMPILE_TIMEOUT_SECONDS = 20
 LINK_TIMEOUT_SECONDS = 60
 COMMON_FLAGS = ["-G4", "-Iinclude", "-Isrc", "-Wa,-I,include,-I,."] 
 OBJCOPY = COMPILER.with_name("ee-objcopy.exe")
+LIBGCC = (
+    COMPILER.parent.parent
+    / "lib"
+    / "gcc-lib"
+    / "ee"
+    / "2.9-ee-991111"
+    / "libgcc.a"
+)
+LIBC = COMPILER.parent.parent / "ee" / "lib" / "libc.a"
+
+
+def runtime_libraries():
+    libraries = []
+    if LIBGCC.is_file():
+        libraries.append(LIBGCC)
+    else:
+        gcc_dir = COMPILER.parent.parent / "lib" / "gcc-lib" / "ee"
+        if gcc_dir.is_dir():
+            for lib in gcc_dir.glob("*/libgcc.a"):
+                libraries.append(lib)
+                break
+    if LIBC.is_file():
+        libraries.append(LIBC)
+    return libraries
 ASSEMBLY_SECTION = re.compile(
     r"^\s*(?:\.section\s+(\S+)|\.(text|rdata|rodata|data|sdata|bss|sbss|lit4)\b)"
 )
@@ -668,6 +692,7 @@ def compile_function(
             encoding="ascii",
             newline="\n",
         )
+        runtime_libs = [str(lib) for lib in runtime_libraries()]
         result = subprocess.run(
             [
                 str(project_build.LINKER),
@@ -680,6 +705,7 @@ def compile_function(
                 "-o",
                 str(output_path),
                 str(object_path),
+                *runtime_libs,
             ],
             cwd=ROOT,
             text=True,
