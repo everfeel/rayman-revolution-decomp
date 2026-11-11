@@ -1,15 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="720" height="180" viewBox="0 0 720 180" role="img" aria-labelledby="title description">
-<title id="title">Decompilation progress: 15.48% complete</title>
-<desc id="description">874 matching, 0 not matching, and 4,771 not started out of 5,645 functions.</desc>
-<rect width="720" height="180" rx="16" fill="#10111a"/>
-<text x="24" y="42" fill="#f1f1f7" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="600">Decompilation progress</text>
-<text x="696" y="44" text-anchor="end" fill="#d3d4ff" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">15.48%</text>
-<rect x="24" y="90" width="672" height="22" rx="11" fill="#252738"/>
-<clipPath id="bar-clip"><rect x="24" y="90" width="672" height="22" rx="11"/></clipPath>
-<g clip-path="url(#bar-clip)">
-<rect x="24.00" y="90" width="104.04" height="22" fill="#63c99b"/><rect x="128.04" y="90" width="567.96" height="22" fill="#555767"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="155" viewBox="0 0 720 155" role="img" aria-labelledby="title description">
+<title id="title">Function progress</title>
+<desc id="description">Byte-match: 877 (15.5%). Implemented without a byte match: 0 (0.0%). Not implemented: 4,768 (84.5%).</desc>
+<defs>
+<linearGradient id="matching-gradient" x1="0" x2="1"><stop offset="0" stop-color="#348da5"/><stop offset="1" stop-color="#55c5df"/></linearGradient>
+<linearGradient id="not-matching-gradient" x1="0" x2="1"><stop offset="0" stop-color="#585caa"/><stop offset="1" stop-color="#8286d1"/></linearGradient>
+<linearGradient id="not-started-gradient" x1="0" x2="1"><stop offset="0" stop-color="#3e4050"/><stop offset="1" stop-color="#555767"/></linearGradient>
+</defs>
+<rect width="720" height="155" rx="16" fill="#10111a"/>
+<text x="24" y="38" fill="#f1f1f7" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="600">Function progress</text>
+<rect x="24" y="66" width="672" height="22" rx="11" fill="#555767" fill-opacity="0.4"/>
+<clipPath id="progress-clip"><rect x="24" y="66" width="672" height="22" rx="11"/></clipPath>
+<g clip-path="url(#progress-clip)">
+<rect x="24.00" y="66" width="104.40" height="22" fill="url(#matching-gradient)" fill-opacity="0.95"><title>Byte-match: 877 (15.5%)</title></rect><rect x="128.40" y="66" width="567.60" height="22" fill="url(#not-started-gradient)" fill-opacity="0.4"><title>Not implemented: 4,768 (84.5%)</title></rect>
 </g>
-<circle cx="24" cy="147" r="5" fill="#63c99b"/><text x="36" y="152" fill="#c0c1d0" font-size="14">Matching: 874</text>
-<circle cx="252" cy="147" r="5" fill="#cf765e"/><text x="264" y="152" fill="#c0c1d0" font-size="14">Not matching: 0</text>
-<circle cx="480" cy="147" r="5" fill="#a7a9c1"/><text x="492" y="152" fill="#c0c1d0" font-size="14">Not started: 4,771</text>
+<circle cx="24" cy="126" r="6" fill="url(#matching-gradient)" fill-opacity="0.95"/><text x="37" y="131" fill="#c0c1d0" font-size="13">Byte-match: 877 (15.5%)</text><circle cx="250" cy="126" r="6" fill="url(#not-matching-gradient)" fill-opacity="0.72"/><text x="263" y="131" fill="#c0c1d0" font-size="13">Implemented: 0 (0.0%)</text><circle cx="490" cy="126" r="6" fill="url(#not-started-gradient)" fill-opacity="0.4"/><text x="503" y="131" fill="#c0c1d0" font-size="13">Not implemented: 4,768 (84.5%)</text>
 </svg>

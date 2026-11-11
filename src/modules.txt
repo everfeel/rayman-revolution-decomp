@@ -1,12 +1,13 @@
 # Build inputs are linked in the order listed here. Keep this order aligned
 # with retail function addresses; moving a module can shift later functions.
 #
-# Each line is a source path, optionally followed by compiler flags:
-#   path/to/source.c [-O0 | -O1 | -O2 | -O3] [-fno-omit-frame-pointer]
-# C sources default to -O2 and omit frame pointers unless the frame-pointer
-# flag is specified. These settings apply to the whole C file, so functions
-# needing different settings must be in separate C files. Compiler flags are
-# not supported for assembly (.s) sources.
+# Each source line can include compiler arguments. Quote values with spaces.
+# Example: path/to/source.c -O1 -include "header file.h"
+# C sources default to -O2. These settings apply to the whole C file, so
+# functions needing different settings must be in separate C files.
+# @global [arguments...] defines C arguments to apply to every C source when
+# USE_GLOBAL_COMPILER_FLAGS is enabled in tools/build.py.
+# Assembly (.s) sources do not receive C optimization arguments.
 #
 # Keep main.c first: its padding and func_00100008 start the text region.
 # Keep the remaining modules in address order: func_001000B8, then the

@@ -2,6 +2,7 @@
 """Serve the combined progress, function assembly, and C playground dashboard."""
 
 import argparse
+import csv
 import json
 import re
 import subprocess
@@ -24,6 +25,19 @@ MAX_SOURCE_BYTES = compiler_explorer.MAX_SOURCE_BYTES
 MAX_REQUEST_BYTES = MAX_SOURCE_BYTES * 6 + 2048
 FUNCTION_NAME = re.compile(r"^func_[0-9A-Fa-f]{8}$")
 DRAFT_DIRECTORY = progress.REPORT_DIR / ".playground"
+
+
+def function_implementation_status(symbol):
+    with progress.CSV_REPORT.open(encoding="utf-8-sig", newline="") as report:
+        for row in csv.DictReader(report):
+            if row["function"] == symbol:
+                status = row["status"]
+                if status not in {"NOT STARTED", "NOT MATCHING", "MATCHING"}:
+                    raise ValueError(
+                        f"Unexpected project status for {symbol}: {status!r}"
+                    )
+                return status
+    raise ValueError(f"{symbol} is missing from {progress.CSV_REPORT}.")
 
 
 def function_reference(symbol):
@@ -168,6 +182,8 @@ def save_draft(symbol, source):
 
 def assembly_comparison(symbol):
     reference, retail_size, reference_source = function_reference(symbol)
+    implementation_status = function_implementation_status(symbol)
+    implemented = implementation_status != "NOT STARTED"
     retail_start = int(symbol[5:], 16)
     retail_elf = Elf32LE(RETAIL)
     retail_bytes = retail_elf.bytes_at_vaddr(retail_start, retail_size)
@@ -229,16 +245,27 @@ def assembly_comparison(symbol):
         )
 
     build_notice = build_notice or address_notice
-    status_text = (
-        "MATCH"
-        if build_size == retail_size
-        and not build_notice
-        and all(item["matches"] for item in instructions)
-        else ("BUILD NOT FOUND" if build_notice else "DIFF")
-    )
+    if not implemented:
+        status_text = "NOT STARTED"
+        implementation_notice = (
+            "This function has no project implementation; matching bytes may "
+            "come from the assembly fallback and do not count as a C match."
+        )
+        build_notice = "; ".join(
+            notice for notice in (implementation_notice, build_notice) if notice
+        )
+    else:
+        status_text = (
+            "MATCH"
+            if build_size == retail_size
+            and not build_notice
+            and all(item["matches"] for item in instructions)
+            else ("BUILD NOT FOUND" if build_notice else "DIFF")
+        )
     return {
         "symbol": symbol,
         "reference": reference.relative_to(ROOT).as_posix(),
+        "implemented": implemented,
         "retail_size": retail_size,
         "compiled_size": build_size,
         "build_address": build_start or None,

@@ -77,9 +77,10 @@ PAGE = r"""<!doctype html>
 body { margin: 0 auto; padding: 24px; max-width: 1440px; }
 h1 { margin: 0; font-size: 1.4rem; }
 p { color: #9ca3af; margin: 5px 0 18px; }
-.bar { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.bar { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
 label { color: #cbd5e1; }
-select, button { border: 1px solid #475569; border-radius: 5px; background: #1f2937; color: #e5e7eb; padding: 8px 12px; }
+select, input, button { border: 1px solid #475569; border-radius: 5px; background: #1f2937; color: #e5e7eb; padding: 8px 12px; }
+input#compiler-flags { flex: 1; min-width: 220px; max-width: 360px; }
 button { cursor: pointer; background: #2563eb; border-color: #2563eb; font-weight: 600; }
 button:disabled { opacity: .6; cursor: wait; }
 #status { color: #9ca3af; }
@@ -98,6 +99,8 @@ pre { overflow: auto; white-space: pre; }
 <div class="bar">
   <label for="optimization">Optimization</label>
   <select id="optimization"><option>-O0</option><option>-O1</option><option selected>-O2</option><option>-O3</option></select>
+  <label for="compiler-flags">Compiler arguments</label>
+  <input id="compiler-flags" type="text" placeholder="-fpack-struct -DNAME=&quot;value with spaces&quot;" title="Shell-style compiler arguments; quote values containing spaces." autocomplete="off">
   <button id="compile">Compile</button>
   <button id="copy" type="button">Copy assembly</button>
   <span id="status" role="status">Ready</span>
@@ -114,6 +117,7 @@ const source = document.querySelector("#source");
 const assembly = document.querySelector("#assembly");
 const status = document.querySelector("#status");
 const compileButton = document.querySelector("#compile");
+const compilerFlags = document.querySelector("#compiler-flags");
 
 compileButton.addEventListener("click", async () => {
   compileButton.disabled = true;
@@ -124,7 +128,8 @@ compileButton.addEventListener("click", async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         source: source.value,
-        optimization: document.querySelector("#optimization").value
+        optimization: document.querySelector("#optimization").value,
+        other_flags: compilerFlags.value
       })
     });
     const result = await response.json();
@@ -153,7 +158,8 @@ document.querySelector("#copy").addEventListener("click", async () => {
 """
 
 
-def compile_source(source, optimization):
+def compile_source(source, optimization, other_flags=""):
+    additional_flags = parse_compiler_flags(other_flags)
     with tempfile.TemporaryDirectory(prefix="ee-compiler-") as temporary_directory:
         temporary_path = Path(temporary_directory)
         input_path = temporary_path / "snippet.c"
@@ -165,6 +171,7 @@ def compile_source(source, optimization):
                 str(COMPILER),
                 optimization,
                 *COMMON_FLAGS,
+                *additional_flags,
                 "-S",
                 str(input_path),
                 "-o",
@@ -281,7 +288,7 @@ def module_source_for(symbol):
     assembly_definition = re.compile(
         rf"(?m)^[ \t]*glabel\s+{re.escape(symbol)}\s*$"
     )
-    source_modules = project_build.source_modules()
+    source_modules, _ = project_build.source_modules()
     for module in source_modules:
         source_path = module.path
         source = source_path.read_text(encoding="utf-8")
@@ -364,7 +371,7 @@ def project_link_snapshots():
         )
 
     input_pairs = []
-    modules = project_build.source_modules()
+    modules, _ = project_build.source_modules()
     for module in modules:
         source_path = module.path
         relative = source_path.relative_to(ROOT)
@@ -426,21 +433,16 @@ def project_link_snapshots():
 
 def parse_compiler_flags(flags):
     if not isinstance(flags, str):
-        raise ValueError("Additional compiler flags must be text.")
+        raise ValueError("Additional compiler arguments must be text.")
     if len(flags) > MAX_COMPILER_FLAGS_LENGTH:
         raise ValueError(
-            f"Additional compiler flags must be {MAX_COMPILER_FLAGS_LENGTH} "
+            f"Additional compiler arguments must be {MAX_COMPILER_FLAGS_LENGTH} "
             "characters or shorter."
         )
     try:
         parsed_flags = shlex.split(flags)
     except ValueError as error:
-        raise ValueError(f"Could not parse additional compiler flags: {error}") from error
-    if any(not flag.startswith("-") or flag == "-" for flag in parsed_flags):
-        raise ValueError(
-            "Additional compiler flags must be options; use attached values "
-            "such as -DNAME or -Ipath."
-        )
+        raise ValueError(f"Could not parse additional compiler arguments: {error}") from error
     controlled_flags = {
         "-c",
         "-S",
@@ -456,8 +458,7 @@ def parse_compiler_flags(flags):
         "-o",
     }
     if any(
-        flag in controlled_flags
-        or flag.startswith(("-o", "-MF", "-MT", "-MQ"))
+        flag in controlled_flags or flag.startswith(("-o", "-MF", "-MT", "-MQ"))
         for flag in parsed_flags
     ):
         raise ValueError(
@@ -792,7 +793,10 @@ class RequestHandler(BaseHTTPRequestHandler):
         except ValueError:
             self.send_json(400, {"error": "A valid Content-Length header is required."})
             return
-        if content_length < 0 or content_length > MAX_SOURCE_BYTES + 1024:
+        if (
+            content_length < 0
+            or content_length > MAX_SOURCE_BYTES + MAX_COMPILER_FLAGS_LENGTH + 2048
+        ):
             self.send_json(413, {"error": "Request is too large."})
             return
         try:
@@ -816,8 +820,14 @@ class RequestHandler(BaseHTTPRequestHandler):
         if optimization not in ("-O0", "-O1", "-O2", "-O3"):
             self.send_json(400, {"error": "Unsupported optimization level."})
             return
+        other_flags = request.get("other_flags", "")
         try:
-            assembly, error = compile_source(source, optimization)
+            parse_compiler_flags(other_flags)
+        except ValueError as error:
+            self.send_json(400, {"error": str(error)})
+            return
+        try:
+            assembly, error = compile_source(source, optimization, other_flags)
         except subprocess.TimeoutExpired:
             self.send_json(
                 504,

@@ -2,6 +2,7 @@
 """Build the main Rayman Revolution ELF with the configured SN Systems SDK."""
 
 import re
+import shlex
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -38,12 +39,51 @@ FUNCTION_HEADER = re.compile(
 C_FUNCTION = re.compile(r"(?m)^\s*\.ent\s+(func_[0-9A-Fa-f]{8})\s*$")
 LIT4_MIN_OFFSET = 0x292400
 
+DEFAULT_OPTIMIZATION = "-O2"
+OPTIMIZATION_FLAG = re.compile(r"-O(?:[0-9sgz]|fast)?")
+# Flags the build script controls itself (pipeline stage, output path, input language).
+RESERVED_FLAG = re.compile(r"-(?:[cSE]|o.*|x.*)")
+GLOBAL_DIRECTIVE = "@global"
+# Set to True to apply @global arguments to every C module in modules.txt.
+USE_GLOBAL_COMPILER_FLAGS = False
+
 
 @dataclass(frozen=True)
 class SourceModule:
     path: Path
-    optimization: str = "-O2"
-    preserve_frame_pointer: bool = False
+    flags: tuple = ()
+
+
+def is_optimization_flag(flag):
+    return OPTIMIZATION_FLAG.fullmatch(flag) is not None
+
+
+def parse_manifest_flags(tokens, location):
+    for token in tokens:
+        if not token:
+            raise ValueError(f"{location}: empty compiler flag")
+        if RESERVED_FLAG.fullmatch(token):
+            raise ValueError(
+                f"{location}: {token!r} is controlled by the build script "
+                "and cannot be set in the manifest"
+            )
+    return tuple(tokens)
+
+
+def c_flags(module, global_flags):
+    """Choose global or per-module C flags, with the default optimization."""
+    explicit = global_flags if USE_GLOBAL_COMPILER_FLAGS else module.flags
+    default = (
+        () if any(is_optimization_flag(flag) for flag in explicit)
+        else (DEFAULT_OPTIMIZATION,)
+    )
+    return [*default, *explicit]
+
+
+def assembly_flags(global_flags, module_flags=()):
+    """Assembly sources never received an -O level, so global -O flags are not forwarded."""
+    inherited = [flag for flag in global_flags if not is_optimization_flag(flag)]
+    return [*inherited, *module_flags]
 
 
 def fail(message):
@@ -318,19 +358,48 @@ def make_legacy_linker_script(output_path=None):
 
 
 def source_modules():
+    """Parse src/modules.txt.
+
+    Returns (modules, global_flags). Each non-comment line is either:
+
+        <source path> [flags...]     a C or assembly source with optional flags
+        @global [flags...]           C flags used when global mode is enabled
+
+    Flags support shell-style quoting and trailing '#' comments.
+    """
     if not MODULE_MANIFEST.is_file():
         raise FileNotFoundError(
             f"{MODULE_MANIFEST.relative_to(ROOT)} is missing"
         )
 
+    manifest_name = MODULE_MANIFEST.relative_to(ROOT)
     modules = []
+    global_flags = []
     for line_number, line in enumerate(
         MODULE_MANIFEST.read_text(encoding="utf-8").splitlines(), start=1
     ):
-        fields = line.split()
-        if not fields or fields[0].startswith("#"):
+        entry = line.strip()
+        if not entry or entry.startswith("#"):
             continue
-        source_name = fields[0]
+        location = f"{manifest_name}:{line_number}"
+
+        # The first field is split on whitespace only, so paths keep working
+        # exactly as before; the remaining flags support quoting and comments.
+        parts = entry.split(None, 1)
+        source_name = parts[0]
+        rest = parts[1] if len(parts) > 1 else ""
+        try:
+            tokens = shlex.split(rest, comments=True)
+        except ValueError as error:
+            raise ValueError(f"{location}: invalid flag syntax: {error}") from error
+        flags = parse_manifest_flags(tokens, location)
+
+        if source_name.startswith("@"):
+            if source_name != GLOBAL_DIRECTIVE:
+                raise ValueError(f"{location}: unknown directive {source_name!r}")
+            global_flags.extend(flags)
+            continue
+
         relative = Path(source_name.replace("/", "\\"))
         if (
             relative.is_absolute()
@@ -338,69 +407,26 @@ def source_modules():
             or ".." in relative.parts
         ):
             raise ValueError(
-                f"{MODULE_MANIFEST.relative_to(ROOT)}:{line_number}: "
-                f"invalid C or assembly source path {source_name!r}"
+                f"{location}: invalid C or assembly source path {source_name!r}"
             )
-        flags = fields[1:]
-        optimization_flags = [flag for flag in flags if flag.startswith("-O")]
-        frame_pointer_flags = [
-            flag for flag in flags if flag == "-fno-omit-frame-pointer"
-        ]
-        unknown_flags = [
-            flag
-            for flag in flags
-            if flag not in {"-O0", "-O1", "-O2", "-O3", "-fno-omit-frame-pointer"}
-        ]
-        if relative.suffix == ".c":
-            if unknown_flags:
-                raise ValueError(
-                    f"{MODULE_MANIFEST.relative_to(ROOT)}:{line_number}: "
-                    f"unsupported compiler flag(s): {', '.join(unknown_flags)}"
-                )
-            if len(optimization_flags) > 1:
-                raise ValueError(
-                    f"{MODULE_MANIFEST.relative_to(ROOT)}:{line_number}: "
-                    "specify at most one optimization flag"
-                )
-            if len(frame_pointer_flags) > 1:
-                raise ValueError(
-                    f"{MODULE_MANIFEST.relative_to(ROOT)}:{line_number}: "
-                    "specify -fno-omit-frame-pointer at most once"
-                )
-            optimization = optimization_flags[0] if optimization_flags else "-O2"
-            preserve_frame_pointer = bool(frame_pointer_flags)
-        else:
-            if flags:
-                raise ValueError(
-                    f"{MODULE_MANIFEST.relative_to(ROOT)}:{line_number}: "
-                    "compiler flags can only be set for C sources"
-                )
-            optimization = "-O2"
-            preserve_frame_pointer = False
         source = ROOT / "src" / relative
         if not source.is_file():
             raise FileNotFoundError(
-                f"{MODULE_MANIFEST.relative_to(ROOT)}:{line_number}: "
-                f"missing source {source.relative_to(ROOT)}"
+                f"{location}: missing source {source.relative_to(ROOT)}"
             )
-        modules.append(
-            SourceModule(source, optimization, preserve_frame_pointer)
-        )
+        modules.append(SourceModule(source, flags))
+
     if not modules:
-        raise ValueError(f"{MODULE_MANIFEST.relative_to(ROOT)} has no source files")
+        raise ValueError(f"{manifest_name} has no source files")
     module_paths = [module.path for module in modules]
     if len(set(module_paths)) != len(module_paths):
-        raise ValueError(f"{MODULE_MANIFEST.relative_to(ROOT)} contains duplicate paths")
+        raise ValueError(f"{manifest_name} contains duplicate paths")
     main_source = ROOT / "src" / "main.c"
     if modules[0].path != main_source:
-        raise ValueError(
-            f"{MODULE_MANIFEST.relative_to(ROOT)} must list main.c first"
-        )
+        raise ValueError(f"{manifest_name} must list main.c first")
     if sum(module.path == main_source for module in modules) != 1:
-        raise ValueError(
-            f"{MODULE_MANIFEST.relative_to(ROOT)} must list main.c exactly once"
-        )
-    return modules
+        raise ValueError(f"{manifest_name} must list main.c exactly once")
+    return modules, tuple(global_flags)
 
 
 def main():
@@ -432,7 +458,7 @@ def main():
     padding_bytes = 0
 
     try:
-        modules = source_modules()
+        modules, global_flags = source_modules()
     except (OSError, UnicodeError, ValueError) as error:
         return fail(f"could not read C source manifest: {error}")
     for module in modules:
@@ -443,15 +469,7 @@ def main():
             compile_result = compile_c_source(
                 source,
                 object_path,
-                [
-                    *common_flags,
-                    module.optimization,
-                    *(
-                        ["-fno-omit-frame-pointer"]
-                        if module.preserve_frame_pointer
-                        else []
-                    ),
-                ],
+                [*common_flags, *c_flags(module, global_flags)],
                 LOG,
                 function_sizes,
             )
@@ -459,18 +477,24 @@ def main():
                 return 1
             padded_functions += compile_result[0]
             padding_bytes += compile_result[1]
-        elif not compile_assembly_source(source, object_path, common_flags, LOG):
+        elif not compile_assembly_source(
+            source,
+            object_path,
+            [*common_flags, *assembly_flags((), module.flags)],
+            LOG,
+        ):
             return 1
         objects.append(object_path)
 
     data_root = ROOT / "asm" / "data"
     if not data_root.is_dir():
         return fail("asm/data is missing; run `py tools\\setup_asm.py` first")
+    data_flags = common_flags
     for source in sorted(data_root.rglob("*.s")):
         relative = source.relative_to(ROOT)
         object_path = BUILD / relative.parent / f"{source.name}.o"
         object_path.parent.mkdir(parents=True, exist_ok=True)
-        if not compile_assembly_source(source, object_path, common_flags, LOG):
+        if not compile_assembly_source(source, object_path, data_flags, LOG):
             return 1
         objects.append(object_path)
 
