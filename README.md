@@ -13,9 +13,9 @@ This project originally started with the goal of achieving a byte-matching decom
 # Rayman Revolution (PAL) decompilation project
 
 <!-- BEGIN GENERATED PROGRESS -->
-![Progress: 877 byte-matches, 0 implemented, 4,768 not implemented](progress/progress.svg)
+![Progress: 878 byte-matches, 3 implemented, 4,764 not implemented](progress/progress.svg)
 
-**Byte-match:** 877 · **Implemented:** 0 · **Not implemented:** 4,768.
+**Byte-match:** 878 · **Implemented:** 3 · **Not implemented:** 4,764.
 <!-- END GENERATED PROGRESS -->
 
 This is a decompilation of the PAL PlayStation 2 main executable, `SLES_500.44`. The primary goal is to understand and express the original game's behavior in readable C. Matching the original machine code is a valuable secondary goal.

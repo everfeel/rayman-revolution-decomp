@@ -1762,7 +1762,56 @@ void func_00118FE8(void) { D_003930B4[0x20A8 / 4] = 1; }
 
 INCLUDE_ASM(const s32, "core/main", func_00118FF8);
 
-INCLUDE_ASM(const s32, "core/main", func_00119008);
+typedef struct FrameRateConfig {
+    u8 unk00[4];
+    s32 flags;
+    u8 unk08[0x20];
+    f32 frames_per_second;
+} FrameRateConfig;
+
+extern FrameRateConfig D_003305A0;
+extern s32 D_00393088;
+extern s32 D_003930B8;
+extern s32 D_0039313C;
+extern s32 D_00393140;
+extern s32 D_0039347C;
+extern void func_00119B50(s32 *);
+extern void func_0011B148(void);
+extern void func_0011B0D8(void);
+extern void func_0011A5A0(void);
+extern s32 func_0011C558(s32, s32, s32, s32);
+extern s32 func_0014BA38(f32);
+
+s32 func_00119008(void)
+{
+    if (D_00393088 != 0) {
+        uintptr address = (uintptr)func_00157DE8(D_0039347C, 0x20CC);
+        D_003930B4 = (s32 *)((address + 0xF) & ~0xF);
+        D_003930B4[0x20BC / sizeof(s32)] = 0;
+        D_003930B4[0x20A0 / sizeof(s32)] = 0;
+        D_003930B4[0x20A4 / sizeof(s32)] = 0;
+        D_003930B4[0x20A8 / sizeof(s32)] = 0;
+        D_003930B4[0x20B0 / sizeof(s32)] = 0;
+        D_003930B4[0x20B4 / sizeof(s32)] = 0;
+        D_003930B4[0x20B8 / sizeof(s32)] = 0;
+        func_00119B50(&D_003930B8);
+        func_0011B148();
+        func_0011B0D8();
+        func_0011A5A0();
+        D_00393088 = 0;
+    }
+
+    D_003305A0.frames_per_second = 0.0f;
+    func_0011C558(0, 1, D_0039313C, D_00393140);
+    if (D_003305A0.frames_per_second < 40.0f ||
+        D_003305A0.frames_per_second >= 210.0f) {
+        D_003305A0.flags |= 0x40;
+        D_003305A0.frames_per_second = 60.0f;
+    }
+    func_0014BA38(1.0f / D_003305A0.frames_per_second);
+    D_00393084 = 1;
+    return D_00393084;
+}
 
 void func_00119140(void) { D_00393084 = 0; func_0011C5A0(); }
 
@@ -3294,7 +3343,20 @@ INCLUDE_ASM(const s32, "core/main", func_0014B9C0);
 
 INCLUDE_ASM(const s32, "core/main", func_0014BA18);
 
-INCLUDE_ASM(const s32, "core/main", func_0014BA38);
+typedef struct FrameTimer {
+    u8 unk00[8];
+    f32 interval;
+    f32 scaled_interval;
+    s32 count;
+} FrameTimer;
+
+extern FrameTimer *D_003932E8;
+extern s32 func_0014BBA8(FrameTimer *, f32);
+
+s32 func_0014BA38(f32 interval)
+{
+    return func_0014BBA8(D_003932E8, interval);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0014BA58);
 
@@ -3306,7 +3368,21 @@ INCLUDE_ASM(const s32, "core/main", func_0014BB08);
 
 INCLUDE_ASM(const s32, "core/main", func_0014BB50);
 
-INCLUDE_ASM(const s32, "core/main", func_0014BBA8);
+s32 func_0014BBA8(FrameTimer *timer, f32 interval)
+{
+    s32 count = timer->count;
+    f32 scaled_count;
+
+    timer->interval = interval;
+    if (count < 0) {
+        count = (s32)(((u32)count & 1) | ((u32)count >> 1));
+        scaled_count = (f32)count + (f32)count;
+    } else {
+        scaled_count = (f32)count;
+    }
+    timer->scaled_interval = scaled_count * interval;
+    return count;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0014BBE8);
 

@@ -313,6 +313,18 @@ def compile_assembly_source(source, object_path, common_flags, log):
 
 def make_legacy_linker_script(output_path=None):
     script = LINKER_SCRIPT.read_text(encoding="utf-8")
+    sections_marker = "SECTIONS\n{\n"
+    if script.count(sections_marker) != 1:
+        raise ValueError("linker script must contain one top-level SECTIONS block")
+    script = script.replace(
+        sections_marker,
+        "PHDRS\n{\n    main PT_LOAD FLAGS(7);\n}\nSECTIONS\n{\n",
+        1,
+    )
+    main_section_start = "    .main 0x100000 : AT(main_ROM_START)\n"
+    if script.count(main_section_start) != 1:
+        raise ValueError("linker script must contain one file-backed main section")
+    script = script.replace(main_section_start, "    .main 0x100000 :\n", 1)
     script = script.replace("    HIDDEN(__romPos = 0);", "    __romPos = 0;")
     script = re.sub(
         r"(?m)^\s*build/[^()\n]+\(([^)\n]+)\);$",
@@ -350,6 +362,32 @@ def make_legacy_linker_script(output_path=None):
     script = script.replace(
         "        . = ALIGN(16);\n        main_BSS_END = .;",
         "        . = 0x7D204;\n        main_BSS_END = .;",
+        1,
+    )
+    main_section_end = (
+        "        main_SDATA_SIZE = ABSOLUTE(main_SDATA_END - main_SDATA_START);\n"
+        "    }\n    .main_bss"
+    )
+    if script.count(main_section_end) != 1:
+        raise ValueError("linker script must contain one main section boundary")
+    script = script.replace(
+        main_section_end,
+        "        main_SDATA_SIZE = ABSOLUTE(main_SDATA_END - main_SDATA_START);\n"
+        "    } :main\n    .main_bss",
+        1,
+    )
+    bss_section_end = (
+        "        main_BSS_SIZE = ABSOLUTE(main_BSS_END - main_BSS_START);\n"
+        "    }\n    . = ALIGN(16);"
+    )
+    if script.count(bss_section_end) != 1:
+        raise ValueError("linker script must contain one main BSS section boundary")
+    script = script.replace(
+        bss_section_end,
+        "        main_BSS_SIZE = ABSOLUTE(main_BSS_END - main_BSS_START);\n"
+        "    } :main\n"
+        "    .reginfo : { *(.reginfo) } :NONE\n"
+        "    . = ALIGN(16);",
         1,
     )
     legacy_script = output_path or BUILD / "SLES_500.44.sn.ld"
