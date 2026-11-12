@@ -478,14 +478,22 @@ def compile_function(
     module_path, module_source = module_source_for(symbol)
     linked_source = playground_module_source(module_source, source, symbol)
     snapshots = project_link_snapshots()
+    auto_symbol_definitions = project_build.auto_symbol_definitions()
     project_elf = Elf32LE(project_build.OUTPUT)
     project_function = project_elf.symbol(symbol)
     if project_function["type"] != 2 or project_function["value"] <= 0:
         return None, f"Project ELF has no linked function {symbol}."
+    gp_value = project_elf.symbol("_gp")["value"]
+    absolute_symbol_addresses = {
+        name: int(address, 16) for name, address in auto_symbol_definitions
+    }
     compiler_flags = (
         ["-fno-omit-frame-pointer"] if preserve_frame_pointer else []
     )
     additional_flags = parse_compiler_flags(other_flags)
+    small_data_size = project_build.small_data_threshold(
+        [*COMMON_FLAGS, *compiler_flags, *additional_flags]
+    )
 
     with tempfile.TemporaryDirectory(prefix="ee-playground-") as temporary_directory:
         temporary_path = Path(temporary_directory)
@@ -558,7 +566,16 @@ def compile_function(
             return None, f"Compiler emitted an incomplete section for {symbol}."
         function_assembly = ["\t.set reorder"]
         function_assembly.extend(
-            line for line in assembly_lines if re.match(r"^\s*\.extern\b", line)
+            project_build.keep_out_of_range_externals_absolute(
+                [
+                    line
+                    for line in assembly_lines
+                    if re.match(r"^\s*\.extern\b", line)
+                ],
+                absolute_symbol_addresses,
+                gp_value,
+                small_data_size,
+            )
         )
         index = 0
         while index < len(assembly_lines):
@@ -662,9 +679,13 @@ def compile_function(
                 )
             return None, str(error)
 
+        strip_symbol_args = []
+        for auto_symbol, _ in auto_symbol_definitions:
+            strip_symbol_args.extend(("-N", auto_symbol))
         result = subprocess.run(
             [
                 str(OBJCOPY),
+                *strip_symbol_args,
                 "-N",
                 symbol,
                 str(project_build.OUTPUT),
@@ -701,6 +722,10 @@ def compile_function(
                 symbol,
                 "--gc-sections",
                 f"--just-symbols={symbol_map_path}",
+                *[
+                    f"--defsym={auto_symbol}={address}"
+                    for auto_symbol, address in auto_symbol_definitions
+                ],
                 "-T",
                 str(linker_script),
                 "-o",

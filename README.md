@@ -13,20 +13,20 @@ This project originally started with the goal of achieving a byte-matching decom
 # Rayman Revolution (PAL) decompilation project
 
 <!-- BEGIN GENERATED PROGRESS -->
-![Progress: 878 byte-matches, 3 implemented, 4,764 not implemented](progress/progress.svg)
+![Progress: 878 byte-matches, 5 implemented, 4,762 not implemented](progress/progress.svg)
 
-**Byte-match:** 878 · **Implemented:** 3 · **Not implemented:** 4,764.
+**Byte-match:** 878 · **Implemented:** 5 · **Not implemented:** 4,762.
 <!-- END GENERATED PROGRESS -->
 
-This is a decompilation of the PAL PlayStation 2 main executable, `SLES_500.44`. The primary goal is to understand and express the original game's behavior in readable C. Matching the original machine code is a valuable secondary goal.
+This is a decompilation of the PAL PlayStation 2 main executable, `SLES_500.44`. The goal is to recover the executable as buildable C source while preserving the original game's behavior, and ultimately to match the retail executable byte for byte. These goals can be pursued in stages: a behaviorally faithful C implementation is valuable even before it matches the original machine code.
 
 The project builds an ELF at the original executable layout so behavior-oriented implementations can also be compared with the authorized reference. The repository contains source code, tools, configuration, and progress reports; it does not provide the game executable, disc image, extracted game assets, or proprietary SN Systems toolchain.
 
 ## Project goals
 
-1. **Understand and preserve behavior.** Analyze functions in context, recover meaningful names and types when evidence supports them, and write maintainable C that expresses what the original code does.
-2. **Validate implementations.** Use callers, data layout, assembly, and runtime observations when available. Clearly distinguish facts from hypotheses.
-3. **Pursue byte matching where practical.** Exact output is useful evidence and helps characterize the original compiler, but do not sacrifice clear, correct behavior merely to force a match.
+1. **Recover functions as buildable C.** Analyze each function in context, recover meaningful names and types when evidence supports them, and implement readable C that preserves the retail function's behavior. It is fine for this first implementation not to byte-match.
+2. **Validate behavior.** Use callers, data layout, assembly, and runtime observations when available to check that the implementation behaves like the retail function. Clearly distinguish facts from hypotheses.
+3. **Refine toward a byte match.** Once a function has a working C implementation, use byte comparisons as evidence to guide further refinement toward the retail machine code. A byte match is an important project goal, but it does not have to come before a correct, buildable implementation.
 
 The progress tracker uses three simple states: **Byte-match** for exact byte matches, **Implemented** for C or edited assembly that does not byte-match, and **Not implemented** for functions still using the retail assembly fallback. Byte-different implementations are not considered broken just because they differ.
 
@@ -41,7 +41,7 @@ Contributions are welcome, including analysis, function implementations, data ty
 1. Find the function in `src\` by its retail-address symbol, such as `func_00100130`. Check its callers, nearby functions, global data, and reference assembly under the generated `asm\` directory. Ghidra can help investigate control flow and data use.
 2. Replace its `INCLUDE_ASM` fallback with a C definition in the appropriate source module. Preserve the symbol name. Infer signatures and types from call sites and instruction behavior; use `arg1`, `arg2`, or `unk1` style names where intent is not known rather than inventing semantics.
 3. Prefer a readable behavioral implementation. Keep uncertain details explicit and conservative. Do not edit generated reference files under repository-root `asm\`.
-4. Build and inspect the function comparison. A byte difference is expected during decompilation; use the differing instructions to guide further analysis, not as an automatic rejection.
+4. Build and validate the implementation's behavior. Then inspect the function comparison and use byte differences to guide later refinement; a difference is expected before matching and is not, by itself, evidence of incorrect behavior.
 5. In a pull request or contribution description, summarize what the function appears to do, the evidence used, any assumptions, and the checks you ran. State whether byte matching was achieved, but do not present it as the only measure of correctness.
 
 ### Build and compare

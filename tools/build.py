@@ -80,6 +80,79 @@ def c_flags(module, global_flags):
     return [*default, *explicit]
 
 
+def auto_symbol_definitions():
+    undefined_symbols = ROOT / "undefined_syms_auto.txt"
+    definitions = []
+    for line in undefined_symbols.read_text(encoding="ascii").splitlines():
+        match = AUTO_SYMBOL.fullmatch(line)
+        if match:
+            definitions.append((match.group(1), match.group(2)))
+    return definitions
+
+
+def linker_gp_value():
+    script = LINKER_SCRIPT.read_text(encoding="ascii")
+    match = re.search(
+        r"(?m)^\s*_gp\s*=\s*(0x[0-9A-Fa-f]+)\s*;",
+        script,
+    )
+    if not match:
+        raise ValueError(f"{LINKER_SCRIPT}: could not find the _gp assignment")
+    return int(match.group(1), 16)
+
+
+def small_data_threshold(flags):
+    threshold = 0
+    index = 0
+    while index < len(flags):
+        flag = flags[index]
+        value = None
+        if flag == "-G" and index + 1 < len(flags):
+            index += 1
+            value = flags[index]
+        elif flag.startswith("-G") and len(flag) > 2:
+            value = flag[2:]
+        if value is not None:
+            try:
+                threshold = int(value, 10)
+            except ValueError:
+                pass
+        index += 1
+    return threshold
+
+
+def keep_out_of_range_externals_absolute(
+    assembly_lines, symbol_addresses, gp, small_data_size
+):
+    if small_data_size <= 0:
+        return assembly_lines
+
+    absolute_externals = set()
+    for name, address in symbol_addresses.items():
+        offset = (address - gp) & 0xFFFFFFFF
+        if offset & 0x80000000:
+            offset -= 0x100000000
+        if not -0x8000 <= offset <= 0x7FFF:
+            absolute_externals.add(name)
+
+    updated_lines = []
+    for line in assembly_lines:
+        match = re.match(
+            r"^([ \t]*\.extern[ \t]+)([A-Za-z_][A-Za-z0-9_]*)"
+            r"(?:[ \t]*,[ \t]*(\d+))?[ \t]*$",
+            line,
+        )
+        if (
+            match
+            and match.group(2) in absolute_externals
+            and int(match.group(3) or 0) <= small_data_size
+        ):
+            # Keep the assembler from selecting an out-of-range GPREL16 relocation.
+            line = f"{match.group(1)}{match.group(2)}, {small_data_size + 1}"
+        updated_lines.append(line)
+    return updated_lines
+
+
 def assembly_flags(global_flags, module_flags=()):
     """Assembly sources never received an -O level, so global -O flags are not forwarded."""
     inherited = [flag for flag in global_flags if not is_optimization_flag(flag)]
@@ -220,9 +293,26 @@ def compile_c_source(source, object_path, common_flags, log, function_sizes):
 
     try:
         enable_assembler_reordering(assembly_path)
+        auto_symbols = auto_symbol_definitions()
+        symbol_addresses = {
+            name: int(address, 16) for name, address in auto_symbols
+        }
+        assembly_lines = assembly_path.read_text(encoding="utf-8").splitlines()
+        adjusted_lines = keep_out_of_range_externals_absolute(
+            assembly_lines,
+            symbol_addresses,
+            linker_gp_value(),
+            small_data_threshold(common_flags),
+        )
+        if adjusted_lines != assembly_lines:
+            assembly_path.write_text(
+                "\n".join(adjusted_lines) + "\n",
+                encoding="utf-8",
+                newline="\n",
+            )
     except (OSError, UnicodeError, ValueError) as error:
         fail(
-            f"could not configure assembler reordering in "
+            f"could not prepare C assembler input in "
             f"{relative.as_posix()}: {error}"
         )
         return None
@@ -538,11 +628,10 @@ def main():
 
     try:
         legacy_script = make_legacy_linker_script()
-        definitions = []
-        for line in undefined_symbols.read_text(encoding="ascii").splitlines():
-            match = AUTO_SYMBOL.fullmatch(line)
-            if match:
-                definitions.append(f"--defsym={match.group(1)}={match.group(2)}")
+        definitions = [
+            f"--defsym={name}={address}"
+            for name, address in auto_symbol_definitions()
+        ]
     except (OSError, UnicodeError) as error:
         return fail(f"could not prepare linker inputs: {error}")
 

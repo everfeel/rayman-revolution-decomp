@@ -539,6 +539,7 @@ code {{ color: #c6c8ff; font-family: Consolas, monospace; }}
 .playground-editor h3 {{ margin: 18px 0 8px; color: #e0e1f4; font-size: 1rem; }}
 .playground-editor textarea {{ display: block; height: min(42vh, 420px); min-height: 240px; border-color: #32354a; line-height: 1.6; }}
 .playground-editor textarea:focus {{ border-color: #777bb8; box-shadow: 0 0 0 2px #3a3d7133; }}
+.playground-line-status {{ text-align: right; }}
 .draft-status {{ min-height: 1.4em; margin: 7px 2px 0; color: #9294a8; font-size: .78rem; }}
 .draft-status.error {{ color: #ffd2c5; }}
 .playground-diff {{ max-height: 58vh; overflow: auto; border: 1px solid #252738; border-radius: 10px; }}
@@ -650,6 +651,7 @@ tbody tr:hover td {{ background: #17192a; }}
     <section class="playground-editor">
       <h3>Implementation</h3>
       <textarea id="playground-source" spellcheck="false"></textarea>
+      <p class="draft-status playground-line-status" id="playground-line-status" aria-live="off">Line 1</p>
       <p class="draft-status" id="playground-draft-status" role="status">Drafts are saved locally for each function.</p>
     </section>
     <div class="playground-diff-row header"><strong>Offset</strong><strong>Retail instructions · bytes</strong><strong>Linked instructions · bytes</strong></div>
@@ -677,6 +679,7 @@ const assemblyStatus = document.getElementById("assembly-status");
 const assemblyOutput = document.getElementById("assembly-output");
 const playgroundStatus = document.getElementById("playground-status");
 const playgroundSource = document.getElementById("playground-source");
+const playgroundLineStatus = document.getElementById("playground-line-status");
 const playgroundDraftStatus = document.getElementById("playground-draft-status");
 const compilerProfileStatus = document.getElementById("compiler-profile-status");
 const playgroundDiff = document.getElementById("playground-diff");
@@ -700,6 +703,14 @@ let playgroundDraftDirty = false;
 let compilerProfileDirty = false;
 let functionStatuses = new Map();
 let functionSymbols = new Map();
+
+function updatePlaygroundLineStatus() {{
+  const startLine = playgroundSource.value.slice(0, playgroundSource.selectionStart).split("\\n").length;
+  const endLine = playgroundSource.value.slice(0, playgroundSource.selectionEnd).split("\\n").length;
+  playgroundLineStatus.textContent = startLine === endLine
+    ? `Line ${{startLine}}`
+    : `Lines ${{startLine}}–${{endLine}} selected`;
+}}
 
 function applyFilters() {{
   const query = filter.value.trim().toLowerCase();
@@ -830,6 +841,7 @@ async function loadPlaygroundFunction(symbol) {{
   preserveFramePointerControl.disabled = true;
   otherFlagsControl.disabled = true;
   playgroundSource.value = "";
+  updatePlaygroundLineStatus();
   playgroundDraftStatus.textContent = "Loading this function's local draft…";
   playgroundDraftStatus.classList.remove("error");
   compilerProfileStatus.textContent = "Loading this function's compiler settings…";
@@ -852,6 +864,7 @@ async function loadPlaygroundFunction(symbol) {{
       ? "Restored this function's compiler settings; changes are saved locally."
       : "Default compiler settings; changes are saved per function.";
     playgroundSource.value = draft.source;
+    updatePlaygroundLineStatus();
     playgroundSource.disabled = false;
     playgroundDraftStatus.textContent = draft.stale
       ? "The saved draft did not define this function; loaded a fresh starter. The old draft remains saved until you edit."
@@ -1065,10 +1078,14 @@ document.getElementById("open-playground").addEventListener("click", () => {{
   loadPlaygroundFunction(assemblyFunction.value);
 }});
 playgroundSource.addEventListener("input", () => {{
+  updatePlaygroundLineStatus();
   playgroundDraftDirty = true;
   scheduleCompile();
   scheduleDraftSave();
 }});
+for (const eventName of ["click", "keyup", "select"]) {{
+  playgroundSource.addEventListener(eventName, updatePlaygroundLineStatus);
+}}
 optimizationControl.addEventListener("change", () => {{
   scheduleCompilerProfileSave();
   scheduleCompile();
