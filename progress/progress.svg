@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="155" viewBox="0 0 720 155" role="img" aria-labelledby="title description" font-family="Segoe UI, Arial, sans-serif">
 <title id="title">Function progress</title>
-<desc id="description">Byte-match: 1,149 (20.4%). Implemented without a byte match: 62 (1.1%). Not implemented: 4,434 (78.5%).</desc>
+<desc id="description">Byte-match: 1,153 (20.4%). Implemented without a byte match: 58 (1.0%). Not implemented: 4,434 (78.5%).</desc>
 <defs>
 <linearGradient id="matching-gradient" x1="0" x2="1"><stop offset="0" stop-color="#348da5"/><stop offset="1" stop-color="#55c5df"/></linearGradient>
 <linearGradient id="not-matching-gradient" x1="0" x2="1"><stop offset="0" stop-color="#585caa"/><stop offset="1" stop-color="#8286d1"/></linearGradient>
@@ -14,7 +14,7 @@
 <rect x="24" y="66" width="672" height="22" rx="11" fill="#555767" fill-opacity="0.4"/>
 <clipPath id="progress-clip"><rect x="24" y="66" width="672" height="22" rx="11"/></clipPath>
 <g clip-path="url(#progress-clip)">
-<rect x="24.00" y="66" width="136.78" height="22" fill="url(#matching-gradient)" fill-opacity="0.95"><title>Byte-match: 1,149 (20.4%)</title></rect><rect x="160.78" y="66" width="7.38" height="22" fill="url(#not-matching-gradient)" fill-opacity="0.72"><title>Implemented: 62 (1.1%)</title></rect><rect x="168.16" y="66" width="527.84" height="22" fill="url(#not-started-gradient)" fill-opacity="0.4"><title>Not implemented: 4,434 (78.5%)</title></rect>
+<rect x="24.00" y="66" width="137.26" height="22" fill="url(#matching-gradient)" fill-opacity="0.95"><title>Byte-match: 1,153 (20.4%)</title></rect><rect x="161.26" y="66" width="6.90" height="22" fill="url(#not-matching-gradient)" fill-opacity="0.72"><title>Implemented: 58 (1.0%)</title></rect><rect x="168.16" y="66" width="527.84" height="22" fill="url(#not-started-gradient)" fill-opacity="0.4"><title>Not implemented: 4,434 (78.5%)</title></rect>
 </g>
-<circle cx="24" cy="126" r="6" fill="url(#matching-gradient)" fill-opacity="0.95"/><text x="37" y="131" fill="#c0c1d0" font-size="13">Byte-match: 1,149 (20.4%)</text><circle cx="250" cy="126" r="6" fill="url(#not-matching-gradient)" fill-opacity="0.72"/><text x="263" y="131" fill="#c0c1d0" font-size="13">Implemented: 62 (1.1%)</text><circle cx="490" cy="126" r="6" fill="url(#not-started-gradient)" fill-opacity="0.4"/><text x="503" y="131" fill="#c0c1d0" font-size="13">Not implemented: 4,434 (78.5%)</text>
+<circle cx="24" cy="126" r="6" fill="url(#matching-gradient)" fill-opacity="0.95"/><text x="37" y="131" fill="#c0c1d0" font-size="13">Byte-match: 1,153 (20.4%)</text><circle cx="250" cy="126" r="6" fill="url(#not-matching-gradient)" fill-opacity="0.72"/><text x="263" y="131" fill="#c0c1d0" font-size="13">Implemented: 58 (1.0%)</text><circle cx="490" cy="126" r="6" fill="url(#not-started-gradient)" fill-opacity="0.4"/><text x="503" y="131" fill="#c0c1d0" font-size="13">Not implemented: 4,434 (78.5%)</text>
 </svg>

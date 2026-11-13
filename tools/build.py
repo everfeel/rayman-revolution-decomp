@@ -32,11 +32,14 @@ STATUS_SCRIPT = ROOT / "tools" / "status.py"
 INCBIN = re.compile(r'^(\s*)\.incbin\s+"([^"]+)"\s*$')
 AUTO_SYMBOL = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(0x[0-9A-Fa-f]+);$")
 MODULE_MANIFEST = ROOT / "src" / "modules.txt"
+ASM_OVERRIDE_FILE = ROOT / "asm_overrides.txt"
+ASM_OVERRIDE_ROOT = ROOT / "asm" / "nonmatchings"
 FUNCTION_HEADER = re.compile(
     r"(?m)^\s*(?:matching|nonmatching)\s+"
     r"(func_[0-9A-Fa-f]{8})\s*,\s*(0x[0-9A-Fa-f]+)\s*$"
 )
 C_FUNCTION = re.compile(r"(?m)^\s*\.ent\s+(func_[0-9A-Fa-f]{8})\s*$")
+FUNCTION_SYMBOL = re.compile(r"func_[0-9A-Fa-f]{8}\Z")
 LIT4_MIN_OFFSET = 0x292400
 
 DEFAULT_OPTIMIZATION = "-O2"
@@ -206,7 +209,7 @@ def enable_assembler_reordering(assembly_path):
 
 
 def retail_function_sizes():
-    assembly_root = ROOT / "asm" / "nonmatchings"
+    assembly_root = ASM_OVERRIDE_ROOT
     if not assembly_root.is_dir():
         raise FileNotFoundError(f"missing retail function assembly: {assembly_root}")
 
@@ -221,6 +224,80 @@ def retail_function_sizes():
     if not sizes:
         raise ValueError(f"no retail function sizes found under {assembly_root}")
     return sizes
+
+
+def load_asm_overrides():
+    if not ASM_OVERRIDE_FILE.is_file():
+        return {}
+
+    overrides = {}
+    for line_number, line in enumerate(
+        ASM_OVERRIDE_FILE.read_text(encoding="ascii").splitlines(), start=1
+    ):
+        symbol = line.split("#", 1)[0].strip()
+        if not symbol:
+            continue
+        if not FUNCTION_SYMBOL.fullmatch(symbol):
+            raise ValueError(
+                f"{ASM_OVERRIDE_FILE.name}:{line_number}: "
+                f"expected a function symbol, got {symbol!r}"
+            )
+        if symbol in overrides:
+            raise ValueError(
+                f"{ASM_OVERRIDE_FILE.name}:{line_number}: "
+                f"duplicate override for {symbol}"
+            )
+
+        assembly_files = list(
+            ASM_OVERRIDE_ROOT.rglob(f"{symbol}.s")
+        )
+        if len(assembly_files) != 1:
+            raise ValueError(
+                f"{ASM_OVERRIDE_FILE.name}:{line_number}: expected one "
+                f"retail assembly file for {symbol}, found {len(assembly_files)}"
+            )
+        overrides[symbol] = assembly_files[0].relative_to(ROOT).as_posix()
+
+    return overrides
+
+
+def apply_asm_overrides(assembly_path, overrides):
+    assembly = assembly_path.read_text(encoding="utf-8")
+    applied = set()
+
+    for name in sorted(set(C_FUNCTION.findall(assembly)) & set(overrides)):
+        start_pattern = re.compile(
+            rf"(?m)^[ \t]*\.ent[ \t]+{re.escape(name)}[ \t]*$"
+        )
+        end_pattern = re.compile(
+            rf"(?m)^[ \t]*\.end[ \t]+{re.escape(name)}[ \t]*$"
+        )
+        starts = list(start_pattern.finditer(assembly))
+        ends = list(end_pattern.finditer(assembly))
+        if (
+            len(starts) != 1
+            or len(ends) != 1
+            or ends[0].start() < starts[0].end()
+        ):
+            raise ValueError(
+                f"{assembly_path}: could not isolate generated assembly for {name}"
+            )
+
+        replacement = (
+            "\t.set noreorder\n"
+            f'\t.include "{overrides[name]}"\n'
+            "\t.set reorder"
+        )
+        assembly = (
+            assembly[:starts[0].start()]
+            + replacement
+            + assembly[ends[0].end():]
+        )
+        applied.add(name)
+
+    if applied:
+        assembly_path.write_text(assembly, encoding="utf-8", newline="\n")
+    return applied
 
 
 def pad_undersized_functions(assembly_path, object_path, retail_sizes):
@@ -271,7 +348,9 @@ def pad_undersized_functions(assembly_path, object_path, retail_sizes):
     return assembly, padded, total_padding
 
 
-def compile_c_source(source, object_path, common_flags, log, function_sizes):
+def compile_c_source(
+    source, object_path, common_flags, log, function_sizes, asm_overrides
+):
     relative = source.relative_to(ROOT)
     assembly_path = BUILD / "c-input" / relative.with_suffix(".s")
     assembly_path.parent.mkdir(parents=True, exist_ok=True)
@@ -293,6 +372,7 @@ def compile_c_source(source, object_path, common_flags, log, function_sizes):
 
     try:
         enable_assembler_reordering(assembly_path)
+        applied_overrides = apply_asm_overrides(assembly_path, asm_overrides)
         auto_symbols = auto_symbol_definitions()
         symbol_addresses = {
             name: int(address, 16) for name, address in auto_symbols
@@ -348,7 +428,7 @@ def compile_c_source(source, object_path, common_flags, log, function_sizes):
         fail(f"could not pad short C functions in {relative.as_posix()}: {error}")
         return None
 
-    return padded, padding_bytes
+    return padded, padding_bytes, applied_overrides
 
 
 def assembly_input(source):
@@ -580,10 +660,12 @@ def main():
     common_flags = ["-G4", "-Iinclude", "-Isrc", "-Wa,-I,include,-I,."]
     try:
         function_sizes = retail_function_sizes()
+        asm_overrides = load_asm_overrides()
     except (OSError, UnicodeError, ValueError) as error:
-        return fail(f"could not read retail function sizes: {error}")
+        return fail(f"could not read build function inputs: {error}")
     padded_functions = 0
     padding_bytes = 0
+    applied_asm_overrides = set()
 
     try:
         modules, global_flags = source_modules()
@@ -600,11 +682,19 @@ def main():
                 [*common_flags, *c_flags(module, global_flags)],
                 LOG,
                 function_sizes,
+                asm_overrides,
             )
             if compile_result is None:
                 return 1
             padded_functions += compile_result[0]
             padding_bytes += compile_result[1]
+            duplicate_overrides = applied_asm_overrides & compile_result[2]
+            if duplicate_overrides:
+                return fail(
+                    "multiple C modules define overridden functions: "
+                    + ", ".join(sorted(duplicate_overrides))
+                )
+            applied_asm_overrides.update(compile_result[2])
         elif not compile_assembly_source(
             source,
             object_path,
@@ -613,6 +703,13 @@ def main():
         ):
             return 1
         objects.append(object_path)
+
+    unapplied_overrides = set(asm_overrides) - applied_asm_overrides
+    if unapplied_overrides:
+        return fail(
+            "asm_overrides.txt names functions that are not compiled C "
+            "definitions: " + ", ".join(sorted(unapplied_overrides))
+        )
 
     data_root = ROOT / "asm" / "data"
     if not data_root.is_dir():
@@ -669,6 +766,10 @@ def main():
         return status_result.returncode
 
     print(f"Built {OUTPUT.relative_to(ROOT)} from {len(objects)} objects.")
+    print(
+        "Retail assembly overrides: "
+        + (", ".join(sorted(asm_overrides)) if asm_overrides else "none")
+    )
     print(
         f"Padded {padded_functions} undersized C functions "
         f"with {padding_bytes} bytes of trailing nops."

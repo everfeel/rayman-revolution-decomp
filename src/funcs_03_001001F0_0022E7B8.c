@@ -3084,7 +3084,7 @@ INCLUDE_ASM(const s32, "core/main", func_00119180);
 
 INCLUDE_ASM(const s32, "core/main", func_00119230);
 
-void func_00119260(s32 value)
+void func_00119260(s32 unused, s32 value)
 {
     D_00393098 -= value;
     if (D_00393098 < 0)
@@ -4344,8 +4344,9 @@ INCLUDE_ASM(const s32, "core/main", func_00144038);
 void func_001442B8(float a, float b, float c, float d, float e)
 {
     D_00393258 = a;
-    D_0039325C = b;
-    D_00393260 = c;
+    /* Retail callers pass these in $f14/$f13, opposite the C parameter order. */
+    D_0039325C = c;
+    D_00393260 = b;
     D_00393264 = d;
     D_00393268 = e;
 }
@@ -13119,7 +13120,7 @@ INCLUDE_ASM(const s32, "core/main", func_001E70F0);
 
 void func_001E7118(u8 *unused, u8 *out)
 {
-    *(s32 *)out = D_0038395C[0];
+    *(s32 *)out = (s16)D_0038395C[0];
     out[0xC] = 0x06;
 }
 
@@ -13127,7 +13128,7 @@ void func_001E7130(s32 unused, const u16 *p) { D_0038395C[0] = p[0]; }
 
 void func_001E7140(u8 *unused, u8 *out)
 {
-    *(s32 *)out = D_0038395E[0];
+    *(s32 *)out = (s16)D_0038395E[0];
     out[0xC] = 0x06;
 }
 

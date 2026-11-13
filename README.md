@@ -13,9 +13,9 @@ This project originally started with the goal of achieving a byte-matching decom
 # Rayman Revolution (PAL) decompilation project
 
 <!-- BEGIN GENERATED PROGRESS -->
-![Progress: 1,149 byte-matches, 62 implemented, 4,434 not implemented](progress/progress.svg)
+![Progress: 1,153 byte-matches, 58 implemented, 4,434 not implemented](progress/progress.svg)
 
-**Byte-match:** 1,149 · **Implemented:** 62 · **Not implemented:** 4,434.
+**Byte-match:** 1,153 · **Implemented:** 58 · **Not implemented:** 4,434.
 <!-- END GENERATED PROGRESS -->
 
 This is a decompilation of the PAL PlayStation 2 main executable, `SLES_500.44`. The goal is to recover the executable as buildable C source while preserving the original game's behavior, and ultimately to match the retail executable byte for byte. These goals can be pursued in stages: a behaviorally faithful C implementation is valuable even before it matches the original machine code.
@@ -66,6 +66,10 @@ To compare the whole main image:
 ```
 
 Whole-image comparison covers the main load image, not DVP overlays. C functions smaller than their retail size are padded with trailing nops to retain later addresses; larger functions are not truncated or padded.
+
+### Temporary assembly overrides
+
+To test whether a C implementation causes a runtime issue, list its symbol in the root `asm_overrides.txt`, one function per line. Blank lines and `#` comments are ignored. The build substitutes that function's retail assembly from `asm/nonmatchings/` without changing its C definition. Remove the symbol from the file to restore the C implementation. The build reports the active overrides; progress results describe the linked binary, so overridden functions appear as byte-matching.
 
 ## Local dashboard and playground
 
