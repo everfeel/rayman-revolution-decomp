@@ -13,9 +13,9 @@ This project originally started with the goal of achieving a byte-matching decom
 # Rayman Revolution (PAL) decompilation project
 
 <!-- BEGIN GENERATED PROGRESS -->
-![Progress: 1,153 byte-matches, 58 implemented, 4,434 not implemented](progress/progress.svg)
+![Progress: 1,154 byte-matches, 57 implemented, 4,434 not implemented](progress/progress.svg)
 
-**Byte-match:** 1,153 · **Implemented:** 58 · **Not implemented:** 4,434.
+**Byte-match:** 1,154 · **Implemented:** 57 · **Not implemented:** 4,434.
 <!-- END GENERATED PROGRESS -->
 
 This is a decompilation of the PAL PlayStation 2 main executable, `SLES_500.44`. The goal is to recover the executable as buildable C source while preserving the original game's behavior, and ultimately to match the retail executable byte for byte. These goals can be pursued in stages: a behaviorally faithful C implementation is valuable even before it matches the original machine code.
@@ -50,19 +50,19 @@ Commands below run from the project root in PowerShell. Use the local virtual en
 
 ```powershell
 .\.venv\Scripts\python.exe tools\build.py
-.\.venv\Scripts\python.exe tools\compare.py function build\SLES_500.44.elf --symbol func_00100130 --size 0x58
+.\.venv\Scripts\python.exe tools\compare.py function build\SLES_500.44 --symbol func_00100130 --size 0x58
 ```
 
 Replace the example symbol and size with the target function's values from its reference assembly. `MATCH` means the linked function's address, size, and bytes match retail exactly. A `DIFF` is a comparison result, not a behavior verdict. Add `--full` to show every instruction word:
 
 ```powershell
-.\.venv\Scripts\python.exe tools\compare.py function build\SLES_500.44.elf --symbol func_00100130 --size 0x58 --full
+.\.venv\Scripts\python.exe tools\compare.py function build\SLES_500.44 --symbol func_00100130 --size 0x58 --full
 ```
 
 To compare the whole main image:
 
 ```powershell
-.\.venv\Scripts\python.exe tools\compare.py image build\SLES_500.44.elf
+.\.venv\Scripts\python.exe tools\compare.py image build\SLES_500.44
 ```
 
 Whole-image comparison covers the main load image, not DVP overlays. C functions smaller than their retail size are padded with trailing nops to retain later addresses; larger functions are not truncated or padded.
@@ -165,7 +165,7 @@ The reference executable, SDK, generated disassembly/assets, and build products 
 
    ```powershell
    .\.venv\Scripts\python.exe tools\build.py
-   .\.venv\Scripts\python.exe tools\compare.py image build\SLES_500.44.elf
+   .\.venv\Scripts\python.exe tools\compare.py image build\SLES_500.44
    ```
 
 ## Progress reports
@@ -183,7 +183,7 @@ The local dashboard adds assembly comparison and playground features. The static
 To regenerate reports from an existing build without rebuilding:
 
 ```powershell
-.\.venv\Scripts\python.exe tools\status.py build\SLES_500.44.elf
+.\.venv\Scripts\python.exe tools\status.py build\SLES_500.44
 ```
 
 ## Repository layout

@@ -2631,7 +2631,7 @@ extern void func_00168A40();
 extern void func_00168AA8();
 extern void func_00169EB8();
 extern void func_001DE2F0();
-extern void func_00215EC8();
+extern void func_00215EC8(u32 address, s32 command, u64 value);
 extern void func_00222978();
 
 void func_00112630(s32 arg)
@@ -14692,9 +14692,10 @@ INCLUDE_ASM(const s32, "core/main", func_00215EF8);
 
 INCLUDE_ASM(const s32, "core/main", func_00215F18);
 
-void func_00215F38(u32 a, u32 b)
+/* Assembly callers pass the 64-bit packet value as low/high words. */
+void func_00215F38(u32 address, u32 low, u32 high)
 {
-    func_00215EC8(a, 0x52, ((u64)b << 32) | a);
+    func_00215EC8(address, 0x52, ((u64)high << 32) | low);
 }
 
 void func_00215F50(s32 arg, u32 value)

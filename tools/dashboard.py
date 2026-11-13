@@ -20,7 +20,7 @@ from compare import Elf32LE, RETAIL
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BUILD_ELF = ROOT / "build" / "SLES_500.44.elf"
+BUILD_ELF = ROOT / "build" / "SLES_500.44"
 MAX_SOURCE_BYTES = compiler_explorer.MAX_SOURCE_BYTES
 MAX_REQUEST_BYTES = MAX_SOURCE_BYTES * 6 + 2048
 FUNCTION_NAME = re.compile(r"^func_[0-9A-Fa-f]{8}$")

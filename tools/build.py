@@ -26,7 +26,7 @@ COMPILER = (
 )
 LINKER = COMPILER.with_name("ee-ld.exe")
 LINKER_SCRIPT = BUILD / "SLES_500.44.ld"
-OUTPUT = BUILD / "SLES_500.44.elf"
+OUTPUT = BUILD / "SLES_500.44"
 LOG = BUILD / "build.log"
 STATUS_SCRIPT = ROOT / "tools" / "status.py"
 INCBIN = re.compile(r'^(\s*)\.incbin\s+"([^"]+)"\s*$')
@@ -40,6 +40,9 @@ FUNCTION_HEADER = re.compile(
 )
 C_FUNCTION = re.compile(r"(?m)^\s*\.ent\s+(func_[0-9A-Fa-f]{8})\s*$")
 FUNCTION_SYMBOL = re.compile(r"func_[0-9A-Fa-f]{8}\Z")
+JUMP_TABLE_LABEL = re.compile(
+    r"(?m)^[ \t]*jlabel[ \t]+([.$A-Za-z_][.$A-Za-z_0-9]*)[ \t]*$"
+)
 LIT4_MIN_OFFSET = 0x292400
 
 DEFAULT_OPTIMIZATION = "-O2"
@@ -266,6 +269,18 @@ def apply_asm_overrides(assembly_path, overrides):
     applied = set()
 
     for name in sorted(set(C_FUNCTION.findall(assembly)) & set(overrides)):
+        override_path = ROOT / overrides[name]
+        override_source = override_path.read_text(encoding="utf-8")
+        jump_labels = JUMP_TABLE_LABEL.findall(override_source)
+        # Retail assembly defines these labels, so discard the C-side aliases
+        # emitted for its jump table.
+        for label in jump_labels:
+            alias_pattern = re.compile(
+                rf"(?m)^[ \t]*\.(?:globl|equ)[ \t]+"
+                rf"{re.escape(label)}(?:[ \t,][^\r\n]*)?\r?\n?"
+            )
+            assembly = alias_pattern.sub("", assembly)
+
         start_pattern = re.compile(
             rf"(?m)^[ \t]*\.ent[ \t]+{re.escape(name)}[ \t]*$"
         )

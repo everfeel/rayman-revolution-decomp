@@ -3,7 +3,7 @@ sha1: 8a47cf3d4ca5a9b21380a494c8d6fcdf62d3207a
 options:
   basename: SLES_500.44
   target_path: build/SLES_500.44.rom
-  elf_path: build/SLES_500.44.elf
+  elf_path: build/SLES_500.44
   base_path: ..
   platform: ps2
   compiler: EEGCC

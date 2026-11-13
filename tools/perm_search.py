@@ -17,7 +17,7 @@ GCC = TOOLS / 'ee-gcc.exe'
 LD = TOOLS / 'ee-ld.exe'
 OBJDUMP = TOOLS / 'ee-objdump.exe'
 WORK = ROOT / 'build/perm'
-ELF = ROOT / 'build/SLES_500.44.elf'
+ELF = ROOT / 'build/SLES_500.44'
 GP = '0x39A3F0'
 BASE = 0x100000
 
