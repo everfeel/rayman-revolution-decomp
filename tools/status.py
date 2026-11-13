@@ -339,16 +339,20 @@ def write_svg(counts):
             f'<text x="{x + 13}" y="131" fill="#c0c1d0" font-size="13">'
             f'{label}: {count:,} ({format_percentage(count, total)})</text>'
         )
-    document = f"""<svg xmlns="http://www.w3.org/2000/svg" width="720" height="155" viewBox="0 0 720 155" role="img" aria-labelledby="title description">
+    overall = format_percentage(counts["implemented"], total)
+    document = f"""<svg xmlns="http://www.w3.org/2000/svg" width="720" height="155" viewBox="0 0 720 155" role="img" aria-labelledby="title description" font-family="Segoe UI, Arial, sans-serif">
 <title id="title">Function progress</title>
 <desc id="description">Byte-match: {counts["MATCHING"]:,} ({format_percentage(counts["MATCHING"], total)}). Implemented without a byte match: {counts["NOT MATCHING"]:,} ({format_percentage(counts["NOT MATCHING"], total)}). Not implemented: {counts["NOT STARTED"]:,} ({format_percentage(counts["NOT STARTED"], total)}).</desc>
 <defs>
 <linearGradient id="matching-gradient" x1="0" x2="1"><stop offset="0" stop-color="#348da5"/><stop offset="1" stop-color="#55c5df"/></linearGradient>
 <linearGradient id="not-matching-gradient" x1="0" x2="1"><stop offset="0" stop-color="#585caa"/><stop offset="1" stop-color="#8286d1"/></linearGradient>
 <linearGradient id="not-started-gradient" x1="0" x2="1"><stop offset="0" stop-color="#3e4050"/><stop offset="1" stop-color="#555767"/></linearGradient>
+<linearGradient id="overall-gradient" x1="0" x2="1"><stop offset="0" stop-color="#55c5df"/><stop offset="1" stop-color="#8286d1"/></linearGradient>
 </defs>
 <rect width="720" height="155" rx="16" fill="#10111a"/>
 <text x="24" y="38" fill="#f1f1f7" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="600">Function progress</text>
+<text x="696" y="34" text-anchor="end" fill="url(#overall-gradient)" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">{overall}</text>
+<text x="696" y="50" text-anchor="end" fill="#7c7e92" font-family="Segoe UI, Arial, sans-serif" font-size="11">total progress</text>
 <rect x="24" y="66" width="{width}" height="22" rx="11" fill="{STATUS_COLOR["NOT STARTED"][0]}" fill-opacity="{STATUS_COLOR["NOT STARTED"][1]}"/>
 <clipPath id="progress-clip"><rect x="24" y="66" width="{width}" height="22" rx="11"/></clipPath>
 <g clip-path="url(#progress-clip)">
