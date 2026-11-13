@@ -9,12 +9,13 @@
 # USE_GLOBAL_COMPILER_FLAGS is enabled in tools/build.py.
 # Assembly (.s) sources do not receive C optimization arguments.
 #
-# Keep main.c first: its padding and func_00100008 start the text region.
-# Keep the remaining modules in address order: func_001000B8, then the
-# C modules starting at func_001000C0, func_00100188, and func_001001F0.
-# func_001000B0 is in main.c.
+# Keep the entry assembly first; it contains the initial padding and defines
+# func_00100008, then list func_001000B0 and func_001000B8 in address order,
+# followed by C modules starting at func_001000C0, func_00100188, and
+# func_001001F0.
 
-main.c -O2
+asm/func_00100008.s
+asm/func_001000B0.s
 asm/func_001000B8.s
 funcs_01_001000C0_00100130.c -O2
 funcs_02_00100188_001001C0.c -O1 -fno-omit-frame-pointer

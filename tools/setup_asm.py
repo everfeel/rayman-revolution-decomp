@@ -14,7 +14,6 @@ from compare import Elf32LE, RETAIL
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "config" / "splat.yaml"
 ROM = ROOT / "build" / "SLES_500.44.rom"
-MAIN_SOURCE = ROOT / "src" / "main.c"
 SPLAT_MAIN_SOURCE = ROOT / "src" / "core" / "main.c"
 EXPECTED_RETAIL_SHA1 = "425c777247a56b4d6d7120088c70d970c45cc41b"
 EXPECTED_ROM_SHA1 = "8a47cf3d4ca5a9b21380a494c8d6fcdf62d3207a"
@@ -119,10 +118,11 @@ def main():
                 f"Legacy Splat source path already exists: "
                 f"{SPLAT_MAIN_SOURCE.relative_to(ROOT)}"
             )
-        main_source = MAIN_SOURCE.read_text(encoding="utf-8")
+        # Splat requires the main C source path during splitting; startup
+        # padding and code are maintained in src/asm/func_00100008.s.
         SPLAT_MAIN_SOURCE.parent.mkdir(parents=True)
         SPLAT_MAIN_SOURCE.write_text(
-            main_source,
+            "",
             encoding="utf-8",
             newline="\n",
         )

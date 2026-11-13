@@ -549,11 +549,11 @@ def source_modules():
     module_paths = [module.path for module in modules]
     if len(set(module_paths)) != len(module_paths):
         raise ValueError(f"{manifest_name} contains duplicate paths")
-    main_source = ROOT / "src" / "main.c"
-    if modules[0].path != main_source:
-        raise ValueError(f"{manifest_name} must list main.c first")
-    if sum(module.path == main_source for module in modules) != 1:
-        raise ValueError(f"{manifest_name} must list main.c exactly once")
+    entry_source = ROOT / "src" / "asm" / "func_00100008.s"
+    if modules[0].path != entry_source:
+        raise ValueError(f"{manifest_name} must list func_00100008.s first")
+    if sum(module.path == entry_source for module in modules) != 1:
+        raise ValueError(f"{manifest_name} must list func_00100008.s exactly once")
     return modules, tuple(global_flags)
 
 
