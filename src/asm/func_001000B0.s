@@ -1,4 +1,3 @@
-.include "include/macro.inc"
 
 .align 3
 /* Exit with status zero. */

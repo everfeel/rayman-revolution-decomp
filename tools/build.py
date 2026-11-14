@@ -202,11 +202,13 @@ def enable_assembler_reordering(assembly_path):
     no_app = re.search(
         r"(?m)^[ \t]*#NO_APP[ \t]*$", assembly[macro_include.end():]
     )
-    if not no_app:
-        raise ValueError(
-            f"{assembly_path}: missing #NO_APP after include/macro.inc"
-        )
-    insertion = macro_include.end() + no_app.end()
+    if no_app:
+        insertion = macro_include.end() + no_app.end()
+    else:
+        # A translation unit made only of asm blocks has no #NO_APP; the
+        # reorder switch goes directly after the macro.inc include, where
+        # no instructions have been emitted yet.
+        insertion = macro_include.end()
     assembly = assembly[:insertion] + "\n\t.set reorder" + assembly[insertion:]
     assembly_path.write_text(assembly, encoding="utf-8", newline="\n")
 
@@ -644,11 +646,9 @@ def source_modules():
     module_paths = [module.path for module in modules]
     if len(set(module_paths)) != len(module_paths):
         raise ValueError(f"{manifest_name} contains duplicate paths")
-    entry_source = ROOT / "src" / "asm" / "func_00100008.s"
+    entry_source = ROOT / "src" / "funcs_00_00100008_001000B8.c"
     if modules[0].path != entry_source:
-        raise ValueError(f"{manifest_name} must list func_00100008.s first")
-    if sum(module.path == entry_source for module in modules) != 1:
-        raise ValueError(f"{manifest_name} must list func_00100008.s exactly once")
+        raise ValueError(f"{manifest_name} must list the CRT entry module first")
     return modules, tuple(global_flags)
 
 

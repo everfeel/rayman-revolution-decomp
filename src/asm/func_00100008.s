@@ -1,4 +1,3 @@
-.include "include/macro.inc"
 
 /* Entry-point padding; func_00100008 starts at 0x00100008. */
 nop

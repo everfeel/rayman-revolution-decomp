@@ -73,6 +73,11 @@ __asm__(".include \"include/macro.inc\"");
     __asm__(".set noreorder\n.include \"asm/nonmatchings/" path "/" #name ".s\"\n.set reorder")
 #endif
 
-#define ASM_FUNC(type, path, name) INCLUDE_ASM(type, path, name)
+#if defined(__INTELLISENSE__)
+#define ASM_FUNC(type, name) type name()
+#else
+#define ASM_FUNC(type, name) \
+    __asm__(".set noreorder\n.include \"src/asm/" #name ".s\"\n.set reorder")
+#endif
 
 #endif

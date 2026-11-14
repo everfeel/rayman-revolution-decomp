@@ -1,4 +1,3 @@
-.include "include/macro.inc"
 
 .align 3
 /* ExitThread syscall; control does not return. */
