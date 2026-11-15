@@ -26,7 +26,7 @@ COMPILER = (
 )
 LINKER = COMPILER.with_name("ee-ld.exe")
 LINKER_SCRIPT = BUILD / "SLES_500.44.ld"
-OUTPUT = BUILD / "SLES_500.44"
+OUTPUT = BUILD / "SLES_500.44.elf"
 LOG = BUILD / "build.log"
 STATUS_SCRIPT = ROOT / "tools" / "status.py"
 INCBIN = re.compile(r'^(\s*)\.incbin\s+"([^"]+)"\s*$')
@@ -670,6 +670,7 @@ def main():
         )
 
     BUILD.mkdir(parents=True, exist_ok=True)
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     LOG.write_text("", encoding="utf-8")
     objects = []
     common_flags = ["-G4", "-Iinclude", "-Isrc", "-Wa,-I,include,-I,."]

@@ -20,7 +20,7 @@ from compare import Elf32LE, RETAIL
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BUILD_ELF = ROOT / "build" / "SLES_500.44"
+BUILD_ELF = ROOT / "build" / "SLES_500.44.elf"
 MAX_SOURCE_BYTES = compiler_explorer.MAX_SOURCE_BYTES
 MAX_REQUEST_BYTES = MAX_SOURCE_BYTES * 6 + 2048
 FUNCTION_NAME = re.compile(r"^func_[0-9A-Fa-f]{8}$")
@@ -38,6 +38,28 @@ def function_implementation_status(symbol):
                     )
                 return status
     raise ValueError(f"{symbol} is missing from {progress.CSV_REPORT}.")
+
+
+def behavioral_statuses():
+    with progress.CSV_REPORT.open(encoding="utf-8-sig", newline="") as report:
+        eligible = {
+            row["function"]
+            for row in csv.DictReader(report)
+            if row["status"] == "NOT MATCHING"
+        }
+    state = progress.load_source_timestamp_state()
+    return {
+        symbol: state.get(symbol, {}).get("behaviorally_correct", False)
+        for symbol in eligible
+    }
+
+
+def save_behavioral_status(symbol, value):
+    if function_implementation_status(symbol) != "NOT MATCHING":
+        raise ValueError(
+            "Behavioral status is available only for implemented, non-matching functions."
+        )
+    progress.set_behaviorally_correct(symbol, value)
 
 
 def function_reference(symbol):
@@ -391,6 +413,12 @@ class RequestHandler(BaseHTTPRequestHandler):
         if route.path == "/api/ready":
             self.send_json(200, {"ready": True})
             return
+        if route.path == "/api/behavior":
+            try:
+                self.send_json(200, {"statuses": behavioral_statuses()})
+            except (OSError, UnicodeError, ValueError) as error:
+                self.send_json(500, {"error": str(error)})
+            return
         if route.path == "/api/draft":
             symbol = parse_qs(route.query).get("symbol", [""])[0]
             try:
@@ -428,7 +456,12 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         route = urlparse(self.path)
-        if route.path not in ("/api/compile", "/api/draft", "/api/profile"):
+        if route.path not in (
+            "/api/compile",
+            "/api/draft",
+            "/api/profile",
+            "/api/behavior",
+        ):
             self.send_error(404)
             return
         try:
@@ -446,6 +479,22 @@ class RequestHandler(BaseHTTPRequestHandler):
             return
         if not isinstance(request, dict):
             self.send_json(400, {"error": "Request body must be a JSON object."})
+            return
+        if route.path == "/api/behavior":
+            try:
+                save_behavioral_status(
+                    request.get("symbol"),
+                    request.get("behaviorally_correct"),
+                )
+            except (UnicodeError, ValueError) as error:
+                self.send_json(400, {"error": str(error)})
+                return
+            except OSError as error:
+                self.send_json(
+                    500, {"error": f"Could not save behavioral status: {error}"}
+                )
+                return
+            self.send_json(200, {"saved": True})
             return
         if route.path == "/api/draft":
             try:

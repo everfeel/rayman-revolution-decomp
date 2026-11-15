@@ -12,12 +12,14 @@
 # Keep the entry assembly first; it contains the initial padding and defines
 # func_00100008, then list func_001000B0 and func_001000B8 in address order,
 # followed by C modules starting at func_001000C0, func_00100188, and
-# func_001001F0.
+# func_001001F0. Split modules remain in address order.
 
 funcs_00_00100008_001000B8.c -O2
 funcs_01_001000C0_00100130.c -O2
 funcs_02_00100188_001001C0.c -O1 -fno-omit-frame-pointer
-funcs_03_001001F0_001340F0.c -O2
-funcs_04_001346E8_001346E8.c -O2 -ffast-math
-funcs_05_00135530_0022E7B8.c -O2
+funcs_03_001001F0_0010CB60.c -O2
+funcs_04_0010CC30_0010CC30.c -Os -fno-caller-saves -fno-omit-frame-pointer
+funcs_05_0010D408_001340F0.c -O2
+funcs_06_001346E8_001346E8.c -O2 -ffast-math
+funcs_07_00135530_0022E7B8.c -O2
 

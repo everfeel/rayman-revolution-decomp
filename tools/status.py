@@ -9,14 +9,15 @@ import json
 import re
 import struct
 import sys
-from datetime import datetime
+import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 
 from compare import Elf32LE, RETAIL, SHT_SYMTAB
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BUILD_ELF = ROOT / "build" / "SLES_500.44"
+BUILD_ELF = ROOT / "build" / "SLES_500.44.elf"
 ASM_ROOT = ROOT / "asm" / "nonmatchings"
 SOURCE_ROOT = ROOT / "src"
 REPORT_DIR = ROOT / "progress"
@@ -24,6 +25,7 @@ HTML_REPORT = REPORT_DIR / "main_status.html"
 CSV_REPORT = REPORT_DIR / "functions.csv"
 SVG_REPORT = REPORT_DIR / "progress.svg"
 SOURCE_BASELINE = REPORT_DIR / ".function_source_baseline.json"
+SOURCE_TIMESTAMPS = REPORT_DIR / ".function_source_timestamps.json"
 README = ROOT / "README.md"
 README_PROGRESS_START = "<!-- BEGIN GENERATED PROGRESS -->"
 README_PROGRESS_END = "<!-- END GENERATED PROGRESS -->"
@@ -36,6 +38,9 @@ NON_FUNCTION_SYMBOLS = {"func_00100000"}
 INCLUDE_ASM = re.compile(
     r"INCLUDE_ASM\s*\([^;]*?\b(func_[0-9A-Fa-f]{8})\s*\)", re.DOTALL
 )
+ASM_FUNC = re.compile(
+    r"ASM_FUNC\s*\([^;]*?\b(func_[0-9A-Fa-f]{8})\s*\)", re.DOTALL
+)
 FUNCTION_DEFINITION = re.compile(
     r"\b(func_[0-9A-Fa-f]{8})\s*\([^;{}]*\)"
     r"(?:\s|/\*[\s\S]*?\*/|//[^\r\n]*)*\{"
@@ -46,14 +51,21 @@ INLINE_ASM_FUNCTION = re.compile(
 ASSEMBLY_DEFINITION = re.compile(
     r"(?m)^\s*glabel\s+(func_[0-9A-Fa-f]{8})\s*$"
 )
+# K&R style definitions: "ret func_x(params)\ndecl;\n{"
+KNR_DEFINITION = re.compile(
+    r"\b(func_[0-9A-Fa-f]{8})\s*\([^;{}]*\)\s*"
+    r"[A-Za-z_][^;{}]*;\s*\{"
+)
 
 CSV_FIELDS = (
     "function",
     "address",
     "status",
+    "behaviorally_correct",
     "original_size_bytes",
     "matching_bytes",
     "first_difference",
+    "source_edited_at",
 )
 
 STATUS_CLASS = {
@@ -116,6 +128,7 @@ def function_inventory():
 
 def project_implementations(inventory):
     asm_references = set()
+    asm_implementations = set()
     c_definitions = set()
     source_files = [
         *SOURCE_ROOT.rglob("*.c"),
@@ -125,9 +138,11 @@ def project_implementations(inventory):
     for path in sorted(source_files):
         source = path.read_text(encoding="utf-8")
         asm_references.update(INCLUDE_ASM.findall(source))
+        asm_implementations.update(ASM_FUNC.findall(source))
         c_definitions.update(FUNCTION_DEFINITION.findall(source))
         c_definitions.update(INLINE_ASM_FUNCTION.findall(source))
         c_definitions.update(ASSEMBLY_DEFINITION.findall(source))
+        c_definitions.update(KNR_DEFINITION.findall(source))
 
     baseline = {}
     if SOURCE_BASELINE.is_file():
@@ -141,7 +156,7 @@ def project_implementations(inventory):
         name: digest for name, digest in baseline.items() if name in inventory
     }
 
-    implementations = c_definitions - asm_references
+    implementations = (c_definitions | asm_implementations) - asm_references
     updated = len(current_baseline) != len(baseline)
     baseline = current_baseline
     for name, function in inventory.items():
@@ -163,6 +178,216 @@ def project_implementations(inventory):
             newline="\n",
         )
     return implementations
+
+
+def _function_definition_end(source, opening_brace):
+    depth = 0
+    state = "code"
+    escaped = False
+    index = opening_brace
+    while index < len(source):
+        character = source[index]
+        following = source[index + 1] if index + 1 < len(source) else ""
+        if state == "line_comment":
+            if character == "\n":
+                state = "code"
+        elif state == "block_comment":
+            if character == "*" and following == "/":
+                state = "code"
+                index += 1
+        elif state in ("string", "character"):
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif (state == "string" and character == '"') or (
+                state == "character" and character == "'"
+            ):
+                state = "code"
+        elif character == "/" and following == "/":
+            state = "line_comment"
+            index += 1
+        elif character == "/" and following == "*":
+            state = "block_comment"
+            index += 1
+        elif character == '"':
+            state = "string"
+        elif character == "'":
+            state = "character"
+        elif character == "{":
+            depth += 1
+        elif character == "}":
+            depth -= 1
+            if depth == 0:
+                return index + 1
+        index += 1
+    raise ValueError("Unterminated function definition in project source.")
+
+
+def _definition_start(source, symbol_start):
+    start = source.rfind("\n", 0, symbol_start) + 1
+    while start:
+        previous_end = start - 1
+        previous_start = source.rfind("\n", 0, previous_end) + 1
+        previous_line = source[previous_start:previous_end].strip()
+        if (
+            not previous_line
+            or previous_line.endswith(("}", ";"))
+            or previous_line.startswith("#")
+        ):
+            break
+        start = previous_start
+    return start
+
+
+def function_source_fingerprints(inventory):
+    fingerprints = {
+        name: hashlib.sha256(
+            (ROOT / Path(function["assembly_file"].replace("/", "\\"))).read_bytes()
+        ).hexdigest()
+        for name, function in inventory.items()
+    }
+    definitions = {}
+
+    def add_definition(name, source, start, end):
+        if name in inventory:
+            digest = hashlib.sha256(source[start:end].encode("utf-8")).hexdigest()
+            definitions.setdefault(name, set()).add(digest)
+
+    source_files = [
+        *SOURCE_ROOT.rglob("*.c"),
+        *SOURCE_ROOT.rglob("*.inc"),
+        *SOURCE_ROOT.rglob("*.s"),
+    ]
+    for path in sorted(source_files):
+        source = path.read_text(encoding="utf-8")
+        for pattern in (FUNCTION_DEFINITION, KNR_DEFINITION):
+            for match in pattern.finditer(source):
+                end = _function_definition_end(source, match.end() - 1)
+                add_definition(
+                    match.group(1),
+                    source,
+                    _definition_start(source, match.start(1)),
+                    end,
+                )
+        for pattern in (ASM_FUNC, INLINE_ASM_FUNCTION):
+            for match in pattern.finditer(source):
+                add_definition(match.group(1), source, match.start(), match.end())
+
+        assembly_matches = list(ASSEMBLY_DEFINITION.finditer(source))
+        for index, match in enumerate(assembly_matches):
+            end = (
+                assembly_matches[index + 1].start()
+                if index + 1 < len(assembly_matches)
+                else len(source)
+            )
+            add_definition(
+                match.group(1),
+                source,
+                source.rfind("\n", 0, match.start()) + 1,
+                end,
+            )
+
+    for name, digests in definitions.items():
+        fingerprints[name] = hashlib.sha256(
+            "\n".join(sorted(digests)).encode("ascii")
+        ).hexdigest()
+    return fingerprints
+
+
+def update_source_timestamps(
+    rows, fingerprints, timestamp_file=SOURCE_TIMESTAMPS, now=None
+):
+    previous = load_source_timestamp_state(timestamp_file)
+
+    now = now or datetime.now(timezone.utc)
+    timestamp = now.astimezone(timezone.utc).isoformat(timespec="seconds").replace(
+        "+00:00", "Z"
+    )
+    current = {}
+    for row in rows:
+        name = row["name"]
+        row["source_edited_at"] = ""
+        row["behaviorally_correct"] = False
+        if row["status"] == "NOT STARTED":
+            continue
+        digest = fingerprints[name]
+        record = previous.get(name, {})
+        edited_at = (
+            record["timestamp"]
+            if record.get("digest") == digest
+            else timestamp
+        )
+        behaviorally_correct = False
+        if row["status"] == "NOT MATCHING":
+            behaviorally_correct = record.get("behaviorally_correct", False)
+            current[name] = {
+                "digest": digest,
+                "timestamp": edited_at,
+                "behaviorally_correct": behaviorally_correct,
+            }
+        else:
+            current[name] = {"digest": digest, "timestamp": edited_at}
+        row["source_edited_at"] = edited_at
+        row["behaviorally_correct"] = behaviorally_correct
+
+    if current != previous or not timestamp_file.exists():
+        write_source_timestamp_state(current, timestamp_file)
+    return rows
+
+
+def load_source_timestamp_state(timestamp_file=SOURCE_TIMESTAMPS):
+    if not timestamp_file.is_file():
+        return {}
+    previous = json.loads(timestamp_file.read_text(encoding="utf-8"))
+    if not isinstance(previous, dict) or any(
+        not isinstance(name, str)
+        or not isinstance(record, dict)
+        or not isinstance(record.get("digest"), str)
+        or not isinstance(record.get("timestamp"), str)
+        or (
+            "behaviorally_correct" in record
+            and not isinstance(record["behaviorally_correct"], bool)
+        )
+        for name, record in previous.items()
+    ):
+        raise ValueError(f"{timestamp_file}: malformed source timestamp data")
+    return previous
+
+
+def write_source_timestamp_state(state, timestamp_file=SOURCE_TIMESTAMPS):
+    timestamp_file.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="\n",
+            dir=timestamp_file.parent,
+            prefix=f".{timestamp_file.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temporary_file:
+            temporary_path = Path(temporary_file.name)
+            json.dump(state, temporary_file, indent=2, sort_keys=True)
+            temporary_file.write("\n")
+        temporary_path.replace(timestamp_file)
+    finally:
+        if temporary_path and temporary_path.exists():
+            temporary_path.unlink()
+
+
+def set_behaviorally_correct(symbol, value, timestamp_file=SOURCE_TIMESTAMPS):
+    if not isinstance(symbol, str) or not FUNCTION_NAME.fullmatch(symbol):
+        raise ValueError("Invalid function symbol.")
+    if not isinstance(value, bool):
+        raise ValueError("Behavioral status must be true or false.")
+    state = load_source_timestamp_state(timestamp_file)
+    record = state.get(symbol)
+    if record is None:
+        raise ValueError(f"{symbol} has no tracked implementation status.")
+    record["behaviorally_correct"] = value
+    write_source_timestamp_state(state, timestamp_file)
 
 
 def function_symbols(elf):
@@ -267,9 +492,15 @@ def write_csv(rows):
                     "function": row["name"],
                     "address": f"0x{row['address']:08X}",
                     "status": row["status"],
+                    "behaviorally_correct": (
+                        row["behaviorally_correct"]
+                        if row["status"] == "NOT MATCHING"
+                        else ""
+                    ),
                     "original_size_bytes": row["retail_size"],
                     "matching_bytes": row["matching_bytes"],
                     "first_difference": row["first_difference"],
+                    "source_edited_at": row["source_edited_at"],
                 }
             )
 
@@ -377,15 +608,29 @@ def summary(rows):
 def write_html(rows, counts, generated_at):
     table_rows = []
     for row in rows:
+        behavior_control = "-"
+        if row["status"] == "NOT MATCHING":
+            checked = " checked" if row["behaviorally_correct"] else ""
+            behavior_control = (
+                '<label class="behavior-check">'
+                f'<input class="behavior-checkbox" type="checkbox" '
+                f'data-symbol="{html.escape(row["name"])}"{checked} disabled>'
+                '<span>Behaviorally correct</span></label>'
+                '<span class="behavior-save-status" role="status" '
+                'aria-live="polite"></span>'
+            )
         table_rows.append(
-            f'<tr data-status="{html.escape(row["status"])}">'
+            f'<tr data-status="{html.escape(row["status"])}" '
+            f'data-source-edited-at="{html.escape(row["source_edited_at"])}">'
             f"<td><code>{html.escape(row['name'])}</code></td>"
             f"<td>0x{row['address']:08X}</td>"
             f'<td><span class="badge {STATUS_CLASS[row["status"]]}">'
             f'{STATUS_LABEL[row["status"]]}</span></td>'
+            f'<td class="behavior-cell">{behavior_control}</td>'
             f"<td>{row['retail_size']}</td>"
             f"<td>{(str(row['matching_bytes']) + ' / ' + str(row['retail_size'])) if row['matching_bytes'] != '' else '-'}</td>"
             f"<td>{html.escape(str(row['first_difference']) or '-')}</td>"
+            f"<td>{html.escape(row['source_edited_at'].replace('T', ' ').replace('Z', ' UTC') or '-')}</td>"
             "</tr>"
         )
 
@@ -570,6 +815,11 @@ tbody tr:hover td {{ background: #17192a; }}
 @keyframes panel-in {{ from {{ opacity: .7; transform: translateY(3px); }} to {{ opacity: 1; transform: translateY(0); }} }}
 .function-action {{ color: #bfc1ff; background: transparent; border: 0; font: inherit; cursor: pointer; }}
 .function-action:hover {{ text-decoration: underline; }}
+.function-order {{ padding: 9px 12px; color: #b9bac8; background: #11121b; border: 1px solid #282a39; border-radius: 9px; font: inherit; font-size: .82rem; }}
+.behavior-cell {{ min-width: 190px; }}
+.behavior-check {{ display: inline-flex; align-items: center; gap: 7px; color: #c5c6db; }}
+.behavior-checkbox {{ accent-color: #55c5df; }}
+.behavior-save-status {{ display: block; color: #9294a8; font-size: .72rem; white-space: normal; }}
 @media (max-width: 900px) {{ .toolbar {{ align-items: stretch; flex-direction: column; }} .search-wrap {{ min-width: 0; }} }}
 @media (max-width: 700px) {{ main {{ padding: 18px 14px 36px; }} .hero {{ padding: 24px 20px; }} .section-head {{ align-items: start; flex-direction: column; }} .controls {{ display: grid; grid-template-columns: 1fr; }} .status-filter {{ justify-content: space-between; }} .progress-track-heading {{ align-items: start; flex-direction: column; gap: 3px; }} }}
 @media (max-width: 800px) {{ .workspace-panes {{ grid-template-columns: 1fr; }} .workspace textarea, .workspace pre {{ height: 45vh; }} .assembly-row {{ grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1fr); gap: 5px; }} .playground-diff-row {{ grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1fr); gap: 6px; padding: 7px 6px; font-size: 11px; }} }}
@@ -589,7 +839,7 @@ tbody tr:hover td {{ background: #17192a; }}
 <div class="progress-track-heading"><strong>{counts["total"]:,} functions</strong><span>Progress by function status</span></div>
 {progress_bar}
 </section>
-<p class="note"><strong>Function status:</strong> <b>Byte-match</b> means the compiled function matches the original bytes. <b>Implemented</b> means a C or hand-written assembly implementation replaces the retail fallback, but its compiled bytes differ. <b>Not implemented</b> means the function still uses the retail assembly fallback.</p>
+<p class="note"><strong>Function status:</strong> <b>Byte-match</b> means the compiled function matches the original bytes. <b>Implemented</b> means a C or hand-written assembly implementation replaces the retail fallback, but its compiled bytes differ. <b>Not implemented</b> means the function still uses the retail assembly fallback. For implemented, non-matching functions, mark <b>Behaviorally correct</b> to record your manual assessment; this does not change byte-match status or the source-edit timestamp.</p>
 </section>
 <nav class="tabs" role="tablist" aria-label="Dashboard views">
   <button class="tab" id="progress-tab" role="tab" aria-selected="true" aria-controls="progress-view">Progress</button>
@@ -605,6 +855,12 @@ tbody tr:hover td {{ background: #17192a; }}
 <div class="controls" aria-label="Filter by function status">
   <button class="status-filter" type="button" data-status-filter="ALL" aria-pressed="true">All <span class="filter-count">{counts["total"]:,}</span></button>
   {status_filters_html}
+  <label for="function-order">Sort</label>
+  <select class="function-order" id="function-order">
+    <option value="original">Original order</option>
+    <option value="newest">Newest source edit</option>
+    <option value="oldest">Oldest source edit</option>
+  </select>
 </div>
 <label class="search-wrap" for="filter">
   <span class="search-icon" aria-hidden="true">⌕</span>
@@ -614,8 +870,8 @@ tbody tr:hover td {{ background: #17192a; }}
 <div class="results" aria-live="polite"><span id="result-count"></span><span>Status updates after each successful build</span></div>
 <div class="table-wrap">
 <table id="functions">
-<thead><tr><th>Function</th><th>Address</th><th>Status</th><th>Retail size</th><th>Matching bytes</th><th>First difference</th></tr></thead>
-<tbody>{''.join(table_rows)}</tbody>
+<thead><tr><th>Function</th><th>Address</th><th>Status</th><th>Behavior</th><th>Retail size</th><th>Matching bytes</th><th>First difference</th><th>Last source edit (UTC)</th></tr></thead>
+<tbody id="function-rows">{''.join(table_rows)}</tbody>
 </table>
 <div class="empty" id="empty-state">No functions match these filters. Try another status or search.</div>
 </div>
@@ -671,6 +927,9 @@ tbody tr:hover td {{ background: #17192a; }}
 const filter = document.getElementById("filter");
 const buttons = [...document.querySelectorAll("[data-status-filter]")];
 const rows = [...document.querySelectorAll("#functions tbody tr")];
+const originalRows = [...rows];
+const functionOrder = document.getElementById("function-order");
+const functionRows = document.getElementById("function-rows");
 const resultCount = document.getElementById("result-count");
 const emptyState = document.getElementById("empty-state");
 const refreshStateKey = "progress-dashboard-refresh";
@@ -729,11 +988,45 @@ function applyFilters() {{
   emptyState.style.display = visible ? "none" : "block";
 }}
 
+function sortRows() {{
+  const sorted = [...originalRows];
+  if (functionOrder.value !== "original") {{
+    const direction = functionOrder.value === "newest" ? -1 : 1;
+    sorted.sort((left, right) => {{
+      const leftTime = left.dataset.sourceEditedAt;
+      const rightTime = right.dataset.sourceEditedAt;
+      if (!leftTime) return rightTime ? 1 : 0;
+      if (!rightTime) return -1;
+      return direction * leftTime.localeCompare(rightTime);
+    }});
+  }}
+  rows.splice(0, rows.length, ...sorted);
+  for (const row of sorted) functionRows.append(row);
+}}
+
+async function initializeBehaviorControls() {{
+  const checkboxes = [...document.querySelectorAll(".behavior-checkbox")];
+  if (!checkboxes.length) return;
+  try {{
+    const result = await requestJson("/api/behavior");
+    for (const checkbox of checkboxes) {{
+      checkbox.checked = result.statuses[checkbox.dataset.symbol] === true;
+      checkbox.disabled = false;
+    }}
+  }} catch (error) {{
+    for (const checkbox of checkboxes) {{
+      checkbox.parentElement.nextElementSibling.textContent =
+        `Could not load saved status: ${{error.message}}`;
+    }}
+  }}
+}}
+
 function saveViewState() {{
   const topRow = rows.find(row => !row.hidden && row.getBoundingClientRect().bottom > 0);
   sessionStorage.setItem(refreshStateKey, JSON.stringify({{
     search: filter.value,
     status: activeStatus,
+    order: functionOrder.value,
     scrollY: window.scrollY,
     rowName: topRow ? topRow.cells[0].textContent.trim() : "",
     rowOffset: topRow ? topRow.getBoundingClientRect().top : 0
@@ -1145,6 +1438,36 @@ filter.addEventListener("input", () => {{
   applyFilters();
   saveViewState();
 }});
+functionOrder.addEventListener("change", () => {{
+  sortRows();
+  applyFilters();
+  saveViewState();
+}});
+for (const checkbox of document.querySelectorAll(".behavior-checkbox")) {{
+  checkbox.addEventListener("change", async () => {{
+    const previousValue = !checkbox.checked;
+    const status = checkbox.parentElement.nextElementSibling;
+    checkbox.disabled = true;
+    status.textContent = "Saving…";
+    try {{
+      await requestJson("/api/behavior", {{
+        method: "POST",
+        headers: {{ "Content-Type": "application/json" }},
+        body: JSON.stringify({{
+          symbol: checkbox.dataset.symbol,
+          behaviorally_correct: checkbox.checked
+        }})
+      }});
+      status.textContent = checkbox.checked ? "Saved as behaviorally correct." : "Saved as unconfirmed.";
+    }} catch (error) {{
+      checkbox.checked = previousValue;
+      status.textContent = `Save failed: ${{error.message}}`;
+    }} finally {{
+      checkbox.disabled = false;
+    }}
+  }});
+}}
+initializeBehaviorControls();
 window.addEventListener("pagehide", () => {{
   saveViewState();
   window.clearTimeout(draftSaveTimer);
@@ -1186,6 +1509,9 @@ const refreshState = sessionStorage.getItem(refreshStateKey);
 const state = refreshState ? JSON.parse(refreshState) : null;
 if (state) {{
   filter.value = state.search;
+  if (["original", "newest", "oldest"].includes(state.order)) {{
+    functionOrder.value = state.order;
+  }}
   if (buttons.some(button => button.dataset.statusFilter === state.status)) {{
     activeStatus = state.status;
   }}
@@ -1193,6 +1519,7 @@ if (state) {{
     button.setAttribute("aria-pressed", String(button.dataset.statusFilter === activeStatus));
   }}
 }}
+sortRows();
 applyFilters();
 if (state) {{
   window.history.scrollRestoration = "manual";
@@ -1230,6 +1557,7 @@ def main():
         inventory = function_inventory()
         implementations = project_implementations(inventory)
         rows = compare_functions(retail, build, inventory, implementations)
+        update_source_timestamps(rows, function_source_fingerprints(inventory))
         counts = summary(rows)
         now = datetime.now().astimezone()
         generated_at = f"{now:%Y-%m-%d}"

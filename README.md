@@ -13,9 +13,9 @@ This project originally started with the goal of achieving a byte-matching decom
 # Rayman Revolution (PAL) decompilation project
 
 <!-- BEGIN GENERATED PROGRESS -->
-![Progress: 1,621 byte-matches, 60 implemented, 3,964 not implemented](progress/progress.svg)
+![Progress: 1,778 byte-matches, 147 implemented, 3,720 not implemented](progress/progress.svg)
 
-**Byte-match:** 1,621 · **Implemented:** 60 · **Not implemented:** 3,964.
+**Byte-match:** 1,778 · **Implemented:** 147 · **Not implemented:** 3,720.
 <!-- END GENERATED PROGRESS -->
 
 This is a decompilation of the PAL PlayStation 2 main executable, `SLES_500.44`. The goal is to recover the executable as buildable C source while preserving the original game's behavior, and ultimately to match the retail executable byte for byte. These goals can be pursued in stages: a behaviorally faithful C implementation is valuable even before it matches the original machine code.
@@ -50,19 +50,19 @@ Commands below run from the project root in PowerShell. Use the local virtual en
 
 ```powershell
 .\.venv\Scripts\python.exe tools\build.py
-.\.venv\Scripts\python.exe tools\compare.py function build\SLES_500.44 --symbol func_00100130 --size 0x58
+.\.venv\Scripts\python.exe tools\compare.py function build\SLES_500.44.elf --symbol func_00100130 --size 0x58
 ```
 
 Replace the example symbol and size with the target function's values from its reference assembly. `MATCH` means the linked function's address, size, and bytes match retail exactly. A `DIFF` is a comparison result, not a behavior verdict. Add `--full` to show every instruction word:
 
 ```powershell
-.\.venv\Scripts\python.exe tools\compare.py function build\SLES_500.44 --symbol func_00100130 --size 0x58 --full
+.\.venv\Scripts\python.exe tools\compare.py function build\SLES_500.44.elf --symbol func_00100130 --size 0x58 --full
 ```
 
 To compare the whole main image:
 
 ```powershell
-.\.venv\Scripts\python.exe tools\compare.py image build\SLES_500.44
+.\.venv\Scripts\python.exe tools\compare.py image build\SLES_500.44.elf
 ```
 
 Whole-image comparison covers the main load image, not DVP overlays. C functions smaller than their retail size are padded with trailing nops to retain later addresses; larger functions are not truncated or padded.
@@ -81,7 +81,7 @@ Start the combined progress, function-assembly, and C playground page:
 
 Open `http://127.0.0.1:8765/`. The server binds to localhost; press `Ctrl+C` to stop it. Use `--port` to choose another port or `--no-browser` to suppress automatic browser launch.
 
-- **Progress** groups functions as **Byte-match**, **Implemented**, or **Not implemented**. A byte-different implementation is not treated as incorrect.
+- **Progress** groups functions as **Byte-match**, **Implemented**, or **Not implemented**. For implemented, non-matching functions, the dashboard also lets you record a manual behavioral-correctness assessment; it does not affect byte-match status or the source-edit timestamp.
 - **Assembly comparison** shows retail instructions and the current build side by side. Unimplemented fallback assembly is marked unverified; identical fallback bytes do not count as a C implementation.
 - **C playground** compiles an isolated edit and links it at the selected function's project address, then compares it with retail. It reports an exact match only when address, size, and every byte agree. Compiler/linker errors and stale build inputs are reported explicitly.
 
@@ -165,7 +165,7 @@ The reference executable, SDK, generated disassembly/assets, and build products 
 
    ```powershell
    .\.venv\Scripts\python.exe tools\build.py
-   .\.venv\Scripts\python.exe tools\compare.py image build\SLES_500.44
+   .\.venv\Scripts\python.exe tools\compare.py image build\SLES_500.44.elf
    ```
 
 ## Progress reports
@@ -176,14 +176,14 @@ The tracker assigns each function one status:
 - **Implemented** — C or edited assembly replaces the retail fallback, but the result does not byte-match. This status does not mean the implementation behaves incorrectly.
 - **Not implemented** — the function still uses its retail assembly fallback.
 
-After a successful build, the project refreshes `progress\main_status.html`, `progress\functions.csv`, `progress\progress.svg`, and the generated progress block in this README. The dashboard has one progress bar and matching status filters. The CSV contains each function's status and byte-comparison details.
+After a successful build, the project refreshes `progress\main_status.html`, `progress\functions.csv`, `progress\progress.svg`, and the generated progress block in this README. The dashboard has one progress bar and matching status filters. The dashboard and CSV also show the last detected source edit (UTC) for implemented and byte-matching functions. Existing implementations receive a timestamp when tracking is first initialized; later source edits update it, and returning to the assembly fallback clears it. Use the sort menu to order by newest or oldest source edit, or restore the original function order. Timestamp history is stored in `progress\.function_source_timestamps.json`.
 
 The local dashboard adds assembly comparison and playground features. The static HTML report is useful for browsing the inventory; GitHub displays its source rather than running its interactive features. The `progress\functions.csv` file provides the same per-function information for scripts.
 
 To regenerate reports from an existing build without rebuilding:
 
 ```powershell
-.\.venv\Scripts\python.exe tools\status.py build\SLES_500.44
+.\.venv\Scripts\python.exe tools\status.py build\SLES_500.44.elf
 ```
 
 ## Repository layout
@@ -198,7 +198,7 @@ To regenerate reports from an existing build without rebuilding:
 - `asm\` and `assets\` — generated local reference material; ignored by Git.
 - `toolchain\` — local proprietary SDK; ignored by Git.
 - `build\` — generated ELF, objects, linker inputs, and logs; ignored by Git.
-- `progress\` — generated reports; local baseline and playground drafts are ignored.
+- `progress\` — generated reports; local baseline and playground drafts are ignored, while source timestamp history is tracked.
 
 Edit project C under `src\` and hand-written assembly under `src\asm\`. Treat repository-root `asm\` as generated reference input, not project source. Do not edit generated files under `build\`. Run `tools\build.py` after setup or source regeneration so the dashboard has current objects.
 
