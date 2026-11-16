@@ -2201,16 +2201,17 @@ s32 func_00108618(u8 *arg0)
 
 s32 func_00108648(u8 *arg0)
 {
-    u8 *entry = 0;
+    u8 *entry;
 
-    if (arg0 != 0)
-    {
+    if (arg0 == 0) {
+        entry = 0;
+    } else {
         entry = *(u8 **)(arg0 + 4);
         entry = *(u8 **)(entry + 0x14);
     }
-    if (entry == 0)
-        return 1;
-    return entry[0x40];
+    if (entry != 0)
+        return entry[0x40];
+    return 1;
 }
 
 INCLUDE_ASM(const s32, "core/main", func_00108670);
@@ -2737,12 +2738,9 @@ s32 func_0010AB48(s32 **arg0)
 {
     s32 *entry;
 
-    if (arg0 == 0)
-        return -1;
-    entry = *arg0;
-    if (entry == 0)
-        return -1;
-    return entry[2] - 1;
+    if (arg0 != 0 && (entry = *arg0) != 0)
+        return entry[2] - 1;
+    return -1;
 }
 
 s32 func_0010AB70(s32 *p)
@@ -2750,7 +2748,7 @@ s32 func_0010AB70(s32 *p)
     s32 result = -1;
 
     if (p != 0 && *p != 0)
-        result = 0;
+        return 0;
     return result;
 }
 

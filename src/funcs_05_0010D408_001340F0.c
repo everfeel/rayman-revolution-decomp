@@ -78,7 +78,7 @@ extern s32 D_0026E038[];
 extern s32 D_00393178;
 extern s32 D_00393174;
 extern u32 D_00330990[];
-extern u8 D_0026F210[];
+extern s32 D_0026F210[];
 extern u8 D_0026F220[];
 extern s32 D_0026DFB8[];
 extern u8 D_0026BEE8[];
@@ -730,13 +730,14 @@ void func_00112FF8(u8 *arg0, u8 arg1)
 
 INCLUDE_ASM(const s32, "core/main", func_00113030);
 
-void func_001130F0(void)
+u8 *func_001130F0(void)
 {
     u8 *p = func_00157DE8(D_0039347C, 0x1C);
 
     *(s32 *)p = 0;
     *(s32 *)(p + 4) = 0;
     *(s32 *)(p + 8) = 0;
+    return p;
 }
 
 s32 func_00113120();
@@ -776,7 +777,7 @@ s32 func_00113848(u8 *p, s32 index)
     return *(s32 *)(p + 0x18) + (s16)index * 0xC;
 }
 
-void func_00113868(void)
+u8 *func_00113868(void)
 {
     u8 *p = func_00157DE8(D_0039347C, 0xC);
 
@@ -784,6 +785,7 @@ void func_00113868(void)
     *(s32 *)p = 0;
     *(s32 *)(p + 4) = 0;
     *(s16 *)(p + 0xA) = 0;
+    return p;
 }
 
 void func_001138A0(void) {
@@ -943,12 +945,13 @@ s32 func_00115978(u32 arg0)
     return 0;
 }
 
-void func_001159A0(void)
+u8 *func_001159A0(void)
 {
     u8 *p = func_00157DE8(D_0039347C, 8);
 
     *(s32 *)p = 0;
     *(u16 *)(p + 4) = 0;
+    return p;
 }
 
 INCLUDE_ASM(const s32, "core/main", func_001159D0);
@@ -1269,8 +1272,11 @@ void func_00119518(u8 *arg0, u8 *arg1)
 
 void func_00119548(u8 *arg0, u8 *arg1)
 {
-    *(UnalignedU64 *)arg1 = *(UnalignedU64 *)(arg0 + 0x70);
-    *(UnalignedU64 *)(arg1 + 8) = *(UnalignedU64 *)(arg0 + 0x78);
+    u64 a, b;
+    a = ((UnalignedU64 *)(arg0 + 0x70))->value;
+    b = ((UnalignedU64 *)(arg0 + 0x78))->value;
+    ((UnalignedU64 *)arg1)->value = a;
+    ((UnalignedU64 *)(arg1 + 8))->value = b;
 }
 
 INCLUDE_ASM(const s32, "core/main", func_00119570);
@@ -1317,14 +1323,20 @@ void func_00119728(u8 *p)
 
 void func_00119738(u8 *arg0, u8 *arg1)
 {
-    *(UnalignedU64 *)(arg0 + 0xD0) = *(UnalignedU64 *)arg1;
-    *(UnalignedU64 *)(arg0 + 0xD8) = *(UnalignedU64 *)(arg1 + 8);
+    u64 a, b;
+    a = ((UnalignedU64 *)arg1)->value;
+    b = ((UnalignedU64 *)(arg1 + 8))->value;
+    ((UnalignedU64 *)(arg0 + 0xD0))->value = a;
+    ((UnalignedU64 *)(arg0 + 0xD8))->value = b;
 }
 
 void func_00119760(u8 *arg0, u8 *arg1)
 {
-    *(UnalignedU64 *)arg1 = *(UnalignedU64 *)(arg0 + 0xD0);
-    *(UnalignedU64 *)(arg1 + 8) = *(UnalignedU64 *)(arg0 + 0xD8);
+    u64 a, b;
+    a = ((UnalignedU64 *)(arg0 + 0xD0))->value;
+    b = ((UnalignedU64 *)(arg0 + 0xD8))->value;
+    ((UnalignedU64 *)arg1)->value = a;
+    ((UnalignedU64 *)(arg1 + 8))->value = b;
 }
 
 void func_00119788(u8 *p, float a, float b)
@@ -1865,7 +1877,7 @@ s32 func_0011DB90(s32 arg0, u32 arg1)
 {
     u32 mask = (1 << arg1) & 0xFFFF;
 
-    return (func_0011DB80(arg0) & mask) != 0;
+    return (mask & func_0011DB80(arg0)) != 0;
 }
 
 s32 func_0011DBC8(s32 arg0, u16 arg1)
@@ -1900,9 +1912,13 @@ s32 func_0011EA50(s32 unused, u8 *p);
 
 s32 func_0011E0A8(u8 *p)
 {
-    if (*(u16 *)p != 1)
-        return -1;
-    return func_0011EA50(*(s16 *)(p + 2), *(u8 **)(p + 4));
+    s32 result;
+
+    if (*(u16 *)p == 1)
+        result = func_0011EA50(*(s16 *)(p + 2), *(u8 **)(p + 4));
+    else
+        result = -1;
+    return result;
 }
 
 INCLUDE_ASM(const s32, "core/main", func_0011E0E0);
@@ -1919,19 +1935,23 @@ INCLUDE_ASM(const s32, "core/main", func_0011E208);
 
 s32 func_0011E330(u8 *arg0)
 {
-    s32 result = -1;
+    s32 result;
 
     if (*(u16 *)arg0 == 1)
         result = func_0011EA70(*(s16 *)(arg0 + 2));
+    else
+        result = -1;
     return result;
 }
 
 s32 func_0011E368(u8 *arg0)
 {
-    s32 result = -1;
+    s32 result;
 
     if (*(u16 *)arg0 == 1)
         result = func_0011EA20(*(s16 *)(arg0 + 2));
+    else
+        result = -1;
     return result;
 }
 
@@ -2136,21 +2156,18 @@ void func_00120368(u8 *p)
 {
     if (p != 0)
     {
-        *(s32 *)(p + 0xC) = -2;
         p[0x14] = 1;
+        *(s32 *)(p + 0xC) = -2;
     }
 }
 
-s32 func_00120388(u8 *p)
+void func_00120388(u8 *p)
 {
-    s32 result = -2;
-
     if (p != 0)
     {
         p[0x14] = 0;
         *(s32 *)(p + 0xC) = -2;
     }
-    return result;
 }
 
 void func_001203A0(s32 *p, s32 value) { p[3] = value; }
@@ -2195,7 +2212,8 @@ s32 func_00120940(s32 value)
 
 s32 func_00120950(s32 index)
 {
-    u8 *entry = *(u8 **)((u8 *)D_00330A18 + (index + 2) * 4);
+    s32 off = (index + 2) * 4;
+    u8 *entry = *(u8 **)((u8 *)D_00330A18 + off);
     u8 *field = *(u8 **)(entry + 8);
 
     return *field & 1;
@@ -2580,9 +2598,9 @@ void func_001250C8(u8 *arg0, f32 *arg1)
     *(u8 *)(arg0 + 0x50) = 5;
     p = (f32 *)(arg0 + 0x40);
     *(f32 *)(arg0 + 0x40) = 1.0f;
-    p[3] = 1.0f;
     p[1] = 1.0f;
     p[2] = 1.0f;
+    p[3] = 1.0f;
     func_00127AE8(arg0, arg1[0], arg1[1], arg1[2], arg1[3]);
 }
 
