@@ -3346,9 +3346,17 @@ s32 func_0015E378(const s32 *p) { return -(p[0] & 1); }
 
 s32 func_0015E388(const s32 *p) { return (p[0] & 5) == 0; }
 
+/* Byte-matching: reads bit 1 as a signed 1-bit bitfield (0 or -1); the
+ * sll+slti+negu sign-extension sequence only comes from a bitfield member. */
+typedef struct {
+    u32 bit0 : 1;
+    s32 bit1 : 1;
+    u32 rest : 30;
+} BitsAt1;
+
 s32 func_0015E398(u32 *p)
 {
-    return -((*p >> 1) & 1);
+    return ((BitsAt1 *)p)->bit1;
 }
 
 s32 func_0015E3B0(const s32 *p) { return (p[0] & 0xA) == 0; }
@@ -11039,7 +11047,9 @@ void func_001C6C88(s32 arg0, u32 arg1, u32 arg2)
 /* Reads a word from the VU scratchpad. */
 s32 func_001C6CA8(void)
 {
-    return *(s32 *)0x10003820;
+    s32 *p = (s32 *)0x10003820;
+
+    return *p;
 }
 
 INCLUDE_ASM(const s32, "core/main", func_001C6CB8);
@@ -11070,7 +11080,9 @@ void func_001C6FB8(s32 arg0, u32 arg1, u32 arg2)
 
 s32 func_001C6FD8(void)
 {
-    return *(s32 *)0x10003C20;
+    s32 *p = (s32 *)0x10003C20;
+
+    return *p;
 }
 
 INCLUDE_ASM(const s32, "core/main", func_001C6FE8);
@@ -12210,9 +12222,12 @@ void func_001DE880(f32 *arg0, s32 unused, u8 *arg2)
 
 void func_001DE8A8(s32 *out, s32 unused, s32 *list)
 {
-    s32 v = *(s32 *)list;
+    s32 v = *list;
+
     if (v != 0) {
         *out = *(s32 *)(*(s32 *)(v + 4) + 0x18);
+    } else {
+        *out = 0;
     }
 }
 
