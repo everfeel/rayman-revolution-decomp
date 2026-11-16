@@ -41,8 +41,12 @@ INCLUDE_ASM = re.compile(
 ASM_FUNC = re.compile(
     r"ASM_FUNC\s*\([^;]*?\b(func_[0-9A-Fa-f]{8})\s*\)", re.DOTALL
 )
+# The parameter list must not run past a comment terminator.  Without that
+# guard a `func_x(3) does ...` mention in a comment matches as a call whose
+# parameter list happens to end at the next real signature's `)`, swallowing
+# that definition so findall() never sees it.
 FUNCTION_DEFINITION = re.compile(
-    r"\b(func_[0-9A-Fa-f]{8})\s*\([^;{}]*\)"
+    r"\b(func_[0-9A-Fa-f]{8})\s*\((?:(?!\*/)[^;{}])*\)"
     r"(?:\s|/\*[\s\S]*?\*/|//[^\r\n]*)*\{"
 )
 INLINE_ASM_FUNCTION = re.compile(
@@ -52,9 +56,12 @@ ASSEMBLY_DEFINITION = re.compile(
     r"(?m)^\s*glabel\s+(func_[0-9A-Fa-f]{8})\s*$"
 )
 # K&R style definitions: "ret func_x(params)\ndecl;\n{"
+# Both scans stop at a comment terminator for the same reason as
+# FUNCTION_DEFINITION above: a `func_x(3) does ...` mention inside a comment
+# would otherwise run on and swallow the definition that follows it.
 KNR_DEFINITION = re.compile(
-    r"\b(func_[0-9A-Fa-f]{8})\s*\([^;{}]*\)\s*"
-    r"[A-Za-z_][^;{}]*;\s*\{"
+    r"\b(func_[0-9A-Fa-f]{8})\s*\((?:(?!\*/)[^;{}])*\)\s*"
+    r"[A-Za-z_](?:(?!\*/)[^;{}])*;\s*\{"
 )
 
 CSV_FIELDS = (

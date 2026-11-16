@@ -5,6 +5,11 @@ extern s32 D_0039347C;
 extern s32 D_00393314;
 extern s32 D_00393318;
 void func_001826C8(void);
+/* These two return their result in $f0.  Without a prototype gcc assumes an
+ * int return, discards $f0 and converts the unrelated value left in $v0 with
+ * cvt.s.w -- which fed garbage into the reflection weights below. */
+f32 func_00139828(u8 *arg0, s32 arg1);
+f32 func_00139858(u8 *arg0, s32 arg1);
 extern s32 D_00393480;
 extern s32 D_00393484;
 extern s32 D_0039313C;
@@ -397,125 +402,142 @@ extern void func_0014EBA8();
 s32 func_00131D78(s32, s32, f32);
 s32 func_0013A148(s32, f32);
 
+/* Retail computes every three-term sum of products with the R5900 FPU
+ * accumulator form: mula.s (ACC = x*y), madda.s (ACC += x*y), madd.s
+ * (dest = ACC + x*y).  This toolchain never emits those from C -- tested
+ * with -O1/-O2/-O3, -ffast-math, -mmad, -m4650, -mcpu=r4650, -msingle-float
+ * and every accumulation shape, all of which produce mul.s/add.s -- and no
+ * already-matched function in the tree contains one.  So spell them out; the
+ * only difference is that the products are summed without intermediate
+ * rounding, exactly as retail does. */
+#define F_SUM3(x, y, z) ({                                      \
+    float r_;                                                   \
+    __asm__ volatile ("mula.s %1,%1\n\t"                        \
+                      "madda.s %2,%2\n\t"                       \
+                      "madd.s %0,%3,%3"                         \
+                      : "=&f"(r_) : "f"(x), "f"(y), "f"(z));   \
+    r_;                                                         \
+})
+
+#define F_DOT3(a, b, c, d, e, f) ({                             \
+    float r_;                                                   \
+    __asm__ volatile ("mula.s %1,%2\n\t"                        \
+                      "madda.s %3,%4\n\t"                       \
+                      "madd.s %0,%5,%6"                         \
+                      : "=&f"(r_)                               \
+                      : "f"(a), "f"(b), "f"(c),                 \
+                        "f"(d), "f"(e), "f"(f));                \
+    r_;                                                         \
+})
+
 s32 func_001346E8(s32 arg1, s32 arg2, f32 fArg)
 {
-    u8 stateCopy[0x54];     /* copy of arg1+0x78 (sp+0x00) */
-    u8 state2[12];          /* copy of arg1+0x1A0 (sp+0x30) */
-    f32 one;                /* sp+0x3C */
-    f32 dx, dy, dz;         /* sp+0x60/64/68 */
-    f32 acc0, acc4, acc8;   /* sp+0x70/74/78: the f20/f10 mixed vector */
-    f32 n80, n84, n88;      /* sp+0x80/84/88: normalized mixed */
-    f32 b90, b94, b98;      /* sp+0x90/94/98: normalized direction */
-    f32 entryCopy[3];       /* sp+0xA0/A4/A8: o-vector then arg1+0xA8 backup */
-    f32 d0, d4, d8;         /* work vector */
-    f32 cB0, cB4, cB8;      /* sp+0xB0/B4/B8: reflected */
-    f32 cC0, cC4, cC8;      /* sp+0xC0/C4/C8: projected */
-    f32 cD0, cD4, cD8;      /* sp+0xD0/D4/D8: reflection terms / refinement */
-    f32 cE0, cE4, cE8;      /* sp+0xE0/E4/E8 */
-    f32 o0, o4, o8;         /* sp+0xF0/F4/F8: output position */
-    f32 sum0, sum4, sum8;   /* sp+0x110/114/118: entry sum */
-    f32 g130, g134;         /* sp+0x130/134 */
-    f32 g138;               /* sp+0x138 */
-    u8 out[0x40];           /* sp+0x140: func_00135530 output struct */
-    u8 out2[0x10];          /* sp+0x100: func_00136C08 output */
-    s32 arg2s;              /* sp+0x144 */
-    s32 r;                  /* call results */
-    s32 count8;             /* func_00108648 result (sp+0x148) */
-    s32 len;                /* out.count (sp+0x140) */
+    u8 stateCopy[0x54];     /* sp+0x00: copy of the actor state block */
+    u8 out[0x40];           /* sp+0x140: func_00135530 result */
+    f32 out2[4];            /* sp+0x100: func_00136C08 result */
+    f32 e[3];               /* sp+0xA0: working position */
+    f32 o[3];               /* sp+0xF0: resolved position */
+    f32 d[3];               /* sp+0xD0: positional correction */
+    f32 sumv[3];            /* sp+0x110: summed surface direction */
+    f32 nearRef[3];         /* sp+0x120: apply-pass reference position */
+    f32 dx, dy, dz;         /* sp+0x60/64/68: arg1+0xFC minus arg1+0xA8 */
+    f32 acc0, acc4, acc8;   /* sp+0x70/74/78: surface reaction vector */
+    /* sp+0x90/94/98: normalized direction.  Retail only writes these when the
+     * offset is non-degenerate (small == 0) and otherwise runs the wall-snap
+     * test below against the stale stack slot -- which, because this frame
+     * sits at the same address on every call, still holds the last real
+     * direction.  As plain locals they were whatever dead register the
+     * compiler happened to pick, so dot2 < -0.866 fired at random and the
+     * actor could be pushed through a wall instead of being stopped. */
+    /* volatile keeps them in stack slots, as retail does: the slot is written
+     * only on the non-degenerate path, so it retains the previous call's
+     * direction instead of a dead register value.  A static would do the same
+     * but would add 12 bytes to .sbss and shift every other global. */
+    volatile f32 b90, b94, b98;
+    s32 r;
+    s32 len;
     s32 *objPtr;            /* out+0x08 */
-    s32 *ptr14C;            /* out+0x0C */
-    s32 *ptr150;            /* arg1+0xA8 (sp+0x150) */
-    s32 *sumPtr;            /* $18: &sum0 or first+4 */
-    s32 flagA;              /* sp+0x154 */
-    s32 flagB;              /* sp+0x158 */
-    s32 idx;                /* sp+0x15C */
-    s32 flagC;              /* sp+0x160 */
-    s32 valA;               /* sp+0x164 */
-    s32 valB;               /* sp+0x168 */
-    s32 *statePtr;          /* sp+0x16C = arg1+0x78 */
-    s32 *outPtr;            /* sp+0x170 = out */
-    s32 *found;             /* scan 1 result ($21) */
-    s32 *first;             /* scan 2 result ($23) */
-    s32 *entry;             /* $16 */
-    s32 i;                  /* $17 */
-    s32 t19;                /* $19 walk-state */
-    s32 near1;              /* $2 loop temp */
-    s32 cond;
-    s32 t2;
-    f32 neg;                /* the -dot reflect scale */
-    f32 f5v;                /* the .L001351C8 temp */
-    f32 f20, f10;           /* func_00139828/58 results */
-    f32 f9v;                /* 0.0f then o8 */
-    f32 f11v;               /* D_00392718 threshold */
-    f32 f12v;               /* the dx/dy/dz sqrt length */
-    f32 f6v;                /* D_003931B4 - D_00392724/2730 */
-    f32 f4r, f5r, f7r;      /* refinement vectors */
-    f32 f8r;                /* refinement length */
-    f32 f3r;                /* refinement scale */
-    f32 f3v;                /* the f20 scale factor */
+    s32 *ptr14C;            /* out+0x0C, or arg1+0x280 */
+    s32 *statePtr;          /* sp+0x16C: arg1+0x78 */
+    s32 *listBase;          /* D_003931B0 */
+    s32 *entry;
+    s32 *found;             /* scan 1 result */
+    s32 *first;             /* scan 2 result */
+    f32 *sumP;              /* $18: &sumv, or first+4 */
+    s32 flagA, flagB, flagC;
+    s32 idx, valA, valB, t19;
+    s32 i;
+    s32 base;               /* sp+0x148: arg1+0xCC */
+    u32 count;              /* func_00108648(arg2) */
+    f32 f20, f10;
+    f32 f12v;
+    f32 f6v;
+    f32 f9v;
+    f32 f3v;
     s32 small;
 
-    count8 = func_00108648(arg1);
+    base = arg1 + 0xCC;
+    statePtr = (s32 *)(arg1 + 0x78);
     flagB = 0;
     idx = 0;
     flagC = 0;
     valA = 0;
     valB = 0;
-    ptr150 = (s32 *)(arg1 + 0xA8);
-    statePtr = (s32 *)(arg1 + 0x78);
-    outPtr = out;
-    if (count8 < 2) {
-        /* short init: no state copy */
-    } else {
+    count = (u32)func_00108648(arg2);
+
+    if (count >= 2) {
         memcpy(stateCopy, (void *)(arg1 + 0x78), 0x54);
         if (stateCopy[0x50] == 1) {
             stateCopy[0x50] = 2;
         }
-        memcpy(state2, (void *)(arg1 + 0x1A0), 12);
-        *(f32 *)(state2 + 12) = 1.0f;
+        /* These go into the copy's own +0x30 anchor, not a separate buffer:
+         * $8 is sp (the copy base) at 0x34848, and the stores use 0x30($8). */
+        memcpy(stateCopy + 0x30, (void *)(arg1 + 0x1A0), 12);
+        *(f32 *)(stateCopy + 0x3C) = 1.0f;
     }
 
-    /* B4: func_00135530 fills the output struct */
-    r = func_00135530(outPtr, D_003931B0, arg1, arg2);
+    /* First pass.  Retail passes seven arguments: the state copy (or the live
+     * state when the actor has fewer than two sub-objects), arg1+0xCC and bit
+     * 22 of the actor flags. */
+    r = func_00135530(out, D_003931B0, arg1, arg2,
+                      (count >= 2) ? (s32 *)stateCopy : statePtr,
+                      (s32 *)base,
+                      (*(s32 *)(arg1 + 0xC) >> 22) & 1);
+
     len = *(s32 *)out;
     objPtr = *(s32 **)(out + 8);
     ptr14C = *(s32 **)(out + 0xC);
 
-    /* B5: early exit */
     if (r == 0) {
-        f32 *p30;
         *(s32 *)(arg1 + 0xC) &= ~0x10000;
-        if (D_003931B8 >= 10) {
-            return r;
-        }
-        p30 = (f32 *)((s8 *)objPtr + 0x30);
-        {
-            f32 f6 = D_003931B4 - D_00392730;
-            if (f6 < p30[2]) {
-                d0 = 0.0f;
-                d4 = 0.0f;
-                d8 = f6 - p30[2];
-                func_001241D8(out, &d0);
+        if (D_003931B8 < 10) {
+            f6v = D_003931B4 - D_00392730;
+            if (f6v < *(f32 *)(arg1 + 0x104)) {
+                d[0] = 0.0f;
+                d[1] = 0.0f;
+                d[2] = f6v - *(f32 *)(arg1 + 0x104);
+                func_001241D8((s32 *)base, d);
             }
         }
         return r;
     }
 
-    /* B6: main path */
-    ptr14C = ((*(s32 *)(arg1 + 0xC) & 4) != 0) ? (s32 *)(arg1 + 0x280) : ptr14C;
-    sum0 = 0.0f;
-    sum4 = 0.0f;
-    sum8 = 0.0f;
-    first = 0;
+    if ((*(s32 *)(arg1 + 0xC) & 4) != 0) {
+        ptr14C = (s32 *)(arg1 + 0x280);
+    }
+    listBase = (s32 *)D_003931B0;
+    sumv[0] = 0.0f;
+    sumv[1] = 0.0f;
+    sumv[2] = 0.0f;
     found = 0;
+    first = 0;
     t19 = 0;
 
     /* scan 1: first entry (type != 0x63) accepted by func_00139708 */
     if (len > 0) {
-        s32 *base = (s32 *)D_003931B0;
         for (i = 0; i < len; i++) {
-            entry = (s32 *)((s8 *)base + i * 0x68);
-            if (*(u16 *)((s8 *)entry + 0x2E) != 0x63) {
+            entry = (s32 *)((s8 *)listBase + i * 0x68);
+            if (*(s16 *)((s8 *)entry + 0x2E) != 0x63) {
                 if ((func_00139708(arg1, (s32)entry + 4) & 0xFF) != 0) {
                     found = entry;
                     valB = i;
@@ -527,23 +549,18 @@ s32 func_001346E8(s32 arg1, s32 arg2, f32 fArg)
         }
     }
 
-    /* found && D_00330ED0 bit6 clear: func_00131D78 then bail */
-    if (found != 0) {
-        if (((D_00330ED0[0] >> 6) & 1) == 0) {
-            func_00131D78(arg1, arg2, fArg);
-            D_00330ED0[0] &= ~0x40;
-            return -65;  /* the mask constant retail leaves in $2 */
-        }
+    if (found != 0 && ((D_00330ED0[0] >> 6) & 1) == 0) {
+        func_00131D78(arg1, arg2, fArg);
+        D_00330ED0[0] &= ~0x40;
+        return -65;
     }
     flagA = 1;
 
-    /* scan 2: first entry (type != 0x63) */
-    first = 0;
+    /* scan 2: first entry whose type is not 0x63 */
     if (len > 0) {
-        s32 *base = (s32 *)D_003931B0;
         for (i = 0; i < len; i++) {
-            entry = (s32 *)((s8 *)base + i * 0x68);
-            if (*(u16 *)((s8 *)entry + 0x2E) == 0x63) {
+            entry = (s32 *)((s8 *)listBase + i * 0x68);
+            if (*(s16 *)((s8 *)entry + 0x2E) == 0x63) {
                 continue;
             }
             valA = i;
@@ -552,38 +569,37 @@ s32 func_001346E8(s32 arg1, s32 arg2, f32 fArg)
         }
     }
 
-    /* scan 3: per-entry flag/index updates */
+    /* scan 3: flag/index update */
     if (len > 0) {
-        s32 *base = (s32 *)D_003931B0;
         for (i = 0; i < len; i++) {
             s32 *data;
             s32 type;
-            s32 flags1;
             s32 cond1;
             s32 cond2 = 0;
             s32 sel;
-            entry = (s32 *)((s8 *)base + i * 0x68);
+
+            entry = (s32 *)((s8 *)listBase + i * 0x68);
             data = *(s32 **)((s8 *)entry + 0x20);
-            type = *(u16 *)((s8 *)entry + 0x2E);
-            flags1 = *(u16 *)((u8 *)data + 6);
-            cond1 = (flags1 & 0x4000) != 0;
-            idx = cond1 ? 1 : idx;
+            type = *(s16 *)((s8 *)entry + 0x2E);
+            cond1 = (*(u16 *)((u8 *)data + 6) & 0x4000) != 0;
+            /* The store of this flag sits in the delay slot of the type test,
+             * so it is evaluated for every entry, 0x63 ones included. */
+            if (cond1 != 0) {
+                idx = 1;
+            }
             if (type == 0x63) {
                 continue;
             }
-            if (cond1) {
+            if (cond1 != 0) {
                 s32 *data2 = *(s32 **)((s8 *)entry + 0x1C);
-                s32 flags2 = *(u16 *)((u8 *)data2 + 6);
-                cond2 = (flags2 & 0x4000) ? 1 : 0;
+                cond2 = (*(u16 *)((u8 *)data2 + 6) & 0x4000) ? 1 : 0;
             }
-            sel = i;
-            if (t19 != 0) {
-                sel = t19;
+            sel = (t19 != 0) ? t19 : i;
+            /* Likewise a delay slot: t19 advances for every entry type. */
+            if (cond2 != 0) {
+                t19 = sel;
             }
             if ((u32)(type - 7) < 2) {
-                if (cond2 != 0) {
-                    t19 = sel;
-                }
                 flagB = 1;
             } else {
                 flagA = 0;
@@ -595,24 +611,25 @@ s32 func_001346E8(s32 arg1, s32 arg2, f32 fArg)
         return 0;
     }
     if (found != 0) {
-        valA = (valA < valB) ? valA : valB;
+        /* movz $4, $3, $2 with $2 = (valA < valB): keeps valA when it is the
+         * larger one, so this is a maximum, not a minimum. */
+        valA = (valA < valB) ? valB : valA;
     }
     if (valA < t19) {
         valA = t19;
     }
     func_00135CF8(arg1, arg2, len, D_003931B0, valA);
 
-    /* float accumulation of non-0x63 entry positions */
-    sumPtr = &sum0;
+    /* summed direction over every non-0x63 entry */
     if (flagA != 0) {
         f32 sx = 0.0f;
         f32 sy = 0.0f;
         f32 sz = 0.0f;
-        s32 *base = (s32 *)D_003931B0;
+
         if (len > 0) {
             for (i = 0; i < len; i++) {
-                entry = (s32 *)((s8 *)base + i * 0x68);
-                if (*(u16 *)((s8 *)entry + 0x2E) == 0x63) {
+                entry = (s32 *)((s8 *)listBase + i * 0x68);
+                if (*(s16 *)((s8 *)entry + 0x2E) == 0x63) {
                     continue;
                 }
                 sx = sx + *(f32 *)((s8 *)entry + 4);
@@ -620,103 +637,71 @@ s32 func_001346E8(s32 arg1, s32 arg2, f32 fArg)
                 sz = sz + *(f32 *)((s8 *)entry + 0xC);
             }
         }
-        sum0 = sx;
-        sum4 = sy;
-        sum8 = sz;
+        sumv[0] = sx;
+        sumv[1] = sy;
+        sumv[2] = sz;
         if (sx == 0.0f && sy == 0.0f && sz == 0.0f) {
-            ptr150 = (s32 *)((s8 *)first + 4);
-            sumPtr = (s32 *)((s8 *)first + 4);
+            sumP = (f32 *)((s8 *)first + 4);
         } else {
-            f32 l2 = sx * sx + sy * sy + sz * sz;
-            f32 l = sqrtf(l2);
+            f32 l = sqrtf(F_SUM3(sx, sy, sz));
+            sumP = sumv;
             if (l != 0.0f) {
                 f32 s = 1.0f / l;
-                sum0 = s * sx;
-                sum4 = s * sy;
-                sum8 = s * sz;
+                sumP[0] = s * sx;
+                sumP[1] = s * sy;
+                sumP[2] = s * sz;
             }
         }
     } else {
-        ptr150 = (s32 *)((s8 *)first + 4);
-        sumPtr = (s32 *)((s8 *)first + 4);
+        sumP = (f32 *)((s8 *)first + 4);
     }
 
-    /* the func_00139828/58 results + the reflect/projection block */
-    f20 = func_00139828(arg1, (s32)first);
-    f10 = func_00139858(arg1, (s32)first);
-    f9v = 0.0f;
-    n80 = 0.0f;
-    n84 = 0.0f;
-    n88 = 0.0f;
-    b90 = 0.0f;
-    b94 = 0.0f;
-    b98 = 0.0f;
-    g130 = 0.0f;
-    g134 = 0.0f;
-    g138 = 1.0f;
+    /* surface reaction: reflect the offset around the summed direction */
+    f20 = func_00139828((u8 *)arg1, (s32)first);
+    f10 = func_00139858((u8 *)arg1, (s32)first);
+    /* func_00136C08 takes this buffer as an in/out position: it reads all
+     * three floats (lwc1 0x0/0x4/0x8($4), ldl 0x7($4)) before writing the
+     * corrected ones back, so retail clears them here at 0x34C40/0x34C44/
+     * 0x34C48.  They must be initialised -- leaving the array untouched feeds
+     * whatever was left on the stack into the position write below. */
+    out2[0] = 0.0f;
+    out2[1] = 0.0f;
+    out2[2] = 0.0f;
     {
-        f32 *p150 = (f32 *)ptr150;
-        f32 *p22 = (f32 *)(arg1 + 0xFC);
-        f32 nx, ny, nz;
+        f32 *pos = (f32 *)(arg1 + 0xFC);
+        f32 *ref = (f32 *)(arg1 + 0xA8);
         f32 dot;
+        f32 neg;
         f32 px, py, pz, rx, ry, rz;
 
-        f11v = D_00392718;
-        dx = p22[0] - p150[0];
-        dy = p22[1] - p150[1];
-        dz = p22[2] - p150[2];
-        {
-            f32 l2 = dx * dx + dy * dy + dz * dz;
-            f12v = sqrtf(l2);
-        }
-        nx = p150[0];
-        ny = p150[1];
-        nz = p150[2];
-        dot = dx * nx + dy * ny + dz * nz;
+        dx = pos[0] - ref[0];
+        dy = pos[1] - ref[1];
+        dz = pos[2] - ref[2];
+        f12v = sqrtf(F_SUM3(dx, dy, dz));
+        dot = F_DOT3(dx, sumP[0], dy, sumP[1], dz, sumP[2]);
         neg = -dot;
-        cD0 = neg * nx;
-        px = dx + cD0;
-        rx = px + cD0;
-        cD4 = neg * ny;
-        py = dy + cD4;
-        ry = py + cD4;
-        cE4 = neg * nz;
-        pz = dz + cE4;
-        rz = pz + cE4;
-        cC0 = px;
-        cC4 = py;
-        cC8 = pz;
-        cB0 = rx;
-        cB4 = ry;
-        cB8 = rz;
+        d[0] = neg * sumP[0];
+        px = dx + d[0];
+        rx = px + d[0];
+        d[1] = neg * sumP[1];
+        py = dy + d[1];
+        ry = py + d[1];
+        d[2] = neg * sumP[2];
+        pz = dz + d[2];
+        rz = pz + d[2];
         acc0 = f20 * px + f10 * rx;
         acc4 = f20 * py + f10 * ry;
         acc8 = f20 * pz + f10 * rz;
-        small = 0;
-        if (fabsf(acc0 - 0.0f) < f11v) {
-            if (fabsf(acc4 - 0.0f) < f11v) {
-                if (fabsf(acc8 - 0.0f) < f11v) {
-                    small = 1;
-                }
-            }
-        }
-        if (small == 0) {
-            f32 l2 = acc0 * acc0 + acc4 * acc4 + acc8 * acc8;
-            f32 l = sqrtf(l2);
-            if (l != 0.0f) {
-                f32 s = 1.0f / l;
-                n80 = s * acc0;
-                n88 = s * acc8;
-                n84 = s * acc4;
-            }
-        }
+        /* Retail normalises this vector into sp+0x80/84/88 here; those slots
+         * are never read again, so the accumulator itself stays unnormalised. */
+        small = (fabsf(acc0) < D_00392718 && fabsf(acc4) < D_00392718 &&
+                 fabsf(acc8) < D_00392718);
     }
 
-    /* the dx/dy/dz threshold check + the direction normalize */
     small = 0;
-    if (fabsf(dx - 0.0f) < D_0039271C) {
-        if (fabsf(dy - 0.0f) < D_0039271C) {
-            if (fabsf(dz - 0.0f) < D_0039271C) {
+    if (fabsf(dx) < D_0039271C) {
+        if (fabsf(dy) < D_0039271C) {
+            if (fabsf(dz) < D_0039271C) {
                 small = 1;
             }
         }
@@ -724,188 +709,194 @@ s32 func_001346E8(s32 arg1, s32 arg2, f32 fArg)
     if (small == 0) {
         f32 s = 1.0f / f12v;
         b90 = s * dx;
-        b98 = s * dz;
         b94 = s * dy;
-    }
-    /* the dot2 check */
-    if (flagA != 0) {
-        f32 dot2 = b90 * ((f32 *)sumPtr)[0] + b94 * ((f32 *)sumPtr)[1] +
-                   b98 * ((f32 *)sumPtr)[2];
-        if (dot2 >= D_00392720) {
-            goto skip_a;
-        }
-        if (*(u8 *)(arg1 + 0x11C) == 1) {
-            *(u8 *)(arg1 + 0x11C) = 2;
-        }
-        memcpy((s8 *)objPtr + 0x30, ptr150, 12);
-        *(f32 *)((s8 *)arg1 + 0x108) = 1.0f;
-        *(f32 *)(arg1 + 0x44) = 0.0f;
-        *(f32 *)(arg1 + 0x3C) = 0.0f;
-        *(f32 *)(arg1 + 0x40) = 0.0f;
-        return 1;
+        b98 = s * dz;
     }
 
-skip_a:
-    /* the func_00136C08 pass */
-    func_00136C08((s32 *)out2, arg1, valA, D_003931B0, valA);
-    o0 = *(f32 *)((s8 *)arg1 + 0xFC) + *(f32 *)(out2 + 0);
-    o4 = *(f32 *)((s8 *)arg1 + 0xFC) + *(f32 *)(out2 + 4);
-    f9v = *(f32 *)((s8 *)arg1 + 0xFC) + *(f32 *)(out2 + 8);
-    entryCopy[0] = o0;
-    entryCopy[1] = o4;
-    entryCopy[2] = f9v;
-    o8 = f9v;
+    /* the offset already faces the surface: snap back and stop */
+    if (flagA != 0) {
+        f32 dot2 = F_DOT3(sumP[0], b90, sumP[1], b94, sumP[2], b98);
+        if (dot2 < D_00392720) {
+            if (*(u8 *)(base + 0x50) == 1) {
+                *(u8 *)(base + 0x50) = 2;
+            }
+            memcpy((void *)(arg1 + 0xFC), (void *)(arg1 + 0xA8), 12);
+            *(f32 *)(arg1 + 0x108) = 1.0f;
+            *(f32 *)(arg1 + 0x44) = 0.0f;
+            *(f32 *)(arg1 + 0x3C) = 0.0f;
+            *(f32 *)(arg1 + 0x40) = 0.0f;
+            return 1;
+        }
+    }
+
+    func_00136C08((s32 *)out2, arg1, len, D_003931B0, valA);
+    f20 = *(f32 *)first;
+    o[0] = *(f32 *)(arg1 + 0xFC) + out2[0];
+    o[1] = *(f32 *)(arg1 + 0x100) + out2[1];
+    f9v = *(f32 *)(arg1 + 0x104) + out2[2];
+    e[0] = o[0];
+    e[1] = o[1];
+    e[2] = f9v;
+
+    /* push out of the floor when the resolved position is under the surface */
     if (D_003931B8 < 10) {
         f6v = D_003931B4 - D_00392724;
         if (f6v < f9v) {
+            s32 cond = 0;
+
             flagC = 1;
-            cond = (*(u16 *)((u8 *)*(s32 **)((s8 *)first + 0x20) + 6) & 0x4000) ? 1 : 0;
-            if (cond != 0) {
+            if ((*(u16 *)((u8 *)*(s32 **)((s8 *)first + 0x20) + 6) & 0x4000) != 0) {
                 s32 *data2 = *(s32 **)((s8 *)first + 0x1C);
-                cond = (*(u16 *)((u8 *)data2 + 6) & 0x4000) ? 0 : 1;
+                /* movz $4, $0, $2 clears cond when this bit is clear, so cond
+                 * stays 1 only when both 0x4000 bits are set. */
+                cond = (*(u16 *)((u8 *)data2 + 6) & 0x4000) ? 1 : 0;
             }
             if (cond != 0) {
-                /* the simple path */
-                d0 = 0.0f;
-                d4 = 0.0f;
-                d8 = f6v - f9v;
+                d[0] = 0.0f;
+                d[1] = 0.0f;
+                d[2] = f6v - f9v;
             } else {
-                /* the complex path */
-                f10 = 1.0f;  /* retail reuses the f10 reg for the constant here */
+                f32 f8r;
+                f32 f7r, f5r, f4r;
+
+                f10 = 1.0f;
                 f8r = *(f32 *)((s8 *)first + 0xC);
-                cE0 = f8r * *(f32 *)((s8 *)first + 4);
-                cE4 = f8r * *(f32 *)((s8 *)first + 8);
-                cE8 = f8r * *(f32 *)((s8 *)first + 0xC);
-                f7r = -cE0;
-                f5r = -cE4;
-                f4r = 1.0f - cE8;
-                f8r = sqrtf(f7r * f7r + f5r * f5r + f4r * f4r);
+                d[0] = 0.0f;
+                d[1] = 0.0f;
+                d[2] = 1.0f;
+                f7r = 0.0f - f8r * *(f32 *)((s8 *)first + 4);
+                f5r = 0.0f - f8r * *(f32 *)((s8 *)first + 8);
+                f4r = 1.0f - f8r * *(f32 *)((s8 *)first + 0xC);
+                d[0] = f7r;
+                d[1] = f5r;
+                d[2] = f4r;
+                f8r = sqrtf(F_SUM3(f7r, f5r, f4r));
                 if (f8r == 0.0f) {
-                    d0 = 0.0f;
-                    d4 = 0.0f;
-                    d8 = f6v - f9v;
+                    d[0] = 0.0f;
+                    d[1] = 0.0f;
+                    d[2] = f6v - f9v;
                 } else {
                     f32 inv = 1.0f / f8r;
-                f3r = inv * inv * (f6v - f9v);
-                    d8 = f3r * f4r;
-                    d0 = f3r * f7r;
-                    d4 = f3r * f5r;
+                    f32 t = (inv * inv) * (f6v - f9v);
+
+                    d[0] = t * f7r;
+                    d[1] = t * f5r;
+                    d[2] = t * f4r;
                 }
             }
         }
     }
-    /* o += d */
-    o0 = entryCopy[0] + d0;
-    o4 = entryCopy[1] + d4;
-    o8 = entryCopy[8] + d8;
-    entryCopy[0] = o0;
-    entryCopy[4] = o4;
-    entryCopy[8] = o8;
+    o[0] = e[0] + d[0];
+    o[1] = e[1] + d[1];
+    o[2] = e[2] + d[2];
+    e[0] = o[0];
+    e[1] = o[1];
+    e[2] = o[2];
 
-    /* the f3v scale + the near-check refinement (.L001350A4-351C8) */
-    f3v = (0.0f <= f20) ? 0.0f : 1.0f - f20;
-    d0 = f3v * acc0;
-    d4 = f3v * acc4;
-    d8 = f3v * acc8;
-    if (flagC != 0) {
-        d8 = 0.0f;
-        near1 = (fabsf(d0 - 0.0f) < D_00392728 && fabsf(d4 - 0.0f) < D_00392728) ? 1 : 0;
-        if (near1 != 0) {
-            acc8 = 0.0f;
-            /* d unchanged */
-        } else {
-            f32 l2 = d0 * d0 + d4 * d4 + d8 * d8;
-            f32 l = sqrtf(l2);
-            acc8 = 0.0f;
+    /* scale the surface reaction by how far the actor is above the surface */
+    f3v = (f20 >= 0.0f) ? (1.0f - f20) : 0.0f;
+    d[0] = f3v * acc0;
+    d[1] = f3v * acc4;
+    d[2] = f3v * acc8;
+
+    if (flagC != 0 || idx != 0) {
+        f32 d8old = d[2];
+        f32 f8v;
+        f32 l;
+
+        d[2] = 0.0f;
+        f8v = sqrtf(F_SUM3(d[0], d[1], d8old));
+        small = (fabsf(d[0]) < D_00392728 && fabsf(d[1]) < D_00392728 &&
+                 fabsf(0.0f) < D_00392728);
+        acc8 = 0.0f;
+        if (small == 0) {
+            l = sqrtf(F_SUM3(d[0], d[1], d[2]));
             if (l == 0.0f) {
-                d0 = 0.0f;
-                d4 = 0.0f;
-                d8 = 0.0f;
+                d[0] = f8v * d[0];
+                d[1] = f8v * d[1];
+                d[2] = 0.0f;
             } else {
-                /* the normalize-then-rescale cancels; only the rounding differs */
-                f32 s = 1.0f / l;
-                f32 d0n = s * d0;
-                f32 d4n = s * d4;
-                d0 = l * d0n;
-                d4 = l * d4n;
-                d8 = 0.0f;
+                f32 inv = 1.0f / l;
+                f32 nd0 = inv * d[0];
+                f32 nd1 = inv * d[1];
+
+                d[2] = inv * d[2];
+                d[0] = f8v * nd0;
+                d[1] = f8v * nd1;
             }
         }
     }
 
-    /* .L001351E4: the output position = o + d (d re-added; f5 = 0 per retail) */
-    o0 = entryCopy[0] + d0;
-    o4 = entryCopy[1] + d4;
-    o8 = entryCopy[2] + 0.0f;
-    if (*(u8 *)(arg1 + 0x11C) != 1) {
-        *(u8 *)(arg1 + 0x11C) = 2;
+    o[0] = e[0] + d[0];
+    o[1] = e[1] + d[1];
+    o[2] = e[2] + d[2];
+    if (*(u8 *)(base + 0x50) == 1) {
+        *(u8 *)(base + 0x50) = 2;
     }
-    memcpy(entryCopy, ptr150, 12);
-    if (*(u8 *)(arg1 + 0x11C) != 1) {
-        *(u8 *)(arg1 + 0x11C) = 2;
-    }
-    /* .L00135248: objPtr+0x30 = o; arg1+0xFC+0xC = 1.0f; arg1+0xA8 = arg1+0xFC - acc */
-    memcpy((s8 *)objPtr + 0x30, &o0, 12);
-    *(f32 *)((s8 *)arg1 + 0x108) = 1.0f;
-    *(f32 *)ptr150 = *(f32 *)((s8 *)arg1 + 0xFC) - acc0;
-    *(f32 *)((s8 *)ptr150 + 4) = *(f32 *)((s8 *)arg1 + 0xFC) - acc4;
-    *(f32 *)((s8 *)ptr150 + 8) = *(f32 *)((s8 *)arg1 + 0xFC) - acc8;
+    e[0] = *(f32 *)(arg1 + 0xA8);
+    e[1] = *(f32 *)(arg1 + 0xAC);
+    e[2] = *(f32 *)(arg1 + 0xB0);
+
+    memcpy((void *)(arg1 + 0xFC), o, 12);
+    *(f32 *)(arg1 + 0x108) = 1.0f;
+    *(f32 *)(arg1 + 0xA8) = *(f32 *)(arg1 + 0xFC) - acc0;
+    *(f32 *)(arg1 + 0xAC) = *(f32 *)(arg1 + 0x100) - acc4;
+    *(f32 *)(arg1 + 0xB0) = *(f32 *)(arg1 + 0x104) - acc8;
+
     if ((*(s32 *)(arg1 + 0xC) & 4) != 0) {
-        if (*(u8 *)(arg1 + 0x11C) != 1) {
-            *(u8 *)(arg1 + 0x11C) = 2;
+        if (*(u8 *)((s8 *)ptr14C + 0x50) == 1) {
+            *(u8 *)((s8 *)ptr14C + 0x50) = 2;
         }
-        memcpy((s8 *)ptr14C + 0x30, &o0, 12);
+        memcpy((s8 *)ptr14C + 0x30, (void *)(arg1 + 0xA8), 12);
         *(f32 *)((s8 *)ptr14C + 0x3C) = 1.0f;
     }
-    memcpy(state2, (s8 *)first + 4, 12);
+
+    nearRef[0] = *(f32 *)((s8 *)first + 4);
+    nearRef[1] = *(f32 *)((s8 *)first + 8);
+    nearRef[2] = *(f32 *)((s8 *)first + 0xC);
+
     if (flagB != 0) {
         return func_0013A148(arg1, fArg);
     }
-    /* the second func_00135530 pass (6 args) + the apply loop */
-    r = func_00135530(outPtr, D_003931B0, arg1, arg2, (s32)statePtr, (s32)((s8 *)arg1 + 0xCC));
+
+    /* second pass: re-resolve and apply the entry that rejected the position */
+    r = func_00135530(out, D_003931B0, arg1, arg2, statePtr, (s32 *)base, 0);
     if (r == 0) {
         return func_0013A148(arg1, fArg);
     }
+    /* func_00135530 rebinds out[0] on every call: the apply loop is bounded
+     * by this second count, not the one from the first query. */
+    len = *(s32 *)out;
     if (len > 0) {
-        f32 f6 = 1.0f;
-        s32 *base = (s32 *)D_003931B0;
-        s32 off = 0;
+        f32 one = 1.0f;
+
         for (i = 0; i < len; i++) {
             s32 cond = 0;
-            s32 nearv = 0;
-            entry = (s32 *)((s8 *)base + off);
-            if (*(u16 *)((s8 *)entry + 0x2E) == 0x63) {
-                goto next_i;
+
+            entry = (s32 *)((s8 *)listBase + i * 0x68);
+            if (*(s16 *)((s8 *)entry + 0x2E) == 0x63) {
+                continue;
             }
-            {
-                s32 *data = *(s32 **)((s8 *)entry + 0x20);
-                if ((*(u16 *)((u8 *)data + 6) & 0x4000) != 0) {
-                    s32 *data2 = *(s32 **)((s8 *)entry + 0x1C);
-                    cond = (*(u16 *)((u8 *)data2 + 6) & 0x4000) ? 1 : 0;
-                }
+            if ((*(u16 *)((u8 *)*(s32 **)((s8 *)entry + 0x20) + 6) & 0x4000) != 0) {
+                s32 *data2 = *(s32 **)((s8 *)entry + 0x1C);
+                cond = (*(u16 *)((u8 *)data2 + 6) & 0x4000) ? 1 : 0;
             }
             if (cond != 0) {
-                goto next_i;
+                continue;
             }
-            {
-                f32 ddx = *(f32 *)(state2 + 0) - *(f32 *)((s8 *)entry + 4);
-                f32 ddy = *(f32 *)(state2 + 4) - *(f32 *)((s8 *)entry + 8);
-                f32 ddz = *(f32 *)(state2 + 8) - *(f32 *)((s8 *)entry + 0xC);
-                f32 lim = D_0039272C;
-                nearv = (fabsf(ddx - 0.0f) < lim && fabsf(ddy - 0.0f) < lim &&
-                         fabsf(ddz - 0.0f) < lim) ? 1 : 0;
+            dx = nearRef[0] - *(f32 *)((s8 *)entry + 4);
+            dy = nearRef[1] - *(f32 *)((s8 *)entry + 8);
+            dz = nearRef[2] - *(f32 *)((s8 *)entry + 0xC);
+            if (fabsf(dx) < D_0039272C && fabsf(dy) < D_0039272C &&
+                fabsf(dz) < D_0039272C) {
+                continue;
             }
-            if (nearv != 0) {
-                goto next_i;
+            if (*(u8 *)(base + 0x50) == 1) {
+                *(u8 *)(base + 0x50) = 2;
             }
-            if (*(u8 *)(arg1 + 0x11C) == 1) {
-                *(u8 *)(arg1 + 0x11C) = 2;
-            }
-            memcpy((s8 *)objPtr + 0x30, entryCopy, 12);
-            *(f32 *)((s8 *)arg1 + 0x108) = 1.0f;
-            memcpy(ptr150, entryCopy, 12);
-        next_i:
-            i++;
+            memcpy((void *)(arg1 + 0xFC), e, 12);
+            *(f32 *)(arg1 + 0x108) = one;
+            memcpy((void *)(arg1 + 0xA8), e, 12);
         }
     }
     return func_0013A148(arg1, fArg);

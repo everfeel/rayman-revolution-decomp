@@ -1,0 +1,7 @@
+# DO NOT DELETE THIS FILE. ONLY EDIT A NAME IF YOU ARE SURE OR APPEND A NEW ONE.
+# One function per line: func_XXXXXXXX<TAB>candidate_name
+
+func_001346E8	actorSwimMovementStep
+func_00139800	actorSubobjectsDoNotOverlap
+func_00139828	actorGetSurfaceProjectionWeight
+func_00139858	actorGetSurfaceReflectionWeight

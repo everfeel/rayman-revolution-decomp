@@ -1,0 +1,640 @@
+Rayman Revolution EE compiler reference
+=======================================
+
+Toolchain used by this project
+------------------------------
+
+Compiler driver:
+  toolchain\sn-prodg-24\local\sce\ee\gcc\bin\ee-gcc.exe
+
+Version reported by the installed executable:
+  2.9-ee-991111b/r4
+
+Target:
+  ee (Emotion Engine / MIPS R5900)
+
+This is an old SN Systems GCC-based toolchain. Modern GCC help switches such
+as --help=optimizers are not supported. The option lists below were assembled
+from this installed driver's -v --help output and the bundled SDK Compiler.html.
+The compiler itself notes that some language and target-specific options are
+undocumented, so this documents the common C/compiler options and the
+documented/help-reported target and tool options, not every private switch.
+
+To query the installed tools again from the repository root:
+  toolchain\sn-prodg-24\local\sce\ee\gcc\bin\ee-gcc.exe --version
+  toolchain\sn-prodg-24\local\sce\ee\gcc\bin\ee-gcc.exe --help
+  toolchain\sn-prodg-24\local\sce\ee\gcc\bin\ee-gcc.exe -v --help
+  toolchain\sn-prodg-24\local\sce\ee\gcc\bin\ee-gcc.exe -dumpspecs
+
+The -v --help command also prints the subordinate assembler and linker help.
+
+Project defaults and matching notes
+-----------------------------------
+
+The playground and project build use these common compiler flags:
+  -G4 -Iinclude -Isrc -Wa,-I,include,-I,.
+
+-G4 places global/static objects of up to 4 bytes in small-data sections for
+  access through the global pointer ($gp). It is not a debug flag. The value
+  should generally be consistent across project modules. For an isolated
+  playground experiment, a later -G0 can override -G4, but code that accesses
+  small globals may no longer match retail.
+-Iinclude and -Isrc add project header search paths.
+-Wa,... forwards the comma-separated options to the assembler. Here it adds
+  include\ and the repository root to the assembler's .include search path.
+-fno-omit-frame-pointer is available in the playground's Preserve frame
+  pointer checkbox.
+-O0, -O1, -O2, and -O3 are the optimization levels accepted by the project
+  build-profile parser. The playground's Other flags box can pass additional
+  compiler options; per-function playground settings do not change project
+  build flags.
+
+The playground comparison is byte-for-byte. Changing a compiler option can
+change code generation, data placement, ABI assumptions, or floating-point
+behavior and therefore affect matching. Prefer testing one option at a time.
+Do not pass options that change output mode or output filenames to the
+playground.
+
+Optimization levels
+-------------------
+
+-O0        Compiler optimization level zero. The assembler's own -O0 is a
+           separate option which disables assembler NOP removal and branch
+           swapping.
+-O1        Basic compiler optimization. Exact pass selection is compiler
+           version-specific.
+-O2        Higher compiler optimization; this is the project's default.
+-O3        More aggressive optimization. The SDK guide specifically notes
+           additional inlining of eligible small/single-call functions.
+-Os        Optimize for code size rather than speed. Supported by the compiler
+           help, but not accepted by the project's build-profile parser.
+
+The compiler accepts -O[number]. Avoid assuming modern GCC's precise pass set
+or behavior applies to this GCC 2.9 EE build.
+
+Compiler optimization and code-generation options
+--------------------------------------------------
+
+Common-subexpression and code motion:
+  -fgcse                    Perform global common-subexpression elimination.
+  -fedge-lcm                Use edge-based LCM with global CSE.
+  -fedge-lm                 Perform edge-based load motion after global CSE.
+  -fedge-sm                 Perform edge-based store motion after global CSE.
+  -fno-edge-lcm             SDK EE switch: disable the new edge-based GCSE,
+                            load-motion, and store-motion optimization work.
+  -fno-edge-lm              SDK EE switch: disable edge-based load motion only.
+  -fno-edge-sm              SDK EE switch: disable edge-based store motion only.
+  -fcse-follow-jumps        Let CSE follow jumps to their targets.
+  -fcse-skip-blocks         Let CSE follow conditional jumps.
+  -frerun-cse-after-loop    Run CSE again after loop optimization.
+
+Loops, branches, and instruction scheduling:
+  -fstrength-reduce         Apply strength-reduction optimizations.
+  -freduce-all-givs         Strength-reduce all general loop induction vars.
+  -fmove-all-movables       Force loop-invariant computations out of loops.
+  -funroll-loops            Unroll loops when the iteration count is known.
+  -funroll-all-loops        Unroll all loops.
+  -frerun-loop-opt          Run loop optimization twice.
+  -fthread-jumps             Apply jump-threading optimizations.
+  -fdelayed-branch           Try to fill branch delay slots.
+  -fbranch-count-reg         Replace add/compare/branch patterns with a
+                            branch-on-count-register sequence when possible.
+  -fschedule-insns           Reschedule instructions to avoid pipeline stalls.
+  -fschedule-insns2          Run two instruction-scheduling passes.
+  -fsched-interblock         Schedule instructions across basic blocks.
+  -fsched-spec               Allow speculative motion of non-load instructions.
+  -fsched-spec-load           Allow some speculative load motion.
+  -fsched-spec-load-dangerous Allow more speculative load motion.
+  -fexpensive-optimizations  Enable a set of additional, potentially expensive
+                            optimizations.
+  -foptimize-comparisons     Apply comparison-sequence optimizations.
+
+Inlining, registers, and addressing:
+  -finline                   Honor the C inline keyword.
+  -finline-functions         Inline eligible simple functions into callers.
+  -fkeep-inline-functions    Emit functions even when all calls were inlined.
+  -fkeep-static-consts       Emit unused static const variables.
+  -fcaller-saves             Allow saving registers around calls.
+  -fcall-used-REG             Treat REG as call-clobbered.
+  -fcall-saved-REG            Treat REG as preserved across calls.
+  -ffixed-REG                 Reserve REG so the compiler does not use it.
+  -fregmove                  Enable register-move optimization.
+  -foptimize-register-move   Run the full register-move optimization pass.
+  -ffunction-cse             Allow function addresses to be held in registers.
+  -fforce-addr               Copy address constants into registers first.
+  -fforce-mem                Copy memory operands into registers first.
+  -fomit-frame-pointer       Omit stack frames when possible.
+  -fdefer-pop                Defer popping function arguments until later.
+  -fpeephole                 Enable machine-specific peephole optimization.
+  -fpeephole2                Enable a later RTL peephole pass before sched2.
+
+Floating point, aliasing, and memory:
+  -ffast-math                Optimize floating point more aggressively by
+                            relaxing ANSI/IEEE behavior assumptions.
+  -ffloat-store              Force floating-point values through memory.
+  -fpretend-float            Assume host and target use the same FP format.
+  -fdefault-single-float     Treat an integer as float rather than double by
+                            default (as described by this compiler's help).
+  -fstrict-aliasing          Assume strict aliasing rules.
+  -fargument-noalias         Assume function arguments do not alias each
+                            other, but may alias globals.
+  -fargument-noalias-global  Assume arguments do not alias each other or
+                            globals.
+  -fargument-alias           Assume arguments may alias each other and globals.
+  -fvolatile                 Treat memory references through pointers as
+                            volatile.
+  -fvolatile-global          Treat references to global data as volatile.
+  -funaligned-pointers       Assume pointers may be unaligned.
+  -funaligned-struct-hack    Assume structure fields may be unaligned.
+
+Other compiler code-generation/behavior options:
+  -fcommon                   Do not put uninitialized globals in the common
+                            section.
+  -fdata-sections            Put data items in separate sections.
+  -ffunction-sections        Put each function in a separate section.
+  -fshared-data              Mark data as shared rather than private.
+  -fpack-struct              Pack structure members without padding holes.
+  -freg-struct-return        Return short aggregates in registers.
+  -fpcc-struct-return        Return short aggregates in memory.
+  -fwritable-strings         Store string literals in writable data.
+  -fshort-double             Give double the same size as float.
+  -fshort-enums              Use the smallest integer type that fits an enum.
+  -fsingle-precision-constant Treat floating constants as single precision.
+  -ftrapv                    Raise exceptions for signed add/subtract/multiply
+                            overflow.
+  -fbranch-probabilities     Use profiling data for branch probabilities.
+  -fprofile-arcs             Insert arc-based profiling instrumentation.
+  -ftest-coverage            Emit data needed by gcov.
+  -finstrument-functions     Insert function entry/exit profiling calls.
+  -fstack-check              Insert stack checking code.
+  -fcheck-memory-usage       Generate checks for memory accesses.
+  -fsyntax-only              Check syntax without generating code.
+  -fverbose-asm              Add explanatory comments to assembly output.
+  -finhibit-size-directive   Do not emit .size directives.
+  -fleading-underscore       Prefix external symbols with an underscore.
+  -fprefix-function-name     Add a prefix to function names.
+  -fdevstudio                Format diagnostics for DevStudio.
+  -fgnu-linker               Emit GNU ld formatted global initializers.
+  -fno-asm                   Do not recognize the asm keyword.
+  -fno-builtin               Do not recognize built-in functions.
+  -ffreestanding             Assume standard libraries and main may not exist.
+  -fhosted                   Assume a normal hosted C environment.
+  -fcond-mismatch            Allow differing types in the ?: operator.
+  -fdollars-in-identifier    Allow $ in identifiers.
+  -fno-ident                 Ignore #ident directives.
+  -funsigned-bitfields       Make bitfields unsigned by default.
+  -fsigned-char              Make plain char signed by default.
+  -funsigned-char            Make plain char unsigned by default.
+  -fallow-single-precision   Do not promote floats to double in traditional
+                             mode.
+  -fstats                    Display compiler statistics.
+  -fno-default-inline        C++: do not implicitly inline class-body methods.
+  -fexceptions               Enable exception handling.
+  -fasynchronous-exceptions  Support asynchronous exceptions.
+  -fsjlj-exceptions          Use setjmp/longjmp exception handling.
+  -fnew-exceptions           Use the newer exception-handling model.
+  -fpic                      Generate position-independent code when possible.
+  -fsyntax-only              Check syntax and stop without code generation.
+  -flive-range               Enable live-range splitting.
+  -flive-range-scope         Create scope blocks for debug live ranges.
+  -flive-range-gdb            Use GDB extensions to represent live ranges.
+
+General compiler driver options
+-------------------------------
+
+  -E                         Preprocess only.
+  -S                         Compile to assembly; do not assemble or link.
+  -c                         Compile and assemble; do not link.
+  -o FILE                    Set output filename.
+  -x LANGUAGE                Set the language for following inputs (c, c++,
+                             assembler, or none).
+  -lang-c / -lang-c89        Select C / C89 frontend mode.
+  -lang-c++                  Select C++ frontend mode.
+  -lang-objc / -lang-objc++  Select Objective-C / Objective-C++ frontend mode.
+  -lang-asm                  Select assembler frontend mode.
+  -lang-chill                Select Chill frontend mode (if installed).
+  -std=STANDARD              Select a language standard.
+  -I DIR                     Add a header search directory.
+  -include FILE              Include a file before the source.
+  -imacros FILE              Process macros from a file before the source.
+  -DNAME or -DNAME=VALUE     Define a preprocessor macro.
+  -UNAME                     Undefine a preprocessor macro.
+  -AQUESTION(ANSWER)         Add a preprocessor assertion.
+  -nostdinc                  Do not search standard include directories.
+  -M / -MM                   Generate dependencies; -MM omits system headers.
+  -MD / -MMD                 Generate dependency file; -MMD omits system
+                             headers.
+  -MG                        Treat missing headers as generated files.
+  -g                         Request debug information.
+  -g0 through -g3            Select debug-info level where supported.
+  -gcoff / -gstabs / -gstabs+ Select debug information format.
+  -ggdb                      Generate GDB-oriented debug information.
+  -v                         Show compiler version and invoked subcommands.
+  -quiet                     Suppress routine compiler messages.
+  -version                   Print compiler version.
+  -p                         Enable function profiling.
+  -aux-info FILE             Emit declaration information to FILE.X.
+  -offset-info FILE          Emit structure member offsets to assembly.
+  -d[LETTERS]                Dump selected compiler-pass information.
+  -fdump-unnumbered          Omit instruction numbers and line notes in dumps.
+  -dumpbase FILE             Set base name for compiler pass dumps.
+  -sched-verbose-NUM         Set instruction scheduler verbosity.
+  --help                     Show driver help.
+  -dumpspecs                 Print built-in driver specifications.
+  -dumpversion               Print compiler version string.
+  -dumpmachine               Print target machine name.
+  -print-search-dirs         Print compiler search directories.
+  -print-libgcc-file-name    Print companion libgcc path.
+  -print-file-name=FILE      Print path to a library/file.
+  -print-prog-name=PROGRAM   Print path to a compiler subprogram.
+  -print-multi-directory     Print active multilib directory.
+  -print-multi-lib           Print multilib option mapping.
+  -B DIR                     Add to compiler subprogram search paths.
+  -b MACHINE                 Select an installed target machine.
+  -V VERSION                 Select an installed compiler version.
+  -specs=FILE                Override built-in driver specs.
+  -save-temps                Keep intermediate files.
+  -pipe                      Use pipes between compiler stages where possible.
+  -Wa,OPTIONS                Pass comma-separated options to the assembler.
+  -Wp,OPTIONS                Pass options to the preprocessor.
+  -Wl,OPTIONS                Pass comma-separated options to the linker.
+  -Xlinker ARG               Pass one argument directly to the linker.
+
+  The driver automatically forwards options beginning with -g, -f, -m, -O, and
+  -W to the relevant subprogram. Other subprogram options generally need their
+  forwarding form, such as -Wa,... or -Wl,... .
+
+  Additional include-search options:
+    -iprefix PATH              Set prefix used by the following iwithprefix opts.
+    -iwithprefix DIR           Add prefix plus DIR to system include paths.
+    -iwithprefixbefore DIR     Add prefix plus DIR to main include paths.
+    -isystem DIR               Add a system include directory.
+    -idirafter DIR             Add a directory after normal include paths.
+    -nostdinc++                Do not search standard C++ include directories.
+    -fgenobscured=ARGS         Generate obscured versions of used headers.
+    -fuseobscured=ARGS         Search for obscured header versions.
+
+Preprocessor and diagnostics options
+------------------------------------
+
+  -ansi                      Compile as ANSI C.
+  -traditional               Use traditional/K&R preprocessing behavior.
+  -trigraphs                 Recognize trigraphs.
+  -pedantic                  Warn about required ANSI conformance.
+  -pedantic-errors           Make pedantic diagnostics errors.
+  -w                         Suppress warnings.
+  -W                         Enable extra warnings.
+  -Wall                      Enable the compiler's broad warning set.
+  -Werror                    Treat warnings as errors.
+  -Wno-error                 Do not treat warnings as errors.
+  -Wundef / -Wno-undef       Warn / do not warn on undefined macros in #if.
+  -Wtrigraphs / -Wno-trigraphs Warn / do not warn about trigraphs.
+  -Wcomment, -Wcomments      Warn about nested comments.
+  -Wno-comment, -Wno-comments Disable nested-comment warnings.
+  -Wtraditional              Warn about constructs affected by traditional
+                             preprocessing.
+  -Wno-traditional           Disable those traditional-mode warnings.
+  -Wimport / -Wno-import     Warn / do not warn about #import.
+  -C                         Keep comments in preprocessor output.
+  -P                         Do not emit #line markers.
+  -H                         Print included header names.
+  -dM                        Dump macros defined at end of preprocessing.
+  -dD                        Preserve macro definitions in output.
+  -dN                        Preserve macro names only.
+  -dI                        Preserve #include directives in output.
+  -ifoutput                  Describe skipped preprocessor blocks.
+  -u or -undef               Do not predefine built-in macros.
+  -$                         Do not allow $ in identifiers.
+  -remap                     Remap file names during include processing.
+  -g (preprocessor)           Preserve #define/#undef directives in output.
+  -g / -g2 (assembler)       Keep unnecessary NOPs and do not swap branches.
+
+Objective-C options (listed by the frontend):
+  -gen-decls                 Dump declarations to a .decl file.
+  -fgnu-runtime              Generate code for the GNU Objective-C runtime.
+  -fnext-runtime             Generate code for the NeXT Objective-C runtime.
+  -Wselector                 Warn about selectors implemented by multiple
+                             methods.
+  -Wno-protocol              Suppress warnings for unimplemented inherited
+                             protocol methods.
+  -print-objc-runtime-info   Emit a header describing runtime features.
+
+C++ options (listed by the frontend; not normally relevant to this C project):
+  -fno-access-control        Ignore C++ access control.
+  -fall-virtual              Treat all member functions as virtual.
+  -falt-external-template    Change when template instances are emitted.
+  -fcheck-new                Check the result of operator new.
+  -fconserve-space           Reduce object-file size.
+  -fno-const-strings         Give string literals type char[] rather than
+                             const char[].
+  -fno-default-inline        Do not implicitly inline member functions.
+  -fno-rtti                  Do not emit runtime type information.
+  -fembedded-cxx             Enable Embedded C++ behavior.
+  -fno-for-scope             Extend for-init variable scope beyond the loop.
+  -fguiding-decls            Enable guiding declarations.
+  -fno-gnu-keywords          Do not recognize GNU C++ keywords.
+  -fhandle-signatures        Handle signature-language constructs.
+  -fhonor-std                Treat namespace std as an ordinary namespace.
+  -fhuge-objects             Enable support for huge objects.
+  -fno-implement-inlines     Export functions even if inlineable.
+  -fno-implicit-templates    Emit only explicit template instantiations.
+  -fno-implicit-inline-templates
+                             Emit only explicit inline-template instantiations.
+  -finit-priority            Handle init_priority attributes.
+  -flabels-ok                Allow labels as first-class objects.
+  -fnew-abi                  Enable experimental ABI changes.
+  -fno-nonnull-objects       Do not assume references are always valid.
+  -foperator-names           Recognize alternative operator names (and, bitand,
+                             bitor, compl, not, or, xor).
+  -fno-optional-diags        Disable optional diagnostics.
+  -fpermissive               Downgrade some conformance errors to warnings.
+  -frepo                     Enable automatic template instantiation.
+  -fsquangle                 Use squashed C++ name mangling.
+  -fno-strict-prototype      Do not treat empty prototypes as no-argument
+                             prototypes.
+  -ftemplate-depth-NUM       Set the maximum template instantiation depth.
+  -fthis-is-variable         Make this an ordinary variable, not '* const'.
+  -fvtable-gc                Discard unused virtual functions.
+  -fvtable-thunks            Implement virtual tables using thunks.
+  -fweak                     Emit eligible symbols as weak.
+  -fxref                     Emit cross-reference information.
+  -Woverloaded-virtual       Warn about overloaded virtual function names.
+  -Wno-ctor-dtor-privacy     Suppress warnings for private constructors/
+                             destructors.
+  -Wnon-virtual-dtor         Warn about non-virtual destructors.
+  -Wextern-inline            Warn about extern followed by inline.
+  -Wreorder                  Warn when C++ code is reordered.
+  -Wsynth                    Warn about synthesis behavior differing from
+                             Cfront.
+  -Wno-pmf-conversions       Suppress pointer-to-member conversion warnings.
+  -Weffc++                   Warn about Effective C++ guideline violations.
+  -Wsign-promo               Warn about promotion from unsigned to signed.
+  -Wold-style-cast            Warn when C-style casts are used.
+  -Wno-non-template-friends  Suppress warnings for non-template friend
+                             functions declared inside templates.
+
+Compiler warning options
+------------------------
+
+The compiler reports the following warning options. They affect diagnostics,
+not optimization/code generation unless warnings are promoted to errors.
+
+  -Winline                   Warn when a requested inline cannot be performed.
+  -Wuninitialized            Warn about uninitialized automatic variables.
+  -Wcast-align               Warn about casts that increase alignment.
+  -Waggregate-return         Warn about returning aggregates.
+  -Wswitch                   Warn about missing enum cases in switches.
+  -Wshadow                   Warn when a local shadows another identifier.
+  -Wunused                   Warn about unused entities.
+  -Wid-clash-NUM              Warn when identifiers share the first NUM chars.
+  -Wlarger-than-NUM           Warn when an object exceeds NUM bytes.
+  -Wbad-function-cast         Warn about casts from function return values.
+  -Wmissing-noreturn          Warn about possible noreturn functions.
+  -Wcast-qual                 Warn when a cast discards qualifiers.
+  -Wchar-subscripts           Warn about char-typed array subscripts.
+  -Wconversion                Warn about possibly confusing conversions.
+  -Wformat                    Warn about printf-format problems.
+  -Wimplicit-function-declaration Warn about undeclared function calls.
+  -Wimplicit-int              Warn about declarations with implicit int.
+  -Wno-long-long              Suppress long-long warnings with -pedantic.
+  -Wmain                      Warn about suspicious main declarations.
+  -Wmissing-braces            Warn about possibly missing initializer braces.
+  -Wmissing-declarations      Warn about global functions without declarations.
+  -Wmissing-prototypes        Warn about global functions without prototypes.
+  -Wmultichar                 Warn about multicharacter constants.
+  -Wnested-externs            Warn about block-scope extern declarations.
+  -Wparentheses               Warn about likely missing parentheses.
+  -Wpointer-arith             Warn about arithmetic on function pointers.
+  -Wpromote-doubles           Warn when values are promoted to double.
+  -Wredundant-decls           Warn about repeated declarations.
+  -Wsign-compare              Warn about signed/unsigned comparisons.
+  -Wunknown-pragmas           Warn about unrecognized pragmas.
+  -Wstrict-prototypes         Warn about non-prototype function declarations.
+  -Wtrigraphs                 Warn about trigraphs.
+  -Wwrite-strings             Treat string literals as const char pointers.
+  -Wreturn-type               Warn about inconsistent return types.
+
+MIPS / Emotion Engine target options
+------------------------------------
+
+The SDK Compiler.html describes these Emotion Engine-specific options:
+
+  -mhard-float               Use hardware floating-point instructions. Default.
+  -msoft-float               Use library calls for floating-point operations.
+  -msingle-float             Assume the FPU supports single precision only.
+                             Default for this EE compiler.
+  -mdouble-float             Permit double-precision instructions.
+  -EL                        Generate little-endian code. Default.
+  -EB                        Generate big-endian code.
+  -G NUM                     Small-data threshold (EE docs: default 8).
+  -fno-edge-lcm               Disable edge-based GCSE/load/store motion work.
+  -fno-edge-lm                Disable edge-based load motion.
+  -fno-edge-sm                Disable edge-based store motion.
+  -mhandle-ee-div-pipeline-bug Avoid unsafe placement of div.s, sqrt.s, and
+                             rsqrt.s around branch delay slots/targets.
+                             Enabled by default.
+  -ftrapv                    Trap on signed add/subtract/multiply overflow.
+  -fsingle-precision-constant Treat floating constants as single precision.
+  --target-help               Print target-specific help for tools.
+
+Other MIPS options printed by the toolchain:
+  -mips1, -mips2, -mips3,
+  -mips4                     Select MIPS ISA generation.
+  -mcpu=CPU or -mCPU         Select CPU tuning/ISA (listed CPUs: 2000, 3000,
+                             3900, 4000, 4010, 4100, 4300, 4400, 4600, 4650,
+                             5000, 5400, 5900, 6000, 8000, 10000).
+  -no-mCPU                   Avoid instructions specific to the named CPU;
+                             the listed names are 3900, 4010, 4100, 4650,
+                             5400, and 5900.
+  -mips16 / -no-mips16       Enable / disable MIPS16 instruction generation.
+  -membedded-pic             Generate embedded position-independent code.
+  -mfp32 / -mfp64            Select floating-point register width.
+  -mgp32 / -mgp64            Select general-purpose register width.
+  -mabi=ABI                  Select ABI (32, o32, n32, 64, n64, eabi).
+  -m3900, -m4650, -m5400,
+  -m5900                     Select CPU-specific behavior.
+  -mmad                      Use the MIPS 4650 assembler target behavior.
+  -mips-as                   Use the legacy MIPS assembler path.
+  -mno-mips-tfile            Disable mips-tfile in that assembler path.
+  -msoft-float               Select software floating point.
+  -msingle-float             Select single-precision floating point.
+  -mdouble-float             Select double-precision floating point.
+  -mint64, -mlong64,
+  -mlong32                   Select integer/long type-size behavior.
+  -mfp32, -mfp64              Select floating point register width.
+  -EB / -EL                  Select big / little endian.
+  -G NUM                     Pass the small-data threshold to compiler,
+                             assembler, and linker.
+  -bestGnum                  Pass best-G-number selection to linker.
+  -mvu0-use-vf0-*            Specify the range of VU0 registers to use with
+                             vf0 (help output truncates the option suffix).
+
+Assembler options (ee-as)
+-------------------------
+
+These are assembler options reported by the installed EE assembler:
+
+  -a[SUBOPTIONS]             Generate a listing; suboptions include c (omit
+                             false conditionals), d (omit debug directives),
+                             h (include high-level source), l (include
+                             assembly), m (include macro expansions), n (omit
+                             forms processing), s (include symbols), and
+                             =FILE (listing filename; last suboption).
+  -D                         Emit assembler debugging messages.
+  --defsym NAME=VALUE        Define an assembler symbol.
+  -f                         Skip whitespace/comment preprocessing.
+  --gstabs                   Generate STABS debug information.
+  -I DIR                     Add an .include search directory.
+  -J                         Suppress signed-overflow warnings.
+  -K                         Warn when differences are altered for long
+                             displacements.
+  -L / --keep-locals          Keep local symbols.
+  -M / --mri                  Use MRI compatibility mode.
+  --MD FILE                  Write dependency information to FILE.
+  -nocpp                     Accepted but ignored.
+  -o FILE                    Set object output filename.
+  -R                         Fold data section into text section.
+  --statistics               Print assembler statistics.
+  --strip-local-absolute     Strip local absolute symbols.
+  --traditional-format       Use native assembler format where possible.
+  --itbl FILE                Extend the instruction set from an instruction
+                             table file.
+  -W                         Suppress warnings.
+  -w / -X                    Accepted but ignored.
+  -Z                         Emit an object even after errors.
+  --listing-lhs-width        Set listing data-column width.
+  --listing-lhs-width2       Set continuation-line data width.
+  --listing-rhs-width        Set listing source-line width.
+  --listing-cont-lines       Set maximum listing continuation lines.
+  --version                  Print assembler version.
+  --help                     Show assembler help.
+
+Assembler target switches shown by the compiler:
+  -mabi=ABI                  Select assembler ABI; driver defaults to eabi.
+  -mcpu=CPU                  Select assembler CPU.
+  -mips1 through -mips4      Select instruction-set generation.
+  -mips16 / -no-mips16       Enable / disable MIPS16.
+  -EB / -EL                  Select endian mode.
+  -G NUM                     Set small-data threshold.
+  -m4650, -m3900, -m5400,
+  -m5900                     Select CPU-specific assembler behavior.
+  -mno-mips-tfile            Disable mips-tfile for the legacy assembler.
+  -g / -g2                   Keep unnecessary NOPs and do not swap branches.
+  -O0 (assembler)            Remove unneeded NOPs but do not swap branches.
+  -O / -O2 / -O3 (assembler) Select assembler optimization level (the driver
+                             specs map -O and -O2 to assembler -O2).
+  --trap / --no-break         Trap on divide-by-zero and multiply overflow.
+  --break / --no-trap         Break rather than trap for those conditions.
+  -KPIC / -call_shared        Generate SVR4 position-independent code.
+  -non_shared                 Do not generate position-independent code.
+  -xgot                      Assume a 32-bit GOT.
+  -32 / -64                  Emit 32-bit / 64-bit object format.
+
+Linker options (ee-ld)
+----------------------
+
+These are linker options reported by the installed EE linker. Many are not
+appropriate for the playground, which supplies its own output file and linker
+script.
+
+  -a KEYWORD                 HP/UX shared-library compatibility control.
+  -A ARCH / --architecture   Set architecture.
+  -b TARGET / --format       Select input format for following files.
+  -c FILE / --mri-script     Read an MRI linker script.
+  -d, -dc, -dp               Force common symbols to be defined.
+  -e ADDR / --entry          Set program entry address.
+  -E / --export-dynamic      Export dynamic symbols.
+  -EB / -EL                  Select big / little endian.
+  -f FILE / --auxiliary      Set auxiliary shared library.
+  -F FILE / --filter         Set shared-library filter.
+  -g                         Ignored.
+  -G SIZE / --gpsize         Set small-data size.
+  -h NAME / -soname NAME     Set the internal shared-library name.
+  -l NAME / --library        Link a library.
+  -L DIR / --library-path    Add a library search directory.
+  -m EMULATION               Select linker emulation (EE toolchain uses
+                             elf32l5900).
+  -M / --print-map           Print link map to stdout.
+  -n / --nmagic              Do not page-align data.
+  -N / --omagic               Do not page-align data; make text writable.
+  -o FILE / --output         Set output filename.
+  -O                         Optimize linker output.
+  -Qy                        Ignored.
+  -r, -i / --relocateable    Create relocatable output.
+  -R FILE / --just-symbols   Read symbol names/addresses from a file.
+  -s / --strip-all           Strip all symbols.
+  -S / --strip-debug         Strip debugging symbols.
+  -t / --trace               Trace file opens.
+  -T FILE / --script         Use a linker script.
+  -u NAME / --undefined      Start with an undefined symbol.
+  -Ur                        Build global constructor/destructor tables.
+  -v / --version             Print linker version.
+  -V                         Print version/emulation information.
+  -x / --discard-all         Discard all local symbols.
+  -X / --discard-locals      Discard temporary local symbols.
+  -y NAME / --trace-symbol   Trace references to a symbol.
+  -Y PATH                    Solaris compatibility search path.
+  -z KEYWORD                 Ignored.
+  -( / --start-group         Start a library group.
+  -) / --end-group           End a library group.
+  -assert KEYWORD            Ignored for SunOS compatibility.
+  -Bdynamic / -dy            Link shared/dynamic libraries.
+  -Bstatic / -dn / -static   Do not link shared libraries.
+  -Bsymbolic                 Bind global references locally.
+  --check-sections           Check section overlap (default).
+  --no-check-sections        Disable section-overlap checks.
+  --cref                     Emit cross-reference table.
+  --defsym NAME=EXPR         Define a linker symbol.
+  --dynamic-linker PROGRAM   Set dynamic linker.
+  --embedded-relocs          Generate embedded relocations.
+  --force-exe-suffix         Force .exe suffix.
+  --gc-sections              Remove unreferenced sections where supported.
+  --no-gc-sections           Keep unreferenced sections (default).
+  --help                     Show linker help.
+  -Map FILE                  Write map file.
+  --no-keep-memory           Use less memory and more disk I/O.
+  --no-warn-mismatch         Suppress input mismatch warnings.
+  --no-whole-archive         Stop including all archive members.
+  --noinhibit-exec           Emit output even after errors where possible.
+  --oformat TARGET           Set output format.
+  -qmagic                    Ignored for Linux compatibility.
+  --relax                    Relax branches where supported.
+  --retain-symbols-file FILE Keep only listed symbols.
+  -rpath / --rpath PATH      Set runtime shared-library search path.
+  -rpath-link PATH           Set link-time shared-library search path.
+  -shared / --shared /
+  -Bshareable                Create shared output.
+  --sort-common              Sort common symbols by size.
+  --split-by-file            Split output sections per input file.
+  --split-by-reloc COUNT     Split sections after a relocation count.
+  --stats                    Print linker memory usage.
+  --task-link SYMBOL         Perform task-level linking.
+  --traditional-format       Use native format where possible.
+  -Tbss ADDR                 Set .bss address.
+  -Tdata ADDR                Set .data address.
+  -Ttext ADDR                Set .text address.
+  --verbose                  Print detailed link information.
+  --version-script FILE      Read version script.
+  --version-exports-section  Use the .exports symbol list/version section.
+  --warn-common              Warn about duplicate common symbols.
+  --warn-constructors        Warn about global constructors/destructors.
+  --warn-multiple-gp         Warn about multiple global-pointer values.
+  --warn-once                Warn once per undefined symbol.
+  --warn-section-align       Warn if section start changes due to alignment.
+  --whole-archive             Include every member of following archives.
+  --wrap SYMBOL              Wrap references to SYMBOL.
+  --mpc860c0[=WORDS]          Modify problematic page-end branches (target-
+                             specific linker feature).
+
+General linker output also reports ELF32/ELF64 MIPS, S-record, Intel HEX, and
+binary output formats. The EE linker reports the elf32l5900 emulation.
+
+References inside this SDK
+--------------------------
+
+  toolchain\sn-prodg-24\README.md
+  toolchain\sn-prodg-24\local\sce\ee\gcc\doc\html\Compiler.html
+
+The option descriptions above are paraphrased from the installed executable's
+help and SDK guide. Some switches are for C++, Objective-C, profiling, or
+toolchain internals and are not useful for this project's C function matching.

@@ -2737,8 +2737,11 @@ void func_0012E110(u8 *arg0, f32 arg1)
     if (entry != 0)
     {
         u8 *field = *(u8 **)(entry + 0x24);
-
         *(f32 *)(arg0 + 0x1E4) = arg1 - *(f32 *)(field + 0x38);
+    }
+    else
+    {
+        *(f32 *)(arg0 + 0x1E4) = arg1;
     }
 }
 

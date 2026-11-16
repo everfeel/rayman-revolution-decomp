@@ -13,9 +13,9 @@ This project originally started with the goal of achieving a byte-matching decom
 # Rayman Revolution (PAL) decompilation project
 
 <!-- BEGIN GENERATED PROGRESS -->
-![Progress: 1,823 byte-matches, 162 implemented, 3,660 not implemented](progress/progress.svg)
+![Progress: 1,938 byte-matches, 183 implemented, 3,524 not implemented](progress/progress.svg)
 
-**Byte-match:** 1,823 · **Implemented:** 162 · **Not implemented:** 3,660.
+**Byte-match:** 1,938 · **Implemented:** 183 · **Not implemented:** 3,524.
 <!-- END GENERATED PROGRESS -->
 
 This is a decompilation of the PAL PlayStation 2 main executable, `SLES_500.44`. The goal is to recover the executable as buildable C source while preserving the original game's behavior, and ultimately to match the retail executable byte for byte. These goals can be pursued in stages: a behaviorally faithful C implementation is valuable even before it matches the original machine code.
@@ -42,7 +42,6 @@ Contributions are welcome, including analysis, function implementations, data ty
 2. Replace its `INCLUDE_ASM` fallback with a C definition in the appropriate source module. Preserve the symbol name. Infer signatures and types from call sites and instruction behavior; use `arg1`, `arg2`, or `unk1` style names where intent is not known rather than inventing semantics.
 3. Prefer a readable behavioral implementation. Keep uncertain details explicit and conservative. Do not edit generated reference files under repository-root `asm\`.
 4. Build and validate the implementation's behavior. Then inspect the function comparison and use byte differences to guide later refinement; a difference is expected before matching and is not, by itself, evidence of incorrect behavior.
-5. In a pull request or contribution description, summarize what the function appears to do, the evidence used, any assumptions, and the checks you ran. State whether byte matching was achieved, but do not present it as the only measure of correctness.
 
 ### Build and compare
 
