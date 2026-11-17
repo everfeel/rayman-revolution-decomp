@@ -521,11 +521,12 @@ def update_readme_progress(counts):
 
     summary = (
         f"![Progress: {counts['MATCHING']:,} byte-matches, "
-        f"{counts['NOT MATCHING']:,} implemented, "
+        f"{counts['NOT MATCHING']:,} implemented ({counts['problematic']:,} problematic), "
         f"{counts['NOT STARTED']:,} not implemented](progress/progress.svg)"
         "\n\n"
         f"**Byte-match:** {counts['MATCHING']:,} · "
-        f"**Implemented:** {counts['NOT MATCHING']:,} · "
+        f"**Implemented:** {counts['NOT MATCHING']:,} "
+        f"({counts['problematic']:,} problematic) · "
         f"**Not implemented:** {counts['NOT STARTED']:,}."
     )
     content_start = start + len(README_PROGRESS_START)
@@ -560,27 +561,39 @@ def write_svg(counts):
         color, opacity = STATUS_COLOR[status]
         segment_width = width * count / total if total else 0
         if segment_width:
+            title = (
+                f"({counts['problematic']:,} problematic) "
+                f"({format_percentage(count, total)})"
+                if status == "NOT MATCHING"
+                else f"({format_percentage(count, total)})"
+            )
             segments.append(
                 f'<rect x="{offset:.2f}" y="66" width="{segment_width:.2f}" '
                 f'height="22" fill="url(#{STATUS_CLASS[status]}-gradient)" '
                 f'fill-opacity="{opacity}">'
                 f'<title>{STATUS_LABEL[status]}: {count:,} '
-                f'({format_percentage(count, total)})</title></rect>'
+                f'{title}</title></rect>'
             )
         offset += segment_width
     for status, label, count, x in legend_items:
         _, opacity = STATUS_COLOR[status]
+        detail = (
+            f"({counts['problematic']:,} problematic) "
+            f"({format_percentage(count, total)})"
+            if status == "NOT MATCHING"
+            else f"({format_percentage(count, total)})"
+        )
         legend.append(
             f'<circle cx="{x}" cy="126" r="6" '
             f'fill="url(#{STATUS_CLASS[status]}-gradient)" '
             f'fill-opacity="{opacity}"/>'
             f'<text x="{x + 13}" y="131" fill="#c0c1d0" font-size="13">'
-            f'{label}: {count:,} ({format_percentage(count, total)})</text>'
+            f'{label}: {count:,} {detail}</text>'
         )
     overall = format_percentage(counts["implemented"], total)
     document = f"""<svg xmlns="http://www.w3.org/2000/svg" width="720" height="155" viewBox="0 0 720 155" role="img" aria-labelledby="title description" font-family="Segoe UI, Arial, sans-serif">
 <title id="title">Function progress</title>
-<desc id="description">Byte-match: {counts["MATCHING"]:,} ({format_percentage(counts["MATCHING"], total)}). Implemented without a byte match: {counts["NOT MATCHING"]:,} ({format_percentage(counts["NOT MATCHING"], total)}). Not implemented: {counts["NOT STARTED"]:,} ({format_percentage(counts["NOT STARTED"], total)}).</desc>
+<desc id="description">Byte-match: {counts["MATCHING"]:,} ({format_percentage(counts["MATCHING"], total)}). Implemented without a byte match: {counts["NOT MATCHING"]:,} ({counts["problematic"]:,} problematic) ({format_percentage(counts["NOT MATCHING"], total)}). Not implemented: {counts["NOT STARTED"]:,} ({format_percentage(counts["NOT STARTED"], total)}).</desc>
 <defs>
 <linearGradient id="matching-gradient" x1="0" x2="1"><stop offset="0" stop-color="#348da5"/><stop offset="1" stop-color="#55c5df"/></linearGradient>
 <linearGradient id="not-matching-gradient" x1="0" x2="1"><stop offset="0" stop-color="#585caa"/><stop offset="1" stop-color="#8286d1"/></linearGradient>
@@ -609,6 +622,9 @@ def summary(rows):
     }
     counts["total"] = len(rows)
     counts["implemented"] = counts["MATCHING"] + counts["NOT MATCHING"]
+    counts["problematic"] = sum(
+        row["status"] == "NOT MATCHING" and row["problematic"] for row in rows
+    )
     return counts
 
 

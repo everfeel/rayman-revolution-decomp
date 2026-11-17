@@ -13,9 +13,9 @@ This project originally started with the goal of achieving a byte-matching decom
 # Rayman Revolution (PAL) decompilation project
 
 <!-- BEGIN GENERATED PROGRESS -->
-![Progress: 2,037 byte-matches, 123 implemented, 3,485 not implemented](progress/progress.svg)
+![Progress: 2,037 byte-matches, 123 implemented (1 problematic), 3,485 not implemented](progress/progress.svg)
 
-**Byte-match:** 2,037 · **Implemented:** 123 · **Not implemented:** 3,485.
+**Byte-match:** 2,037 · **Implemented:** 123 (1 problematic) · **Not implemented:** 3,485.
 <!-- END GENERATED PROGRESS -->
 
 This is a decompilation of the PAL PlayStation 2 main executable, `SLES_500.44`. The goal is to recover the executable as buildable C source while preserving the original game's behavior, and ultimately to match the retail executable byte for byte. These goals can be pursued in stages: a behaviorally faithful C implementation is valuable even before it matches the original machine code.
@@ -28,7 +28,7 @@ The project builds an ELF at the original executable layout so behavior-oriented
 2. **Validate behavior.** Use callers, data layout, assembly, and runtime observations when available to check that the implementation behaves like the retail function. Clearly distinguish facts from hypotheses.
 3. **Refine toward a byte match.** Once a function has a working C implementation, use byte comparisons as evidence to guide further refinement toward the retail machine code. A byte match is an important project goal, but it does not have to come before a correct, buildable implementation.
 
-The progress tracker uses three simple states: **Byte-match** for exact byte matches, **Implemented** for C or edited assembly that does not byte-match, and **Not implemented** for functions still using the retail assembly fallback. Byte-different implementations are not considered broken just because they differ.
+The progress tracker uses three simple states: **Byte-match** for exact byte matches, **Implemented** for C or edited assembly that does not byte-match, and **Not implemented** for functions still using the retail assembly fallback. Byte-different implementations are not considered broken just because they differ. An implemented function can have a flag if the function is problematic in behavior, meaning it does not behave like the original.
 
 The progress bar shows byte-matched functions in cyan, implemented-but-not-byte-matched functions in purple, and functions still using the retail assembly fallback in gray. The categories are separate and add up to the total.
 
