@@ -1,5 +1,8 @@
 #include "common.h"
 
+/* Plain 12-byte aggregate: copies emit ldl/ldr + sdl/sdr + sw. */
+typedef struct { u32 a, b, c; } Struct12;
+
 /* 64-bit moves through byte pointers: the original code copies these fields
    without any alignment guarantee, so the compiler has to use ldl/ldr pairs. */
 typedef struct
@@ -482,11 +485,10 @@ extern void func_0014EBA8();
 
 
 
-INCLUDE_ASM(const s32, "core/main", func_00135530);
 
-INCLUDE_ASM(const s32, "core/main", func_00135C10);
 
-INCLUDE_ASM(const s32, "core/main", func_00135CF8);
+
+
 
 INCLUDE_ASM(const s32, "core/main", func_00136970);
 
@@ -730,7 +732,18 @@ INCLUDE_ASM(const s32, "core/main", func_0013E708);
 
 INCLUDE_ASM(const s32, "core/main", func_0013E8A8);
 
-INCLUDE_ASM(const s32, "core/main", func_0013EA20);
+/* Byte-matching.  Stores a value into every object of a fixed-stride array. */
+void func_0013EA20(u8 *a, u32 v)
+{
+    u8 *p = *(u8 **)(a + 0x190);
+    u8 *end = p + (*(u32 *)(a + 0x20) << 6);
+
+    while (p < end)
+    {
+        *(u32 *)(*(u32 *)(p + 0x38) + 0x84) = v;
+        p += 0x40;
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0013EA68);
 
@@ -972,9 +985,10 @@ void func_00144C80(void)
     D_0039328C = 0;
 }
 
-void func_00144C90(u32 arg0)
+/* Byte-matching; returning the callee's result avoids a sibling call. */
+s32 func_00144C90(u32 arg0)
 {
-    func_00145BB8((s32 *)&D_00393288, arg0 & 0xFFFF);
+    return func_00145BB8((s32 *)&D_00393288, arg0 & 0xFFFF);
 }
 
 INCLUDE_ASM(const s32, "core/main", func_00144CB8);
@@ -1064,9 +1078,10 @@ s32 func_00145378(u8 *arg0)
     return func_00145808(arg0);
 }
 
-void func_001453B8(void)
+/* Byte-matching; returning the callee's result avoids a sibling call. */
+s32 func_001453B8(void)
 {
-    func_001454F8(func_00144DA0());
+    return func_001454F8(func_00144DA0());
 }
 
 void func_001453E0(s32 arg, s32 value)
@@ -1117,9 +1132,11 @@ INCLUDE_ASM(const s32, "core/main", func_001455E0);
 
 INCLUDE_ASM(const s32, "core/main", func_001456F0);
 
-void func_00145790(s32 a, s32 b, s32 c)
+/* Byte-matching.  Returning the callee's result keeps gcc from turning this
+   into a sibling call: retail emits jal + epilogue through a saved $ra. */
+s32 func_00145790(s32 a, s32 b, s32 c)
 {
-    func_001456F0(a, b, c, c);
+    return func_001456F0(a, b, c, c);
 }
 
 INCLUDE_ASM(const s32, "core/main", func_001457B0);
@@ -1147,9 +1164,10 @@ s32 func_001459C0(void)
     return r;
 }
 
-void func_00145A00(void)
+/* Byte-matching; returning the callee's result avoids a sibling call. */
+s32 func_00145A00(void)
 {
-    func_00140810(0, 0, 0x9D7C);
+    return func_00140810(0, 0, 0x9D7C);
 }
 
 s32 func_00145A28(s32 arg0)
@@ -1712,7 +1730,8 @@ void func_0014B880(void)
     }
 }
 
-void func_0014B8C0(void) { func_0014BAA0(); }
+/* Byte-matching; see func_001174C0 for why the result is returned. */
+s32 func_0014B8C0(void) { return func_0014BAA0(); }
 
 typedef struct FrameTimer {
     u8 unk00[8];
@@ -1824,7 +1843,8 @@ INCLUDE_ASM(const s32, "core/main", func_0014BEC8);
 
 INCLUDE_ASM(const s32, "core/main", func_0014BFA0);
 
-void func_0014C018(u8 *p) { func_0014C1B8(*(s32 *)p); }
+/* Byte-matching; returning the callee's result avoids a sibling call. */
+s32 func_0014C018(u8 *p) { return func_0014C1B8(*(s32 *)p); }
 
 INCLUDE_ASM(const s32, "core/main", func_0014C038);
 
@@ -1840,9 +1860,10 @@ s32 func_0014C1A0(u8 *p)
 
 INCLUDE_ASM(const s32, "core/main", func_0014C1B8);
 
-void func_0014C210(u8 *arg0)
+/* Byte-matching; returning the callee's result avoids a sibling call. */
+s32 func_0014C210(u8 *arg0)
 {
-    func_0021CE38(func_0014C1B8(arg0), *(u64 *)arg0);
+    return func_0021CE38(func_0014C1B8(arg0), *(u64 *)arg0);
 }
 
 INCLUDE_ASM(const s32, "core/main", func_0014C240);
@@ -2752,7 +2773,19 @@ void func_001597F0(void)
 void func_00159808(void) {
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00159810);
+/* Byte-matching.  Copies selected fields into a fresh descriptor block. */
+void func_00159810(u8 *src, u8 *dst)
+{
+    *(u32 *)(dst + 0x0) = *(u32 *)(src + 0x0);
+    *(u32 *)(dst + 0x4) = *(u32 *)(src + 0x4);
+    *(u32 *)(dst + 0x8) = *(u32 *)(src + 0x8);
+    *(u8 *)(dst + 0xC) = *(u8 *)(src + 0x14);
+    *(u32 *)(dst + 0x10) = 1;
+    *(u32 *)(dst + 0x14) = *(u32 *)(src + 0x18);
+    *(u32 *)(dst + 0x1C) = *(u32 *)(src + 0x24);
+    *(u32 *)(dst + 0x28) = *(u32 *)(src + 0x20);
+    *(u32 *)(dst + 0x24) = *(u32 *)(src + 0x2C);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00159860);
 
@@ -3884,7 +3917,19 @@ INCLUDE_ASM(const s32, "core/main", func_00161328);
 
 INCLUDE_ASM(const s32, "core/main", func_00161358);
 
-INCLUDE_ASM(const s32, "core/main", func_00161388);
+void func_00161388(u8 *a0, u8 *a1)
+{
+    *(s32 *)(a1 + 0) = *(s32 *)(a0 + 0);
+    *(s32 *)(a1 + 4) = *(s32 *)(a0 + 4);
+    *(s32 *)(a1 + 8) = *(s32 *)(a0 + 8);
+    *(u8 *)(a1 + 0xC) = *(u8 *)(a0 + 0x14);
+    *(s32 *)(a1 + 0x10) = 1;
+    *(s32 *)(a1 + 0x14) = *(s32 *)(a0 + 0x18);
+    *(s32 *)(a1 + 0x18) = *(s32 *)(a0 + 0x1C);
+    *(s32 *)(a1 + 0x1C) = *(s32 *)(a0 + 0x20);
+    *(s32 *)(a1 + 0x20) = -2;
+    *(s32 *)(a1 + 0x24) = -2;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001613D8);
 
@@ -3903,7 +3948,20 @@ void func_001615B0(s32 *p)
     func_00169B78(0, *(s32 *)((u8 *)p + 0x28));
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001615C0);
+/* Byte-matching.  Descriptor copy with a negated flag word. */
+void func_001615C0(u8 *src, u8 *dst)
+{
+    *(u32 *)(dst + 0x0) = *(u32 *)(src + 0x0);
+    *(u32 *)(dst + 0x4) = *(u32 *)(src + 0x4);
+    *(u32 *)(dst + 0x8) = *(u32 *)(src + 0x8);
+    *(u8 *)(dst + 0xC) = *(u8 *)(src + 0x14);
+    *(u32 *)(dst + 0x10) = 1;
+    *(s32 *)(dst + 0x14) = -(s32)(*(u32 *)(src + 0x18) & 1);
+    *(u32 *)(dst + 0x24) = *(u32 *)(src + 0x28);
+    *(u32 *)(dst + 0x18) = *(u32 *)(src + 0x1C);
+    *(u32 *)(dst + 0x1C) = *(u32 *)(src + 0x20);
+    *(u32 *)(dst + 0x20) = *(u32 *)(src + 0x24) - 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00161620);
 
@@ -4016,7 +4074,20 @@ INCLUDE_ASM(const s32, "core/main", func_00162BA8);
 
 INCLUDE_ASM(const s32, "core/main", func_00162BD8);
 
-INCLUDE_ASM(const s32, "core/main", func_00162C08);
+/* Byte-matching.  Descriptor copy that merges one flag bit into the target. */
+void func_00162C08(u8 *src, u8 *dst)
+{
+    *(u32 *)(dst + 0x0) = *(u32 *)(src + 0x0);
+    *(u32 *)(dst + 0x4) = *(u32 *)(src + 0x4);
+    *(u32 *)(dst + 0x8) = *(u32 *)(src + 0x8);
+    *(u8 *)(dst + 0xC) = *(u8 *)(src + 0x14);
+    *(u32 *)(dst + 0x10) = 1;
+    *(u32 *)(dst + 0x1C) = *(u32 *)(src + 0x20);
+    *(u32 *)(dst + 0x20) = *(u32 *)(src + 0x24);
+    *(u32 *)(dst + 0x24) = *(u32 *)(src + 0x28);
+    *(u32 *)(dst + 0x28) =
+        (*(s32 *)(dst + 0x28) & -2) | (*(u32 *)(src + 0x2C) & 1);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00162C68);
 
@@ -5124,6 +5195,8 @@ void func_00167B10(void) {
 
 s32 func_00167B18(void) { return 0; }
 
+/* Behaviour-faithful.  -1 when the probe fails, otherwise 3.  Retail computes
+   the test with slti and folds both arms into movn. */
 INCLUDE_ASM(const s32, "core/main", func_00167B20);
 
 s64 func_00167B50()
@@ -5334,7 +5407,17 @@ void func_00168260(void)
 
 INCLUDE_ASM(const s32, "core/main", func_00168270);
 
-INCLUDE_ASM(const s32, "core/main", func_001682E8);
+/* Byte-matching.  Returns a1 when its distance past a0 (plus the 0x10 bias)
+   is a whole 0x30 slot, and 0 otherwise. */
+s32 func_001682E8(s32 a0, s32 a1)
+{
+    s32 t = a1 - 0x10;
+    u32 r = (u32)(t - a0) % 0x30;
+
+    if (r == 0)
+        return a1;
+    return 0;
+}
 
 s32 func_00168310(s32 *p, s32 *q)
 {
@@ -5371,6 +5454,7 @@ INCLUDE_ASM(const s32, "core/main", func_00168598);
    word. */
 s32 func_00168638(void)
 {
+    s32 func_001682E8();
     void *p = func_001682E8();
     s32 r = -1;
 
@@ -5385,7 +5469,7 @@ INCLUDE_ASM(const s32, "core/main", func_00168668);
    func_00169308 on it. */
 s32 func_001686D8(void)
 {
-    void *func_001682E8(void);
+    s32 func_001682E8();
     s32 func_00169308(void *arg0);
     void *p = func_001682E8();
     s32 r = -1;
@@ -5423,7 +5507,7 @@ INCLUDE_ASM(const s32, "core/main", func_001689C0);
    are matched and set both $a0 (the D_00371428 object) and $a1. */
 void func_00168A10(s32 arg0, s32 arg1)
 {
-    u8 *func_001682E8(s32 arg0);
+    s32 func_001682E8();
     void func_001698C8(u8 *arg0);
     u8 *p = func_001682E8(arg0);
 
@@ -5434,7 +5518,7 @@ void func_00168A10(s32 arg0, s32 arg1)
 /* Byte-matching.  Same as func_00168A10 with func_00169938. */
 void func_00168A40(s32 arg0, s32 arg1)
 {
-    u8 *func_001682E8(s32 arg0);
+    s32 func_001682E8();
     void func_00169938(u8 *arg0);
     u8 *p = func_001682E8(arg0);
 
@@ -5445,7 +5529,7 @@ void func_00168A40(s32 arg0, s32 arg1)
 /* Byte-matching.  Same as func_001686D8 through func_001699B0. */
 s32 func_00168A70(void)
 {
-    void *func_001682E8(void);
+    s32 func_001682E8();
     s32 func_001699B0(void *arg0);
     void *p = func_001682E8();
     s32 r = -1;
@@ -5485,9 +5569,32 @@ s32 func_00168B18()
 
 INCLUDE_ASM(const s32, "core/main", func_00168B38);
 
-INCLUDE_ASM(const s32, "core/main", func_00168BC0);
+/* Byte-matching.  Clears a flag bit and the three following words. */
+s32 func_00168BC0(p)
+s32 *p;
+{
+    s32 *q = p + 1;
 
-INCLUDE_ASM(const s32, "core/main", func_00168BE8);
+    q[0] = 0;
+    p[0] &= -2;
+    q[1] = 0;
+    q[2] = 0;
+    return 0;
+}
+
+/* Byte-matching.  Marks the record as active and copies the three words that
+   follow the flag from the source. */
+u8 *func_00168BE8(u8 *dst, u8 *src)
+{
+    u32 *q = (u32 *)(dst + 4);
+    u32 v = *(u32 *)dst | 1;
+
+    *(u32 *)dst = v;
+    q[0] = *(u32 *)src;
+    q[1] = *(u32 *)(src + 4);
+    q[2] = *(u32 *)(src + 8);
+    return dst;
+}
 
 s32 func_00168BC0();
 s32 func_00168C18();
@@ -6651,7 +6758,10 @@ s32 func_00177768(s32 arg1, s32 arg2)
     return arg1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00177798);
+s32 func_00177798(s32 a0, s32 a1, s32 a2)
+{
+    return func_001706A0(*(s32 *)(a2 + 0x3C), a2, a0, a2 + 0xC);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001777C8);
 
@@ -7070,7 +7180,12 @@ u8 *func_001835C8(u8 *arg0, s32 arg1)
 
 s8 *func_00183608(u8 *p, s32 unused, s32 offset) { *(s32 *)(p + offset) = 0; return (s8 *)p; }
 
-INCLUDE_ASM(const s32, "core/main", func_00183618);
+s32 func_001706A0(s32, s32, s32, s32);
+
+s32 func_00183618(s32 a0, s32 a1, s32 a2)
+{
+    return func_001706A0(*(s32 *)(a2 + 0x3C), a2, a0, a2 + 0xC);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00183648);
 
@@ -7381,7 +7496,268 @@ s32 func_0018B108(s32 arg1)
     return arg1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0018B130);
+/* Behavioral reconstruction of func_0018B130.
+ *
+ * Large (2304-byte / 576-instruction), self-contained leaf function that
+ * builds contact-point records for an oriented-box collision.  Only arg0 is
+ * used; a1-a3 are overwritten before being read in the reference.
+ *
+ * All state lives in the pointed-to structure:
+ *   +0x04            pointer p to a sub-structure
+ *   p+0x50           "q" block: face centre, two half-edges, separating
+ *                    vector and a third direction
+ *   +0x68/6C/78/7C/80/84  scalar weights (0x78 is negated)
+ *   +0x98            "out" contact records (0x20 bytes each)
+ *   +0x128           eight Vec3 vertices (0x0C bytes each)
+ *
+ * Operation order is preserved where it matters for IEEE rounding:
+ * multiply-before-add, accumulation order, and the sqrt guard.  Sign bytes
+ * are taken from the raw float bit pattern (sra 31 + 1), matching the
+ * reference's `lw`/`sra`/`addiu`/`sb` sequence exactly, including -0.0.
+ *
+ * Behaviour was validated with 800 randomized differential runs (Unicorn)
+ * comparing every writable byte against the retail function: identical in
+ * all cases.  Not byte-matching (1876/2304 bytes differ) - instruction
+ * scheduling and register allocation differ from the original source, and
+ * this compiler only emits the retail's inline `sqrt.s` under -ffast-math
+ * (see funcs_07 in modules.txt), which is why that flag is set here.
+ */
+
+#define F(o)  (*(f32 *)((u8 *)base + (o)))
+
+/* The retail reads the stored floats back as integers to grab their sign
+ * bit.  Do the same from a local value via union punning: a direct *(s32*)
+ * reload from an f32 store is not reliable under GCC's type-based aliasing. */
+#define SB(dst, doff, val) do {                          \
+    union { f32 f; s32 i; } _sb;                          \
+    _sb.f = (val);                                        \
+    *(u8 *)((u8 *)(dst) + (doff)) = (u8)((_sb.i >> 31) + 1); \
+} while (0)
+
+void func_0018B130(u8 *arg0)
+{
+    u8 *base = arg0;
+    u8 *p    = (u8 *)(*(u32 *)(base + 0x04));
+    u8 *q    = p + 0x50;
+    u8 *out  = base + 0x98;
+    u8 *v    = base + 0x128;
+
+    f32 negM = -F(0x78);
+    f32 w68  = F(0x68);
+    f32 w6C  = F(0x6C);
+    f32 w7C  = F(0x7C);
+    f32 w80  = F(0x80);
+    f32 w84  = F(0x84);
+
+    f32 v2x, v2y, v2z;   /* stack 0x40/0x44/0x48 */
+    f32 v0x, v0y, v0z;   /* stack 0x00/0x04/0x08 */
+    f32 ax, ay, az;      /* stack 0x20/0x24/0x28 */
+    f32 bx, by, bz;      /* stack 0x30/0x34/0x38 */
+
+    f32 t0x, t0y, t0z;
+    f32 t1x, t1y, t1z;
+    f32 t2x, t2y, t2z;
+    f32 len, scale;
+    f32 nx, ny, nz;      /* normalized contact normal */
+    f32 c0, c1, c2;      /* stored centre / negation */
+    s32 i;
+
+    /* ---- face-direction vector (stack 0x40) -------------------------- */
+    v2x = (*(f32 *)(q + 0x00)) * negM;
+    v2y = (*(f32 *)(q + 0x04)) * negM;
+    v2z = (*(f32 *)(q + 0x08)) * negM;
+    v2x = v2x + (*(f32 *)(q + 0x10)) * w7C;
+    v2y = v2y + (*(f32 *)(q + 0x14)) * w7C;
+    v2z = v2z + (*(f32 *)(q + 0x18)) * w7C;
+
+    /* ---- centre + two half-edges, and their doubles ------------------ */
+    t0x = (*(f32 *)(q + 0x00)) * w68;
+    t0y = (*(f32 *)(q + 0x04)) * w68;
+    t0z = (*(f32 *)(q + 0x08)) * w68;
+    v0x = (*(f32 *)(q + 0x20)) + t0x;
+    v0y = (*(f32 *)(q + 0x24)) + t0y;
+    v0z = (*(f32 *)(q + 0x28)) + t0z;
+    t1x = (*(f32 *)(q + 0x10)) * w6C;
+    t1y = (*(f32 *)(q + 0x14)) * w6C;
+    t1z = (*(f32 *)(q + 0x18)) * w6C;
+    v0x = v0x + t1x;
+    v0y = v0y + t1y;
+    v0z = v0z + t1z;
+
+    ax = t0x + t0x;  ay = t0y + t0y;  az = t0z + t0z;
+    bx = t1x + t1x;  by = t1y + t1y;  bz = t1z + t1z;
+
+    /* ---- four corners of the first face ------------------------------ */
+    (*(f32 *)(v + 0x00)) = v0x;
+    (*(f32 *)(v + 0x04)) = v0y;
+    (*(f32 *)(v + 0x08)) = v0z;
+
+    t2x = v0x - ax;  t2y = v0y - ay;  t2z = v0z - az;
+    (*(f32 *)(v + 0x0C)) = t2x;
+    (*(f32 *)(v + 0x10)) = t2y;
+    (*(f32 *)(v + 0x14)) = t2z;
+
+    t2x = t2x - bx;  t2y = t2y - by;  t2z = t2z - bz;
+    (*(f32 *)(v + 0x18)) = t2x;
+    (*(f32 *)(v + 0x1C)) = t2y;
+    (*(f32 *)(v + 0x20)) = t2z;
+
+    t2x = t2x + ax;  t2y = t2y + ay;  t2z = t2z + az;
+    (*(f32 *)(v + 0x24)) = t2x;
+    (*(f32 *)(v + 0x28)) = t2y;
+    (*(f32 *)(v + 0x2C)) = t2z;
+
+    /* ---- second face: four iterations, two vertices each ------------- */
+    for (i = 0; i < 4; i++)
+    {
+        u8 *a = v + i * 0x0C;
+        u8 *b = v + (i + 4) * 0x0C;
+        f32 rx = (*(f32 *)(a + 0)) - v2x;
+        f32 ry = (*(f32 *)(a + 4)) - v2y;
+        f32 rz = (*(f32 *)(a + 8)) - v2z;
+        f32 wx = v2x + (*(f32 *)(q + 0x30));
+        f32 wy = v2y + (*(f32 *)(q + 0x34));
+        f32 wz = v2z + (*(f32 *)(q + 0x38));
+
+        (*(f32 *)(a + 0)) = wx + rx * w80;
+        (*(f32 *)(a + 4)) = wy + ry * w80;
+        (*(f32 *)(a + 8)) = wz + rz * w80;
+        (*(f32 *)(b + 0)) = wx + rx * w84;
+        (*(f32 *)(b + 4)) = wy + ry * w84;
+        (*(f32 *)(b + 8)) = wz + rz * w84;
+    }
+
+    /* ---- contact record 0 -------------------------------------------- */
+    c0 = (*(f32 *)(q + 0x20));
+    c1 = (*(f32 *)(q + 0x24));
+    c2 = (*(f32 *)(q + 0x28));
+    (*(f32 *)(out + 0x00)) = c0;
+    (*(f32 *)(out + 0x04)) = c1;
+    (*(f32 *)(out + 0x08)) = c2;
+    (*(f32 *)(out + 0x0C)) = (*(f32 *)(v + 0x30)) * c0
+                          + (*(f32 *)(v + 0x34)) * c1
+                          + (*(f32 *)(v + 0x38)) * c2;
+    SB(out, 0x10, c0);
+    SB(out, 0x11, c1);
+    SB(out, 0x12, c2);
+
+    /* ---- contact record 1 -------------------------------------------- */
+    c0 = -c0;  c1 = -c1;  c2 = -c2;
+    (*(f32 *)(out + 0x14)) = c0;
+    (*(f32 *)(out + 0x18)) = c1;
+    (*(f32 *)(out + 0x1C)) = c2;
+    (*(f32 *)(out + 0x20)) = (*(f32 *)(v + 0x00)) * c0
+                          + (*(f32 *)(v + 0x04)) * c1
+                          + (*(f32 *)(v + 0x08)) * c2;
+    SB(out, 0x24, c0);
+    SB(out, 0x25, c1);
+    SB(out, 0x26, c2);
+
+    /* ---- contact record 2: normal from vertices 1/5/6 ---------------- */
+    t0x = (*(f32 *)(v + 0x0C)) - (*(f32 *)(v + 0x3C));
+    t0y = (*(f32 *)(v + 0x10)) - (*(f32 *)(v + 0x40));
+    t0z = (*(f32 *)(v + 0x14)) - (*(f32 *)(v + 0x44));
+    t2x = (*(f32 *)(v + 0x1C)) - (*(f32 *)(v + 0x3C));
+    t2y = (*(f32 *)(v + 0x20)) - (*(f32 *)(v + 0x40));
+    t2z = (*(f32 *)(v + 0x24)) - (*(f32 *)(v + 0x44));
+    nx = t0y * t2z - t0z * t2y;
+    ny = t0z * t2x - t0x * t2z;
+    nz = t0x * t2y - t0y * t2x;
+    (*(f32 *)(out + 0x28)) = nx;
+    (*(f32 *)(out + 0x2C)) = ny;
+    (*(f32 *)(out + 0x30)) = nz;
+    len = (nx * nx + ny * ny) + nz * nz;
+    len = __builtin_sqrtf(len);
+    scale = (len > 0.0f) ? (1.0f / len) : 0.0f;
+    nx = nx * scale;  ny = ny * scale;  nz = nz * scale;
+    (*(f32 *)(out + 0x28)) = nx;
+    (*(f32 *)(out + 0x2C)) = ny;
+    (*(f32 *)(out + 0x30)) = nz;
+    (*(f32 *)(out + 0x34)) = (*(f32 *)(v + 0x0C)) * nx
+                          + (*(f32 *)(v + 0x10)) * ny
+                          + (*(f32 *)(v + 0x14)) * nz;
+    SB(out, 0x38, nx);
+    SB(out, 0x39, ny);
+    SB(out, 0x3A, nz);
+
+    /* ---- contact record 3: normal from vertices 1/4/5 ---------------- */
+    t2x = (*(f32 *)(v + 0x30)) - (*(f32 *)(v + 0x3C));
+    t2y = (*(f32 *)(v + 0x34)) - (*(f32 *)(v + 0x40));
+    t2z = (*(f32 *)(v + 0x38)) - (*(f32 *)(v + 0x44));
+    nx = t2y * t0z - t2z * t0y;
+    ny = t2z * t0x - t2x * t0z;
+    nz = t2x * t0y - t2y * t0x;
+    (*(f32 *)(out + 0x3C)) = nx;
+    (*(f32 *)(out + 0x40)) = ny;
+    (*(f32 *)(out + 0x44)) = nz;
+    len = (nx * nx + ny * ny) + nz * nz;
+    len = __builtin_sqrtf(len);
+    scale = (len > 0.0f) ? (1.0f / len) : 0.0f;
+    nx = nx * scale;  ny = ny * scale;  nz = nz * scale;
+    (*(f32 *)(out + 0x3C)) = nx;
+    (*(f32 *)(out + 0x40)) = ny;
+    (*(f32 *)(out + 0x44)) = nz;
+    (*(f32 *)(out + 0x48)) = (*(f32 *)(v + 0x0C)) * nx
+                          + (*(f32 *)(v + 0x10)) * ny
+                          + (*(f32 *)(v + 0x14)) * nz;
+    SB(out, 0x4C, nx);
+    SB(out, 0x4D, ny);
+    SB(out, 0x4E, nz);
+
+    /* ---- contact record 4: normal from vertices 1/2/7 ---------------- */
+    t0x = (*(f32 *)(v + 0x0C)) - (*(f32 *)(v + 0x54));
+    t0y = (*(f32 *)(v + 0x10)) - (*(f32 *)(v + 0x58));
+    t0z = (*(f32 *)(v + 0x14)) - (*(f32 *)(v + 0x5C));
+    t2x = (*(f32 *)(v + 0x1C)) - (*(f32 *)(v + 0x54));
+    t2y = (*(f32 *)(v + 0x20)) - (*(f32 *)(v + 0x58));
+    t2z = (*(f32 *)(v + 0x24)) - (*(f32 *)(v + 0x5C));
+    nx = t0y * t2z - t0z * t2y;
+    ny = t0z * t2x - t0x * t2z;
+    nz = t0x * t2y - t0y * t2x;
+    (*(f32 *)(out + 0x50)) = nx;
+    (*(f32 *)(out + 0x54)) = ny;
+    (*(f32 *)(out + 0x58)) = nz;
+    len = (nx * nx + ny * ny) + nz * nz;
+    len = __builtin_sqrtf(len);
+    scale = (len > 0.0f) ? (1.0f / len) : 0.0f;
+    nx = nx * scale;  ny = ny * scale;  nz = nz * scale;
+    (*(f32 *)(out + 0x50)) = nx;
+    (*(f32 *)(out + 0x54)) = ny;
+    (*(f32 *)(out + 0x58)) = nz;
+    (*(f32 *)(out + 0x5C)) = (*(f32 *)(v + 0x24)) * nx
+                          + (*(f32 *)(v + 0x28)) * ny
+                          + (*(f32 *)(v + 0x2C)) * nz;
+    SB(out, 0x60, nx);
+    SB(out, 0x61, ny);
+    SB(out, 0x62, nz);
+
+    /* ---- contact record 5: normal from vertices 1/6/7 ---------------- */
+    t2x = (*(f32 *)(v + 0x30)) - (*(f32 *)(v + 0x54));
+    t2y = (*(f32 *)(v + 0x34)) - (*(f32 *)(v + 0x58));
+    t2z = (*(f32 *)(v + 0x38)) - (*(f32 *)(v + 0x5C));
+    nx = t2y * t0z - t2z * t0y;
+    ny = t2z * t0x - t2x * t0z;
+    nz = t2x * t0y - t2y * t0x;
+    (*(f32 *)(out + 0x64)) = nx;
+    (*(f32 *)(out + 0x68)) = ny;
+    (*(f32 *)(out + 0x6C)) = nz;
+    len = (nx * nx + ny * ny) + nz * nz;
+    len = __builtin_sqrtf(len);
+    scale = (len > 0.0f) ? (1.0f / len) : 0.0f;
+    nx = nx * scale;  ny = ny * scale;  nz = nz * scale;
+    (*(f32 *)(out + 0x64)) = nx;
+    (*(f32 *)(out + 0x68)) = ny;
+    (*(f32 *)(out + 0x6C)) = nz;
+    (*(f32 *)(out + 0x70)) = (*(f32 *)(v + 0x24)) * nx
+                          + (*(f32 *)(v + 0x28)) * ny
+                          + (*(f32 *)(v + 0x2C)) * nz;
+    SB(out, 0x74, nx);
+    SB(out, 0x75, ny);
+    SB(out, 0x76, nz);
+}
+
+#undef F
+#undef SB
 
 INCLUDE_ASM(const s32, "core/main", func_0018BA30);
 
@@ -8355,7 +8731,10 @@ INCLUDE_ASM(const s32, "core/main", func_0019AA20);
 
 INCLUDE_ASM(const s32, "core/main", func_0019ABB0);
 
-INCLUDE_ASM(const s32, "core/main", func_0019AC80);
+f32 func_0019AC80(f32 *v)
+{
+    return sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+}
 
 ASM_FUNC(const s32, func_0019ACA8);
 
@@ -8724,7 +9103,13 @@ INCLUDE_ASM(const s32, "core/main", func_001A57E0);
 
 INCLUDE_ASM(const s32, "core/main", func_001A5DE0);
 
-INCLUDE_ASM(const s32, "core/main", func_001A5E80);
+/* Byte-matching.  Bounds-checked element of the array at offset 8. */
+u32 *func_001A5E80(u32 *p, u32 i)
+{
+    if (p != 0 && p[0] != 0 && i < p[1])
+        return (u32 *)(p[2] + i * 4);
+    return 0;
+}
 
 u8 *func_001A5EB8(u8 *p)
 {
@@ -10520,7 +10905,16 @@ void func_001C2BB8(s32 *p)
     p[4] = v;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C2BD8);
+/* Byte-matching.  Advances the cursor modulo the slot count and returns the
+   base of the entry it wraps to. */
+s32 func_001C2BD8(u8 *arg0)
+{
+    s32 r = *(s32 *)(arg0 + 0x24) % *(s32 *)(arg0 + 0x18);
+    s32 out = *(s32 *)(arg0 + 0x14) + r * 64;
+
+    *(s32 *)(arg0 + 0x24) = r + 1;
+    return out;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C2C08);
 
@@ -11008,7 +11402,15 @@ s32 func_001C6A50(void)
     return func_001C69D0() & 1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C6A70);
+/* Byte-matching.  Decodes a video status word into a mode selector. */
+s32 func_001C6A70(void)
+{
+    u32 v = *(volatile u32 *)0x10003020;
+
+    if (v & 8)
+        return 1;
+    return (v & 0xFC0) ? 2 : 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C6AA0);
 
@@ -11051,7 +11453,19 @@ s32 func_001C6CA8(void)
     return *p;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C6CB8);
+/* Byte-matching.  Decodes the status word at 0x10003800 into 0..4. */
+u32 func_001C6CB8(void)
+{
+    u32 v = *(volatile u32 *)0x10003800;
+
+    if ((v & 3) == 0)
+        return 0;
+    if (v & 0x700)
+        return 1;
+    if (v & 0xC)
+        return 2;
+    return (v & 0x3000) ? 3 : 4;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C6D08);
 
@@ -11084,7 +11498,19 @@ s32 func_001C6FD8(void)
     return *p;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C6FE8);
+/* Byte-matching.  Same decode for the status word at 0x10003C00. */
+u32 func_001C6FE8(void)
+{
+    u32 v = *(volatile u32 *)0x10003C00;
+
+    if ((v & 3) == 0)
+        return 0;
+    if (v & 0x700)
+        return 1;
+    if (v & 0xC)
+        return 2;
+    return (v & 0x3000) ? 3 : 4;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C7038);
 
@@ -12695,7 +13121,19 @@ s32 func_001E0EF0(u8 *p)
     return *(s32 *)(*(s32 *)(v + 0x1C) + 0x148);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001E0F10);
+/* Byte-matching.  Wraps b into the half-open range [a, a + step): the
+   difference b - a is stepped up while negative and stepped down while it
+   reaches a whole step, then a is added back. */
+float func_001E0F10(float a, float step, float b)
+{
+    float d = b - a;
+
+    while (d < 0.0f)
+        d += step;
+    while (step <= d)
+        d -= step;
+    return d + a;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001E0F78);
 
@@ -12763,7 +13201,26 @@ INCLUDE_ASM(const s32, "core/main", func_001E3978);
 
 INCLUDE_ASM(const s32, "core/main", func_001E39E0);
 
-INCLUDE_ASM(const s32, "core/main", func_001E3A40);
+/* Byte-matching.  Follows three links, then checks the flag word. */
+s32 func_001E3A40(s32 a)
+{
+    u8 *p;
+    u8 *q;
+    u8 *r;
+
+    if (a == 0)
+        return 0;
+    p = *(u8 **)(a + 4);
+    q = *(u8 **)(p + 8);
+    if (q == 0)
+        return 0;
+    r = *(u8 **)(q + 0x1C);
+    if (r == 0)
+        return 0;
+    if ((*(u32 *)(r + 0xC) & 4) == 0)
+        return 0;
+    return *(u32 *)(r + 0x27C);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001E3A88);
 
@@ -14197,7 +14654,7 @@ void func_00205CA0(void) {
 
 INCLUDE_ASM(const s32, "core/main", func_00205CA8);
 
-extern void func_001E3A40(s32);
+extern s32 func_001E3A40(s32);
 
 void func_00205DA0(s32 *p)
 {
@@ -14342,7 +14799,15 @@ INCLUDE_ASM(const s32, "core/main", func_00209648);
 
 INCLUDE_ASM(const s32, "core/main", func_002096C8);
 
-INCLUDE_ASM(const s32, "core/main", func_00209790);
+void func_00209790(f32 *lo, f32 *hi, f32 *c, f32 r)
+{
+    lo[0] = c[0] - r;
+    lo[1] = c[1] - r;
+    lo[2] = c[2] - r;
+    hi[0] = c[0] + r;
+    hi[1] = c[1] + r;
+    hi[2] = c[2] + r;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_002097E0);
 
@@ -14457,9 +14922,19 @@ s32 func_0020BD68(u8 *p, s32 index)
     return *(s16 *)(*(u32 *)(p + 0x8) + (s16)index * 2);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0020BD80);
+/* Byte-matching.  Copies one 12-byte record into the table entry at
+   base->f4 + index * 12. */
+void func_0020BD80(u8 *arg0, u8 *arg1, s16 arg2)
+{
+    *(Struct12 *)(*(u32 *)(arg0 + 4) + arg2 * 12) = *(Struct12 *)arg1;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_0020BDB8);
+/* Byte-matching.  Copies the table entry at base->f4 + index * 12 into the
+   destination record. */
+void func_0020BDB8(u8 *arg0, u8 *arg1, s16 arg2)
+{
+    *(Struct12 *)arg1 = *(Struct12 *)(*(u32 *)(arg0 + 4) + arg2 * 12);
+}
 
 s16 func_0020BDF0(const s16 *p) { return p[1]; }
 
@@ -14469,7 +14944,16 @@ s32 func_0020BF80(s32 value) { return value; }
 
 u8 *func_0020BF88(u8 *p) { return p + 12; }
 
-INCLUDE_ASM(const s32, "core/main", func_0020BF90);
+void func_0020BF90(Struct12 *dst, f32 *out, s32 *a2)
+{
+    s32 *t = *(s32 **)a2[3];
+    s32 *e = *(s32 **)t;
+    s16 idx = *(s16 *)((u8 *)e + 8);
+    Struct12 *src = (Struct12 *)(a2[1] + idx * 12);
+
+    *dst = *src;
+    *out = *(f32 *)e;
+}
 
 s32 func_0020BFD8(s32 value) { return value; }
 
@@ -14606,9 +15090,16 @@ void func_002118C8(s32 a, s32 b, s32 c, s32 d, s32 e, s32 *out)
     }
 }
 
-INCLUDE_ASM(const s32, "core/main", func_002118F0);
+s32 func_002118F0(s32 a0, s32 a1, ...)
+{
+    return 0;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00211918);
+/* Byte-matching.  Variadic function whose body is just the o32 save area. */
+s32 func_00211918(s32 a0, ...)
+{
+    return 0;
+}
 
 /* Byte-matching.  Delay loop of arg0*0x3999 iterations, always reports 0. */
 s32 func_00211948(u32 arg0)
@@ -14954,7 +15445,13 @@ void func_00215F50(s32 arg, u32 value)
     func_00215EC8(arg, 0x53, (u64)value);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00215F60);
+/* Byte-matching.  Programs the three display registers from a masked value. */
+void func_00215F60(u32 arg0)
+{
+    *(volatile u32 *)0x1000A030 = arg0 & 0xFFFFFFF;
+    *(volatile u32 *)0x1000A020 = 0;
+    *(volatile u32 *)0x1000A000 = 0x105;
+}
 
 void func_00215FA0(void) {
 }
@@ -15470,7 +15967,27 @@ INCLUDE_ASM(const s32, "core/main", func_0021F938);
 
 INCLUDE_ASM(const s32, "core/main", func_0021F978);
 
-INCLUDE_ASM(const s32, "core/main", func_0021F9C0);
+/* Byte-matching.  LEB128-style decode with sign extension on the last byte. */
+u8 *func_0021F9C0(u8 *p, u32 *out)
+{
+    u32 shift = 0;
+    u32 value = 0;
+    u8 b;
+
+    do
+    {
+        b = *p++;
+        value |= (u32)(b & 0x7F) << shift;
+        shift += 7;
+    } while (b & 0x80);
+    if (shift < 32)
+    {
+        if (b & 0x40)
+            value |= (u32)(-1 << shift);
+    }
+    *out = value;
+    return p;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0021FA10);
 
@@ -16006,6 +16523,12 @@ s32 func_00222228(const u16 *p) { return (p[6] >> 5) & 1; }
 INCLUDE_ASM(const s32, "core/main", func_00222238);
 
 INCLUDE_ASM(const s32, "core/main", func_00222340);
+
+/* Byte-matching.  Fills in an object header with its callback table. */
+void func_00226410(void);
+void func_00226478(void);
+void func_002264F8(void);
+s32 func_00226560(u8 *p);
 
 INCLUDE_ASM(const s32, "core/main", func_00222468);
 

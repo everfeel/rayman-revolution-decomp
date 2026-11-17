@@ -64,8 +64,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001002A0": {
-    "behaviorally_correct": true,
     "digest": "60f203e98e08af63e79b98649582a6d7bc8add64f657fa307bd50107365610ce",
+    "problematic": false,
     "timestamp": "2026-11-14T17:26:19Z"
   },
   "func_00100360": {
@@ -77,13 +77,13 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00100460": {
-    "behaviorally_correct": true,
     "digest": "ef469e6e9ada9a09621ac9bde55a838956c6c60edf8bd81717616dd66a10168a",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00100728": {
-    "behaviorally_correct": true,
     "digest": "5494213c2ffa65457e18e1d6432feba3cc0d5e31e2e2015fdd2cd5c781deec05",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001007F8": {
@@ -107,28 +107,28 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00101320": {
-    "behaviorally_correct": true,
     "digest": "b32a0dfe9e42f0f0be0bc8d5c745af97d7560b60bb49c3d8bc101d461b5398f7",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00101380": {
-    "behaviorally_correct": true,
     "digest": "bc4b407742e56a6073db7642dcafe21b0e10416431aba781e1cc458a4a58b5bc",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00101438": {
-    "behaviorally_correct": true,
     "digest": "b4b057dcf1e12f90e7dd6b13c13201058877b6ea89c3ce022b33a8df87b0f16c",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001015B8": {
-    "behaviorally_correct": true,
     "digest": "eaded815d8cb0ac93e097b89f85a9721db7adb2ad4b1d74bf686d8249459a258",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001016B0": {
-    "behaviorally_correct": true,
     "digest": "291eb759aa936f3decdfa512a5564a8f10ad705f5f2f441c34a78060fe99e991",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00101828": {
@@ -156,23 +156,23 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001019C8": {
-    "behaviorally_correct": true,
     "digest": "6215d955cbc392fb11d8c12057c0d5d4a4ca8a4e5c00cefadeee2477ecdc8d48",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00101A78": {
-    "behaviorally_correct": true,
     "digest": "b0d30c55ccbad5a6e067997f518c0f2fe881389b1f3b41d1c1fb80578acced09",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00101B20": {
-    "behaviorally_correct": true,
     "digest": "b836d1cf3cd73c4e053ed4556d1e96fde28e8546e567ef4abe70500d09dce50f",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00101BF0": {
-    "behaviorally_correct": true,
     "digest": "858ff28ec76d601128794709f56468fa61511bc46ffdfb10631bf0ae08317985",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00101CB8": {
@@ -188,8 +188,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00101E30": {
-    "behaviorally_correct": true,
     "digest": "418c54b05795ca748df53a67d3f561a69c8e12e3e83db13604f9ba7479d84259",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00102138": {
@@ -197,8 +197,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00102160": {
-    "behaviorally_correct": true,
     "digest": "45e299da3d24fc4714f29d0216a6d965f00dd5b9cefb4d00f372f5e8f8dd95f3",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00102298": {
@@ -206,8 +206,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001022E8": {
-    "behaviorally_correct": true,
     "digest": "16982b6aa082f8cf18db77b0c90ee78e5023fa6c1f6584e88d4fbc92e9ff3035",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00102548": {
@@ -215,8 +215,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00102570": {
-    "behaviorally_correct": true,
     "digest": "69239453a11d6be63162bf58791e2e83ac2742627c27553627f31aa43a1e3c22",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001028C0": {
@@ -308,8 +308,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001040F0": {
-    "behaviorally_correct": true,
     "digest": "fed53d7bbaeadad81fa3c6b90b77395456c5d759d02c188a48c0f444027d7ff9",
+    "problematic": false,
     "timestamp": "2026-11-14T12:25:31Z"
   },
   "func_00104720": {
@@ -333,8 +333,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00106278": {
-    "behaviorally_correct": true,
     "digest": "63677d96c470ebd21ecf62bb76e2a33229bf40d4a4697424e393069ee97bc5ff",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001062A8": {
@@ -358,19 +358,27 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00106E40": {
-    "behaviorally_correct": true,
     "digest": "4bf4740c14304cb8aea29f30fd2dd85c267d1ba250743e5401e743982dc4f25d",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
+  "func_00106E60": {
+    "digest": "d9373eb436f7d5bcd7f7dc107a1282b6f8e3c6617d7d29f23cabd654213c5dab",
+    "timestamp": "2026-11-17T20:01:51Z"
+  },
   "func_00106EA8": {
-    "behaviorally_correct": true,
     "digest": "87e2a5033e7414f4a336ae2a6808150222674f4bb2db58f223c3caa66b0566e7",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00106ED8": {
-    "behaviorally_correct": true,
     "digest": "62f6f161887b88c8d5d84be0166e8c4994f6cb28f4683471cf0b3c42bb89f32f",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
+  },
+  "func_00106F10": {
+    "digest": "8670ac75442f30091f3548575fe584f0bd0bea7a92561d03fdafb1b9598752d0",
+    "timestamp": "2026-11-17T13:31:46Z"
   },
   "func_00106FD0": {
     "digest": "bbc82b530508aa5dc9ecb4b84e0b19995628cab2478ead9125ad32a555054c95",
@@ -408,6 +416,10 @@
     "digest": "c115b56bdbb2be13f6afb1af1ff9907049b5f763a1b1f1f5d6f803ca5069e713",
     "timestamp": "2026-11-14T11:52:29Z"
   },
+  "func_00107F58": {
+    "digest": "61a039d481cead374ec328b6304eb5b4345ec402d6e278980b9cbe779f294b6a",
+    "timestamp": "2026-11-17T13:39:43Z"
+  },
   "func_00108308": {
     "digest": "4153773bba73307f41a5e9a280264d0c3f20768a01e2f0f76ff42e219c875cc2",
     "timestamp": "2026-11-14T11:52:29Z"
@@ -416,15 +428,19 @@
     "digest": "164fa9ecac87fc70dc1aec73f98cc6a9a5988bfedcb626888490b22544a7a1f0",
     "timestamp": "2026-11-14T11:52:29Z"
   },
+  "func_001085B0": {
+    "digest": "a58046fac879497482acece29a556fe24855e0da38036b6efbb039681cbba686",
+    "timestamp": "2026-11-17T13:48:14Z"
+  },
   "func_00108618": {
-    "behaviorally_correct": true,
     "digest": "ae2cf68b161a3fc308b55dbcc11246756244ee1cc4d4b1650692075011a3126f",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00108648": {
-    "behaviorally_correct": true,
     "digest": "3bf858f4317306852d6ce17c276815a2614e96a3c54cb2cd98a39463c20c22c6",
-    "timestamp": "2026-11-16T20:12:49Z"
+    "problematic": false,
+    "timestamp": "2026-11-16T21:57:15Z"
   },
   "func_00108A38": {
     "digest": "c202532c9d50b1224dca877a0d223c2b4d5f1f2df11fc036c3a365613a50e93e",
@@ -678,6 +694,11 @@
     "digest": "de310e0a08da862c3be4fcc8d99abc7c796c65a6b37e0ce7ae81e1b718bb6e29",
     "timestamp": "2026-11-14T11:52:29Z"
   },
+  "func_0010AA50": {
+    "digest": "0f0c7434545eb3332f291eb71dd486c7c1c21a65386c81be57742f71e9f8c9c4",
+    "problematic": false,
+    "timestamp": "2026-11-17T13:39:43Z"
+  },
   "func_0010AB00": {
     "digest": "e7f78b0eef88b326cacd9ade488433c082ca9223669b8ebdc121c31900ba842b",
     "timestamp": "2026-11-14T11:52:29Z"
@@ -731,8 +752,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0010C8C8": {
-    "behaviorally_correct": true,
     "digest": "530bca2d53eb74ab69fd6e5c238f755ed86e2505a464ea2b6cde054c0e9f0d70",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0010C8F8": {
@@ -792,8 +813,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0010CC30": {
-    "behaviorally_correct": true,
     "digest": "97b279a4fe6caadba13720e85f4fe4fbbddae34183b4682dc6268c06efbdbade",
+    "problematic": false,
     "timestamp": "2026-11-15T17:37:53Z"
   },
   "func_0010DC00": {
@@ -813,8 +834,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0010DE30": {
-    "behaviorally_correct": true,
     "digest": "597022ad730bb3681cc8de11e3ff63f83a4557c102e1c5349e9733805553596d",
+    "problematic": false,
     "timestamp": "2026-11-14T12:03:46Z"
   },
   "func_0010EDF8": {
@@ -826,8 +847,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0010F2E8": {
-    "behaviorally_correct": true,
     "digest": "edb04fde807a270f6d7cca203f3be80c6cc6ee18c3857af802bdfe998f2f63e3",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0010F318": {
@@ -843,18 +864,18 @@
     "timestamp": "2026-11-14T11:59:19Z"
   },
   "func_00110EC0": {
-    "behaviorally_correct": true,
     "digest": "7ba482c7ba1a4412ab82e022652e5f0acc9575d5501eef959e58e95ea56cd85c",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00110EE0": {
-    "behaviorally_correct": true,
     "digest": "30a097d413470de95766296b22dfc10246f0c67c1c09749c7f7428ae4ebead29",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00110F00": {
-    "behaviorally_correct": true,
     "digest": "1e35abfba94ad2883072fe521c2485ec64d63d68c0b96b62b02bc18bfea1eb41",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00110FE8": {
@@ -886,13 +907,12 @@
     "timestamp": "2026-11-14T11:59:19Z"
   },
   "func_00111330": {
-    "behaviorally_correct": true,
-    "digest": "4d287d46d26e9c5069e1a350f11599a590d88bbf94018f4d4c9e5058bbb711b6",
-    "timestamp": "2026-11-14T11:52:29Z"
+    "digest": "5e766fbde44c9e5a5a22bbe4a3a1e9038e9b459ed3dd551d1a59a4a749fed5e4",
+    "timestamp": "2026-11-16T22:32:50Z"
   },
   "func_001113F0": {
-    "behaviorally_correct": true,
     "digest": "3086f48810fa2fb302f82a689fe8eb510c363b4ee1fea7108e297b93a5ee1838",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00111470": {
@@ -928,8 +948,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001118D0": {
-    "behaviorally_correct": true,
     "digest": "0c708e0f083be4c2fdffb8168781178295512964a0cca030a9b4790edb38b966",
+    "problematic": false,
     "timestamp": "2026-11-14T12:07:22Z"
   },
   "func_00111910": {
@@ -1045,9 +1065,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00113760": {
-    "behaviorally_correct": true,
-    "digest": "6f10d346483dd5ea813f03916e867dc2dea9f83c8a9a25aed45c8be3b83d51db",
-    "timestamp": "2026-11-14T11:59:19Z"
+    "digest": "54dfb3cce334be5475416e4139412e662549d4192409cfea9e4741c597737200",
+    "timestamp": "2026-11-16T22:50:09Z"
   },
   "func_00113838": {
     "digest": "84d6f569683bd7aa2a6e9ae6e605a3b7e425b0f779fc2cd37e8e848d92ea551a",
@@ -1086,13 +1105,13 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00113A98": {
-    "behaviorally_correct": true,
     "digest": "584aeaa4defad94ffb5271ef01eccc44bdbc22c36542bab8460ce0cd2ac230bc",
+    "problematic": false,
     "timestamp": "2026-11-14T14:51:27Z"
   },
   "func_00114448": {
-    "behaviorally_correct": true,
     "digest": "3949f42f3f17f80bc4b6a7a330d9234d544754964357b89388d28d236bfe1266",
+    "problematic": false,
     "timestamp": "2026-11-14T12:11:55Z"
   },
   "func_001145D8": {
@@ -1124,13 +1143,13 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00115900": {
-    "behaviorally_correct": true,
     "digest": "95bba889153b45f9296890c062ec14658631007f71a998c2e5666162ac3fe349",
+    "problematic": false,
     "timestamp": "2026-11-14T12:11:55Z"
   },
   "func_00115940": {
-    "behaviorally_correct": true,
     "digest": "7015eb218516741a36a7e9b1898a9e221f08d95b8c5553fdb0fc24c6a418a9b3",
+    "problematic": false,
     "timestamp": "2026-11-14T12:11:55Z"
   },
   "func_00115978": {
@@ -1162,8 +1181,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00115FB8": {
-    "behaviorally_correct": true,
     "digest": "94b2d39ece6fdb26205dd8dbb53c3207814f5097f3570f3dd919138b3f075c60",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00115FF0": {
@@ -1187,9 +1206,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00116E78": {
-    "behaviorally_correct": true,
-    "digest": "160c926b66d89531fbe0b37746e4462d80d12de0065bd1881ca407d3e49276a3",
-    "timestamp": "2026-11-14T11:52:29Z"
+    "digest": "5cb1599e91ef447f056f5193232129b75b5d84753c65976ee77b39db7cc7e7da",
+    "timestamp": "2026-11-16T22:28:38Z"
   },
   "func_00116EA0": {
     "digest": "937d2881d1b11f9624be1b56f183a1a599c9005d762a15880d30273d32c6c388",
@@ -1204,9 +1222,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001174C0": {
-    "behaviorally_correct": true,
-    "digest": "def4e0995421e712e197979e71090a59404f292c13cf06b56615be313c296b47",
-    "timestamp": "2026-11-14T11:52:29Z"
+    "digest": "3ed1523fcb11246bc6564ddc4a9ba4fcf2716da64922f7db787c59af43a0c042",
+    "timestamp": "2026-11-16T21:57:15Z"
   },
   "func_001176A0": {
     "digest": "d3bf3e00840d070c38f0a3fab3f5264e96082ef25e5167cf2543f055c9819386",
@@ -1245,8 +1262,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00119008": {
-    "behaviorally_correct": true,
     "digest": "35b2dc7ff695c83613b87aa314854878d376627330f5268dac2c3162e891c80b",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00119140": {
@@ -1286,8 +1303,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00119518": {
-    "behaviorally_correct": true,
     "digest": "999a7ad21fb677920eebcf8d69e93c7f6ee836d8018ff0da6413a199836d05ca",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00119548": {
@@ -1337,6 +1354,22 @@
   "func_00119788": {
     "digest": "3de1acd7876f63f5a6f763ffb935f19b6d74f14716d28e08726e531b39daa3ff",
     "timestamp": "2026-11-14T11:52:29Z"
+  },
+  "func_00119798": {
+    "digest": "b48e17fa3da81f4fffb2191cd00fd8a2cc9c7cfdcf71833c639730e6679cf4f9",
+    "timestamp": "2026-11-17T13:31:46Z"
+  },
+  "func_001197E8": {
+    "digest": "148b5de5c87a1b3ab6489fd3dd8f6c6492973d500d4fd6a3ec9d12e705fc035a",
+    "timestamp": "2026-11-17T13:31:46Z"
+  },
+  "func_00119838": {
+    "digest": "a470b4fb205569507c3f8bc1bcc5df2e9300eb2410f049ad8f40e2f8b514b70e",
+    "timestamp": "2026-11-17T13:31:46Z"
+  },
+  "func_00119888": {
+    "digest": "4aa12c2936638198ed7eb89ddef073ff62394b287dffb7ab49f65cbf6b6f1501",
+    "timestamp": "2026-11-17T13:31:46Z"
   },
   "func_001198D8": {
     "digest": "b84525a97d28112e13a3749e3ba85f8b6f7c150449e57b87446cbe761c40e892",
@@ -1486,6 +1519,10 @@
     "digest": "864d3191cd38f7d4ab6121c1c69bc8fee3c41cc684a2dcb8eddca6b05cf72190",
     "timestamp": "2026-11-14T11:52:29Z"
   },
+  "func_00119FD8": {
+    "digest": "328d6512a2046996b95d3a8cc7f1e285ad78c10ca7c0873e5fddcc03f5a7a0b4",
+    "timestamp": "2026-11-17T20:01:51Z"
+  },
   "func_0011A1E0": {
     "digest": "263d66d6bec923d17af14f35057d765797c1a97b3c3d4ccd63df4daeace7af23",
     "timestamp": "2026-11-14T11:52:29Z"
@@ -1519,8 +1556,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0011A7E0": {
-    "behaviorally_correct": true,
     "digest": "2d3bb4cfaf559f028a826475ba85fb5f404b2d0a9013c56d7ea061ea1fcf7a93",
+    "problematic": false,
     "timestamp": "2026-11-14T12:11:55Z"
   },
   "func_0011A818": {
@@ -1552,8 +1589,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0011B0E8": {
-    "behaviorally_correct": true,
     "digest": "cdfe62e3e34f2ff8fb5210e38c0f4ebe477185fb64da26fbb39cc3fcb1795246",
+    "problematic": false,
     "timestamp": "2026-11-15T02:53:26Z"
   },
   "func_0011B110": {
@@ -1593,8 +1630,8 @@
     "timestamp": "2026-11-15T03:48:43Z"
   },
   "func_0011B320": {
-    "behaviorally_correct": true,
     "digest": "99a9e2115a824e8a9fc58bab2844475bd9a6a0e1d94849acb6064377b118b0cc",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0011B4C0": {
@@ -1646,9 +1683,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0011D290": {
-    "behaviorally_correct": true,
-    "digest": "d4228d8a531de1f291a6a833e396473b01ad85bf93d4b2bd37c23692d5b8a5c5",
-    "timestamp": "2026-11-14T11:52:29Z"
+    "digest": "67eb833a0cd3a232292d8a6ff2b398938200bf60b6126e90f5f4b408d7e6fb66",
+    "timestamp": "2026-11-16T21:59:16Z"
   },
   "func_0011D818": {
     "digest": "32cc09e2c4319b3e6babc5ce11062314a82876036130eb9aed5dcd055fce6a1c",
@@ -1663,8 +1699,8 @@
     "timestamp": "2026-11-14T17:17:13Z"
   },
   "func_0011DA68": {
-    "behaviorally_correct": true,
     "digest": "aa7ea3f05b3e856cfe2412d4d81b699726011c8276d3eba186e95ea8b4aa3398",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0011DA90": {
@@ -1672,8 +1708,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0011DAA8": {
-    "behaviorally_correct": true,
     "digest": "a7040045dd05a23886044132b936206065003a5f1b2f41bd46441248fdf29503",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0011DAC8": {
@@ -1741,8 +1777,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0011EA20": {
-    "behaviorally_correct": true,
     "digest": "08ca5e4b4e08ac0b96cb32806163ec8948094e61d5f8729737acf7ead7fc1fb9",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0011EA50": {
@@ -1770,8 +1806,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0011F2A8": {
-    "behaviorally_correct": true,
     "digest": "18cbf2927cbf00e545945a7fe67eab159682609fc9610ab43f0f86639cde561d",
+    "problematic": false,
     "timestamp": "2026-11-14T15:06:53Z"
   },
   "func_0011F2E0": {
@@ -1867,9 +1903,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00120C68": {
-    "behaviorally_correct": true,
-    "digest": "57d06bd722dad81e8467e6ea56719885cd368a07b82fd193f113f77e96736293",
-    "timestamp": "2026-11-14T11:52:29Z"
+    "digest": "babbfba1130e6f5f8f219991757d9c6f5a95ef4b2dfe78ae726e6422a7f46bc6",
+    "timestamp": "2026-11-16T22:31:25Z"
   },
   "func_00120D18": {
     "digest": "db30e08e23008ba1109315fdd0d3f30bab3c521408e23a02e190612b01cea2fe",
@@ -1884,8 +1919,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00121888": {
-    "behaviorally_correct": true,
     "digest": "ee7a3f4ce30baaf0a8cbcfba7920978fc2cfcf1d057387b7e368bbd0c27b7017",
+    "problematic": false,
     "timestamp": "2026-11-14T12:58:28Z"
   },
   "func_001250C8": {
@@ -1908,10 +1943,20 @@
     "digest": "d9c46fa725f498e8cab31ac7a983bbce436c2ceaf96dd120e50d0675aa42a585",
     "timestamp": "2026-11-15T22:55:47Z"
   },
+  "func_00131D78": {
+    "digest": "3cb9f1bd569f76e72e290ab8f77ba7b443161618d48eb1b38b61d340200fa7d3",
+    "problematic": true,
+    "timestamp": "2026-11-17T17:26:21Z"
+  },
   "func_001346E8": {
-    "behaviorally_correct": true,
     "digest": "c7a5f7bb9adfc2a12928110762f315d01466be80accf572ca040abaca86b2ebf",
+    "problematic": false,
     "timestamp": "2026-11-16T01:23:45Z"
+  },
+  "func_00135CF8": {
+    "digest": "d8ead37434ecdae6de581442f10dbfb5c8b957d3eafa5e637f00328813819fc0",
+    "problematic": false,
+    "timestamp": "2026-11-17T16:09:02Z"
   },
   "func_001387F0": {
     "digest": "258895a476ce86edfc48e8a4b19c1ff5d2531ac46cac1bfddb79f1f15fd759c2",
@@ -1946,13 +1991,13 @@
     "timestamp": "2026-11-14T16:52:26Z"
   },
   "func_00139828": {
-    "behaviorally_correct": true,
     "digest": "aa9682d6b21b607f817d568798f30c302d25d15a70a8a0aae81230a5fbac349f",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00139858": {
-    "behaviorally_correct": true,
     "digest": "207848786086a4b7e66ae69b2a9bb8c6dce5dfac33251a91cdcdf97e6746c2df",
+    "problematic": false,
     "timestamp": "2026-11-16T01:05:44Z"
   },
   "func_0013A468": {
@@ -1968,8 +2013,8 @@
     "timestamp": "2026-11-15T02:59:12Z"
   },
   "func_0013A7C0": {
-    "behaviorally_correct": true,
     "digest": "2a50aa2ac0f2a43b3219fcf2d56ae3723cf6874563c423cbf0366da80f4e8039",
+    "problematic": false,
     "timestamp": "2026-11-15T02:59:12Z"
   },
   "func_0013B320": {
@@ -1979,6 +2024,10 @@
   "func_0013B420": {
     "digest": "ba9f62298d0de8ec4b70dfd0486d44b9bdf3a0c9998822543f909a277f23ff21",
     "timestamp": "2026-11-14T11:52:29Z"
+  },
+  "func_0013EA20": {
+    "digest": "a96c90b801ac0fa1d73c6642d7592d54c7bb57881ee8a05c29a7465bf3176758",
+    "timestamp": "2026-11-17T20:01:51Z"
   },
   "func_0013EB08": {
     "digest": "549776846549ee503ae6f292243c99eee5fd8b2607f30ebf30d09cb427c109ef",
@@ -1993,8 +2042,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0013F968": {
-    "behaviorally_correct": true,
     "digest": "098b5f40f858c88ae739cf68e5d3f25ac5dde71d9b2864490fa34e989c15779a",
+    "problematic": false,
     "timestamp": "2026-11-15T03:01:48Z"
   },
   "func_00140FE0": {
@@ -2014,8 +2063,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00144830": {
-    "behaviorally_correct": true,
     "digest": "0f9fe864a5df65d69984ef63d9ea0611196ace96d828764b484d442c38331e84",
+    "problematic": false,
     "timestamp": "2026-11-15T03:03:31Z"
   },
   "func_00144C80": {
@@ -2023,9 +2072,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00144C90": {
-    "behaviorally_correct": true,
-    "digest": "562dd9d3b97fc084e0e2b6a04acdee1a9c76c427dc9165c54298910099ecca5e",
-    "timestamp": "2026-11-14T11:52:29Z"
+    "digest": "21aec5ae280773df549edea03379c0ca1d3e2d2ac044761771d3fab549322abd",
+    "timestamp": "2026-11-16T22:28:38Z"
   },
   "func_00144D98": {
     "digest": "494dd81df46d2d09320ccaf605088186eced163dafa4dc4c85e3f8faa16b934f",
@@ -2036,8 +2084,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00144DA8": {
-    "behaviorally_correct": true,
     "digest": "c9d34e6344f4f906facf4503fc03232f860fad31208336f033ff7d99f92fab9d",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00144FE8": {
@@ -2069,14 +2117,13 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00145378": {
-    "behaviorally_correct": true,
     "digest": "1528057a2a25085bb9fdf809f6d1d6ffacf8175cbc035007514f9dab2ecccced",
+    "problematic": false,
     "timestamp": "2026-11-15T03:01:48Z"
   },
   "func_001453B8": {
-    "behaviorally_correct": true,
-    "digest": "531b786cda72e0069c6e273bb7e636490f3e518fe2b8a5213bb294be576833ea",
-    "timestamp": "2026-11-14T11:52:29Z"
+    "digest": "4a96618486daabe6f212cbda3967a34eaa7c2726d0f2f3ec8ffbbf96f5473c2f",
+    "timestamp": "2026-11-16T22:29:30Z"
   },
   "func_001453E0": {
     "digest": "c16cc977076a69302e4f72e7ca524c31abf5dcb98eda29a59e6684524d55620b",
@@ -2095,8 +2142,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00145460": {
-    "behaviorally_correct": true,
     "digest": "99bed578d93b23650fc71868a125770dd6a0860ebf3b5f274dae46e639eb28d7",
+    "problematic": false,
     "timestamp": "2026-11-15T03:03:31Z"
   },
   "func_001454A0": {
@@ -2108,27 +2155,25 @@
     "timestamp": "2026-11-15T03:03:31Z"
   },
   "func_00145790": {
-    "behaviorally_correct": true,
-    "digest": "38db5f4669720c8cedcd2f41fae2b823f2291638019df20d52458763e775334d",
-    "timestamp": "2026-11-14T11:52:29Z"
+    "digest": "1175e934a1d37f312e03593dcbf6b77220fd0587b18c89fa1345a5184fe7c2a3",
+    "timestamp": "2026-11-16T22:27:03Z"
   },
   "func_00145808": {
     "digest": "c288ca0caaa2bb1f64b7e467ce62bbb77827bfff527bfc10c3c8394077478d2e",
     "timestamp": "2026-11-15T03:04:03Z"
   },
   "func_001459C0": {
-    "behaviorally_correct": true,
     "digest": "d8bb07283a543226beb3c7032a9538f790e3e8d382be6d868d422d6867a373e7",
+    "problematic": false,
     "timestamp": "2026-11-15T03:10:38Z"
   },
   "func_00145A00": {
-    "behaviorally_correct": true,
-    "digest": "a88f2f264280d4c9f9c031a6ae4fcf4519e190846546fdc68677f718d81dd7e5",
-    "timestamp": "2026-11-15T03:09:42Z"
+    "digest": "96526400406f29448f4743c458f72bfada6880c2514e3dc0e6c9abeb471a0413",
+    "timestamp": "2026-11-16T22:28:38Z"
   },
   "func_00145A28": {
-    "behaviorally_correct": true,
     "digest": "d8745e43404d0c31031131899f215c88d468cff7ce407b53b2c44b8144a30b64",
+    "problematic": false,
     "timestamp": "2026-11-15T03:09:42Z"
   },
   "func_00145A50": {
@@ -2140,13 +2185,13 @@
     "timestamp": "2026-11-15T03:09:42Z"
   },
   "func_00145F60": {
-    "behaviorally_correct": true,
     "digest": "1189f11b83612d06bc965758e442f5ded6e577db963f42f19362c0171aa2d00a",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00145F80": {
-    "behaviorally_correct": true,
     "digest": "0bbf55d5526875303b15f57ac3c5d0ebd93eb2777d6789a099d5271e42ae5c8d",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00145FF0": {
@@ -2250,13 +2295,13 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00147820": {
-    "behaviorally_correct": true,
     "digest": "8c0f05b163d096995bc345b8f489a6cf9b055165bca7eec887f220d42a97a108",
+    "problematic": false,
     "timestamp": "2026-11-15T03:15:19Z"
   },
   "func_00147848": {
-    "behaviorally_correct": true,
     "digest": "2d54e4580f7894a8ec984014e0e9ae4f6575055dd11ca2c8e8d8c7bb91685b48",
+    "problematic": false,
     "timestamp": "2026-11-15T03:15:19Z"
   },
   "func_00147968": {
@@ -2284,8 +2329,8 @@
     "timestamp": "2026-11-15T03:19:32Z"
   },
   "func_001497D8": {
-    "behaviorally_correct": true,
     "digest": "5a80efd6a9cff034b785e8ab8a9d5be6e8cd6956e818f0e2a5253c1bc6701166",
+    "problematic": false,
     "timestamp": "2026-11-15T03:19:32Z"
   },
   "func_00149810": {
@@ -2321,13 +2366,13 @@
     "timestamp": "2026-11-15T03:19:32Z"
   },
   "func_0014ABD8": {
-    "behaviorally_correct": true,
     "digest": "459a1a98fa6ffc368b623de3bebc4bcbbeb36d73eda118c31453cbb7e3384b2c",
+    "problematic": false,
     "timestamp": "2026-11-15T03:19:32Z"
   },
   "func_0014AC08": {
-    "behaviorally_correct": true,
     "digest": "50c80839818872574e923d20c4309867210cea0edd398edefbd46f22e58725a6",
+    "problematic": false,
     "timestamp": "2026-11-15T03:19:32Z"
   },
   "func_0014AC40": {
@@ -2335,8 +2380,8 @@
     "timestamp": "2026-11-15T03:23:56Z"
   },
   "func_0014AC68": {
-    "behaviorally_correct": true,
     "digest": "761b8973a20878426f59ffd991fb640de70e82e9c9ab0d772812d743b9ea8c79",
+    "problematic": false,
     "timestamp": "2026-11-15T03:23:56Z"
   },
   "func_0014AC98": {
@@ -2372,8 +2417,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0014B320": {
-    "behaviorally_correct": true,
     "digest": "f35bd2bfe04b405574ffd37d52f86ffc122702ea904e2fbf615c12c4a86e2b7c",
+    "problematic": false,
     "timestamp": "2026-11-15T03:23:56Z"
   },
   "func_0014B880": {
@@ -2381,9 +2426,8 @@
     "timestamp": "2026-11-15T03:23:56Z"
   },
   "func_0014B8C0": {
-    "behaviorally_correct": true,
-    "digest": "6c7752efb898b4cd55cc8fe6b70dc40eaaff9395f9327901cfb01742e1354d5d",
-    "timestamp": "2026-11-14T11:52:29Z"
+    "digest": "fdc60f5eb655a902d040d70ef66420b7eedc9cb4e42a835635a28c44fc29cefd",
+    "timestamp": "2026-11-16T21:59:16Z"
   },
   "func_0014B8E0": {
     "digest": "d6cc60203779e68f6b6aa082c4b4b0ae2a64abcd67240787f4104b09b6f0cbfd",
@@ -2442,8 +2486,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0014BBA8": {
-    "behaviorally_correct": true,
     "digest": "4e8a6dd746e0048dd084f5c15d1ea31537a695a74fd67e934f3fd532951f6a88",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0014BC50": {
@@ -2451,18 +2495,16 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0014C018": {
-    "behaviorally_correct": true,
-    "digest": "75dac030f67dbaee91617e7d663fe3b67a018565221125b9476f957e47662855",
-    "timestamp": "2026-11-14T11:52:29Z"
+    "digest": "eb8ccd19734fea28f3b1f68283d010723830221c4800e580d20537e8d345bd68",
+    "timestamp": "2026-11-16T22:27:40Z"
   },
   "func_0014C1A0": {
     "digest": "0d04232a345bd1ff31186c23fa56706dd1265140fe8610ca4b2030fd024316b8",
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0014C210": {
-    "behaviorally_correct": true,
-    "digest": "4ef346a42a19ed4824cecb27e3efebd97f6c2b8985e53981782c5ea349e299f6",
-    "timestamp": "2026-11-15T03:23:56Z"
+    "digest": "4e4ba100c829e043ebd9bfe4109b3401f049a2ac4a2897cdd2209d0ffe9e1671",
+    "timestamp": "2026-11-16T22:29:30Z"
   },
   "func_0014C280": {
     "digest": "2ae054632bb82370911eee1cd25dbed4723b44439cb496a501aa54d809f6cc5a",
@@ -2485,8 +2527,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0014C358": {
-    "behaviorally_correct": true,
     "digest": "b06fb4f4d1e375537e75c3e453bf71ca7abffc43155394784860dc58f86b2e64",
+    "problematic": false,
     "timestamp": "2026-11-15T03:23:56Z"
   },
   "func_0014C398": {
@@ -2530,8 +2572,8 @@
     "timestamp": "2026-11-15T03:27:11Z"
   },
   "func_0014CEA8": {
-    "behaviorally_correct": true,
     "digest": "7df7bab8c048e7a6fb416b6bcf9c17ae37042c790572b4bffb8f5ffe09bfd0f4",
+    "problematic": false,
     "timestamp": "2026-11-15T03:27:11Z"
   },
   "func_0014CEE8": {
@@ -2679,8 +2721,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00151D40": {
-    "behaviorally_correct": true,
     "digest": "8adee68fe51236044f7b4c6157b0d661c885bb210c862274a8040fc133cfae85",
+    "problematic": false,
     "timestamp": "2026-11-15T03:37:18Z"
   },
   "func_00151D80": {
@@ -2788,8 +2830,8 @@
     "timestamp": "2026-11-15T03:39:05Z"
   },
   "func_001597B0": {
-    "behaviorally_correct": true,
     "digest": "422531d4e25391c849bdccb960582df1aab463591a65c4a9b71b74c713285228",
+    "problematic": false,
     "timestamp": "2026-11-15T03:39:05Z"
   },
   "func_001597F0": {
@@ -2799,6 +2841,10 @@
   "func_00159808": {
     "digest": "e881686f1e77cc019e4945abe82c7e0fc130b1c9ddefbceedca79b54f6743a52",
     "timestamp": "2026-11-14T11:52:29Z"
+  },
+  "func_00159810": {
+    "digest": "909576ad62a648d7323676373f3a4bb01982b093c8fc713cb363590d2e4ad738",
+    "timestamp": "2026-11-17T19:41:18Z"
   },
   "func_00159928": {
     "digest": "28bac8f801b255c1506b473eb6708fc7b7f2458d3ef13dbf617a510b36e3f9b4",
@@ -3476,6 +3522,10 @@
     "digest": "9e84f476f4f1a23b1f1eae07556a42b40fbed232c85b26b71ef5a036100f21e8",
     "timestamp": "2026-11-14T11:52:29Z"
   },
+  "func_00161388": {
+    "digest": "5c35975193ff56d6132b0ed8130a5cd20e77503a63f3d34048b25cb210cc9505",
+    "timestamp": "2026-11-17T18:38:07Z"
+  },
   "func_001614C0": {
     "digest": "6b1a30048041153903f849e775493639f47c04a9c3eae9292c707ea674b1022d",
     "timestamp": "2026-11-14T11:52:29Z"
@@ -3487,6 +3537,10 @@
   "func_001615B0": {
     "digest": "155d8f6caf56140fe2c7cfc62bdd3f376149665990fc7724da1070bdc0143881",
     "timestamp": "2026-11-14T11:52:29Z"
+  },
+  "func_001615C0": {
+    "digest": "14bd670db73c86ded8c91dd11a27a159b9703bdf79c91dad54bd92e0d92a3d85",
+    "timestamp": "2026-11-17T19:56:45Z"
   },
   "func_00161730": {
     "digest": "4872dfc7c733206e535b81e4268a5d1649cbb96affb0cdb56657ee7c2d3a6583",
@@ -3551,6 +3605,10 @@
   "func_00162BA0": {
     "digest": "bd1305b1a96d284d82b279aa9315537464c7d74923ee276ea74843e185d9694e",
     "timestamp": "2026-11-14T11:52:29Z"
+  },
+  "func_00162C08": {
+    "digest": "332ae5629802d252b351e96cc0251b861730b7eb1ee8a4994765bff220e4f285",
+    "timestamp": "2026-11-17T19:56:45Z"
   },
   "func_00162E40": {
     "digest": "2a3fe74a301f7eb729622b13b01e6bf8cb9b995c4b226fd28cbfc662de11dedf",
@@ -4648,6 +4706,10 @@
     "digest": "2fb573e785d0721390a6c01b0a8a6e4eea39a8f6e38d4b04d4a5a36638046e29",
     "timestamp": "2026-11-14T11:52:29Z"
   },
+  "func_001682E8": {
+    "digest": "4c179285d44060aaed6d41307bb79baae4ce3044cea0ac6dfc42fa5e97675584",
+    "timestamp": "2026-11-17T16:35:23Z"
+  },
   "func_00168310": {
     "digest": "a65d43bade36d89d742a91b2842cb2bce9c228bad90800198e8e5576d32e20e8",
     "timestamp": "2026-11-16T20:00:38Z"
@@ -4661,12 +4723,12 @@
     "timestamp": "2026-11-16T02:29:05Z"
   },
   "func_00168638": {
-    "digest": "d30548b263222808026ce53a00de46244c60b7a21608545943f9543c749cdbb7",
-    "timestamp": "2026-11-16T02:42:26Z"
+    "digest": "751bd52331bbe910912424cc307f592a8b276f70d03ed1e458015dadaf6805a2",
+    "timestamp": "2026-11-17T16:35:23Z"
   },
   "func_001686D8": {
-    "digest": "580a9f34a12611a8a764f3311f50f97c8f358ffc5d9f5712c69140bc940379de",
-    "timestamp": "2026-11-16T02:51:16Z"
+    "digest": "f9c7715c8d563cc87f0a2874f6a1be07635b735cebcacaa22fb09bee1c627b75",
+    "timestamp": "2026-11-17T16:35:23Z"
   },
   "func_00168710": {
     "digest": "c335bc21a869eb1869ee1ff45a65203ca71d2d81e5a181dae1554fafd1a75927",
@@ -4677,16 +4739,16 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00168A10": {
-    "digest": "2e6738b5ef92f923bd40bf62a3d971aeb979bab6a70f8738663f58c6b53f3cd0",
-    "timestamp": "2026-11-16T02:31:04Z"
+    "digest": "34880ac066adbfe9a1940cf6873f36020639cc6d2b24af358f6197919ec14a5a",
+    "timestamp": "2026-11-17T16:35:23Z"
   },
   "func_00168A40": {
-    "digest": "1945b598445cca56d1b302d8fea8da87ad45e0c5974ba2157f6dd176f6ee3dd1",
-    "timestamp": "2026-11-16T02:31:04Z"
+    "digest": "30000e344218e18b9a43b6a0e4d4f7f1546a08e41073ba1c6f53da5d1667ee8b",
+    "timestamp": "2026-11-17T16:35:23Z"
   },
   "func_00168A70": {
-    "digest": "712fb978e3738358dbba8cc73f7036660620d92fba37f3b4196682f89eb9ffdb",
-    "timestamp": "2026-11-16T02:51:16Z"
+    "digest": "c4561d25e590aa58684c901cadd4f4ee5ff8ad9515b8c49b99986925aebe1ea2",
+    "timestamp": "2026-11-17T16:35:23Z"
   },
   "func_00168AA8": {
     "digest": "801077e5f8f7bef052e88b99a591f818eb2eb9e2e914e4fa3cb1c0800518826b",
@@ -4699,6 +4761,14 @@
   "func_00168B18": {
     "digest": "414d98528c9766ee08bb59df44c4e41fc92bdb34bfbb54a879f5de28241b5596",
     "timestamp": "2026-11-14T11:52:29Z"
+  },
+  "func_00168BC0": {
+    "digest": "7a4cee9d8ed0f5c38e9f4345da32ae48da728552804fdf41b8b7d52a1a2d79d9",
+    "timestamp": "2026-11-17T19:37:33Z"
+  },
+  "func_00168BE8": {
+    "digest": "d8ca14a127bcb4343bff531cfc9ff8d2fc5f90160452eaacdefbc1126730c152",
+    "timestamp": "2026-11-17T16:32:35Z"
   },
   "func_00168C18": {
     "digest": "946291ef76e4e955bbeb6c9e10043ac71c2de3f3b65af56a0cb26033d6a1b0f9",
@@ -4773,8 +4843,8 @@
     "timestamp": "2026-11-16T02:03:46Z"
   },
   "func_00169F50": {
-    "behaviorally_correct": true,
     "digest": "f21a34cdb040b579f714e9024d17aacfe5d7e11620816c216abadf10f9aed717",
+    "problematic": false,
     "timestamp": "2026-11-16T02:05:38Z"
   },
   "func_00169F78": {
@@ -4786,8 +4856,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0016AF78": {
-    "behaviorally_correct": true,
     "digest": "cf2d1006382b87211c761f8232050d05c881080071ebf8d98eb34edf48923f06",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0016BDC0": {
@@ -4795,8 +4865,8 @@
     "timestamp": "2026-11-16T02:51:16Z"
   },
   "func_0016BF10": {
-    "behaviorally_correct": true,
     "digest": "8ee14a49286b51a6891a4d3e57721ca5b157a932f6eda63db4fafc5759a61735",
+    "problematic": false,
     "timestamp": "2026-11-15T19:20:34Z"
   },
   "func_0016C348": {
@@ -4896,8 +4966,8 @@
     "timestamp": "2026-11-16T02:51:16Z"
   },
   "func_0016E1B0": {
-    "behaviorally_correct": true,
     "digest": "ffbc4f4920ac0689a8ebcbea52aaacd61364666a00915bfb5c8dab4b7d63a28e",
+    "problematic": false,
     "timestamp": "2026-11-16T02:12:08Z"
   },
   "func_0016E1D8": {
@@ -5037,8 +5107,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0016F958": {
-    "behaviorally_correct": true,
     "digest": "4ce6b5d559f0ba3ff99df9f155188757621bf6200afa476d21098ada20d5f1ee",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0016F978": {
@@ -5102,8 +5172,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001757F0": {
-    "behaviorally_correct": true,
     "digest": "1acfc23bd52506fa41c04b5ec5f55af5a61d35159e27f1471b5013d9d289b57a",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00175810": {
@@ -5185,6 +5255,10 @@
   "func_00177768": {
     "digest": "e69f80911af6eee508da69eb373832d55afd143a568646128996c41ee4822935",
     "timestamp": "2026-11-14T11:52:29Z"
+  },
+  "func_00177798": {
+    "digest": "4599eeea529da3cd9cb4ef009ebe9852e084b0ad2505dac0533a6a58df35b69d",
+    "timestamp": "2026-11-17T18:35:10Z"
   },
   "func_00177810": {
     "digest": "a6d4fe9676733051a33e3ceb0bd3eb6aed0b81cccc22d606f9a7b3af9f5a916c",
@@ -5338,6 +5412,10 @@
     "digest": "b1845d2f3b7354165ba2affa0a6732d75a60fb2f6ce6d19f27b7a4e81743d445",
     "timestamp": "2026-11-14T11:52:29Z"
   },
+  "func_00183618": {
+    "digest": "9889b329b0994898b9dae1481848b355f4d7e956352f03405b094982dabef548",
+    "timestamp": "2026-11-17T18:35:10Z"
+  },
   "func_00183690": {
     "digest": "e4d4eb4a0fefba62e670d29a566f75f64d82ee571df0d970e2a0fc1e089ea7b1",
     "timestamp": "2026-11-14T11:52:29Z"
@@ -5355,43 +5433,43 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00185140": {
-    "behaviorally_correct": true,
     "digest": "4eb39114328b555f92a9e10f8bdeaa76ee5ffb976292f9f1455f6aa2c8de477e",
+    "problematic": false,
     "timestamp": "2026-11-16T19:19:21Z"
   },
   "func_00185158": {
-    "behaviorally_correct": true,
     "digest": "ab5d957cb59319ca5a73382ae3e5c070dde5b2344894eeebf72fc28271f0ffed",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00188780": {
-    "behaviorally_correct": true,
     "digest": "5b6f22f771f926cd47810381be948b5c7b8b097a8315e5b743be731ba927228f",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00188798": {
-    "behaviorally_correct": true,
     "digest": "5d35373f964edb4b5240a96ba65d3c50f0b1918b9ded5e660d1f799dc374c06d",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001889B8": {
-    "behaviorally_correct": true,
     "digest": "157d699139e3f482793eaa58e3ea01ee17e2bb60af0479dcfaaa8ed237b84f5e",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001889D0": {
-    "behaviorally_correct": true,
     "digest": "7ddfd294a4e30116e47fc9756d029486acd0bb498ca703b3fc008b12d332e802",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00188CA0": {
-    "behaviorally_correct": true,
     "digest": "d6d4cfb8877ffd683d4f06638846bdf1349a7e6424f5e22880db4da3f599fd32",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00188CB8": {
-    "behaviorally_correct": true,
     "digest": "e13598410ce0d9973ea3d541989efe39eef24b908bdb479c1d7ec5f5084708d0",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00188D18": {
@@ -5423,8 +5501,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001890C0": {
-    "behaviorally_correct": true,
     "digest": "b8c0d44c93ec69c0794475664b6d7aee267e331d0800fc9461f1efce9193387e",
+    "problematic": false,
     "timestamp": "2026-11-16T03:10:19Z"
   },
   "func_00189F50": {
@@ -5446,6 +5524,11 @@
   "func_0018B108": {
     "digest": "3a92ca61d7d2835507421e2e9c68138e897d5f01852ba527c9bf758cce146348",
     "timestamp": "2026-11-14T11:52:29Z"
+  },
+  "func_0018B130": {
+    "digest": "12e2e8e18def51f0620d257fadd9358b51fd24128d07cc1b613a0ee1759df08a",
+    "problematic": false,
+    "timestamp": "2026-11-16T23:06:40Z"
   },
   "func_0018C450": {
     "digest": "ac73fbb5951f39ff6156117d4fb8fc9cfdeba7a17bfa82326cb389fdfdd19176",
@@ -5552,8 +5635,8 @@
     "timestamp": "2026-11-15T18:16:34Z"
   },
   "func_0018DA78": {
-    "behaviorally_correct": true,
     "digest": "32042682e4bba2b3f9a4865712896cf46d4b8b5084b63651c09eed4455f400cb",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0018E618": {
@@ -5737,8 +5820,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00196060": {
-    "behaviorally_correct": true,
     "digest": "c30760368421a56c115c8199787e099b908984c99d269fe94a2152a48fd6b5a5",
+    "problematic": false,
     "timestamp": "2026-11-15T19:20:34Z"
   },
   "func_00196290": {
@@ -5893,6 +5976,10 @@
     "digest": "c427af5d02764096233faadd528af3f233f02bb30f23c6792e9ff832dbd09b8d",
     "timestamp": "2026-11-16T02:42:26Z"
   },
+  "func_0019AC80": {
+    "digest": "dbf478c65b746ac1fcb69c5312c3fdb477aa601b948001d51185ad2fcde123a2",
+    "timestamp": "2026-11-17T18:35:10Z"
+  },
   "func_0019ACA8": {
     "digest": "db9b3b1eb4ff53bf35b53fcf8b654f92ec2ce4b4ab3ed5530d8edd61dc69b2f0",
     "timestamp": "2026-11-14T11:50:52Z"
@@ -5982,8 +6069,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001A4180": {
-    "behaviorally_correct": true,
     "digest": "7302ffd57b73dc1f52243a0a872ab366e20050afba2794f5a4aa034413fbf220",
+    "problematic": false,
     "timestamp": "2026-11-16T19:54:21Z"
   },
   "func_001A4198": {
@@ -5991,8 +6078,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001A41B0": {
-    "behaviorally_correct": true,
     "digest": "7b38f708fdd98d75b552c008d275841a5e9412a2627c7f00d25d80618bacf895",
+    "problematic": false,
     "timestamp": "2026-11-16T19:54:21Z"
   },
   "func_001A41C8": {
@@ -6000,9 +6087,13 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001A41E0": {
-    "behaviorally_correct": true,
     "digest": "9393355af4db1bd5a407826d42286dbac87020a8962fcda2c9f3791bfa54ed07",
+    "problematic": false,
     "timestamp": "2026-11-16T03:16:53Z"
+  },
+  "func_001A5E80": {
+    "digest": "f7ecb0318424b5f552babc0ef6204fb8dc8b76b94a263649fdabefb3fb823dd1",
+    "timestamp": "2026-11-17T19:37:33Z"
   },
   "func_001A5EB8": {
     "digest": "bd90059106cc9aee9b1e1d499eae2980217f9cfa556e017a653db42072c7f59e",
@@ -6045,13 +6136,13 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001B1050": {
-    "behaviorally_correct": true,
     "digest": "b2cc2ed0cb6c085b8d14eb5c4441b5d023636ddc5189592af4ee82b4f2a77b6d",
+    "problematic": false,
     "timestamp": "2026-11-16T02:33:35Z"
   },
   "func_001B1190": {
-    "behaviorally_correct": true,
     "digest": "2bde4591d7a8dabba21ddd90a8418cfe3e620eeb7fff9542fcbb66fc1751d785",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001B11E0": {
@@ -6111,13 +6202,13 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001BDF50": {
-    "behaviorally_correct": true,
     "digest": "1f72aa08c8f83dac6cb96c226b75a7370518481c230408e1318d8e98fb85abe6",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001BDF68": {
-    "behaviorally_correct": true,
     "digest": "3443e32d6ebb3c5ed5c94b51f74713548ff45467dce4f49ff71bb035aabcd8b4",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001BEDD0": {
@@ -6768,6 +6859,10 @@
     "digest": "4f6de5a6c483ab8eeeba95d6fc03929ce6c0749e8b10cda502587e22879a0822",
     "timestamp": "2026-11-14T11:52:29Z"
   },
+  "func_001C2BD8": {
+    "digest": "fee963921489a167945f96fba48d1473b1bd304eb90922d6b71f858da99de413",
+    "timestamp": "2026-11-17T16:35:23Z"
+  },
   "func_001C38C0": {
     "digest": "0b85d6e6be33d1efe05350b3dd8686aea5abe242d0b861bc83f8d4476acbf828",
     "timestamp": "2026-11-15T18:19:10Z"
@@ -6929,13 +7024,13 @@
     "timestamp": "2026-11-15T18:23:54Z"
   },
   "func_001C6900": {
-    "behaviorally_correct": true,
     "digest": "4e83aeaa00e2989b73fb98db4ffb6df3289db0891a0c3d62317393ec9bada5f7",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001C6918": {
-    "behaviorally_correct": true,
     "digest": "be52ea1e0e6bbad035fce85adfe0f05b5cd327e7de4d68b10834242e8253e1b1",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001C6930": {
@@ -6950,9 +7045,13 @@
     "digest": "41866152dbfc1d42f0155871015dffe1f5c94386ef9583939f5e729c0bb1a6db",
     "timestamp": "2026-11-14T11:52:29Z"
   },
+  "func_001C6A70": {
+    "digest": "8d91e2b212ecb006ca1b8d41debdf22a281726d1b29b7873c9684b512367b3ce",
+    "timestamp": "2026-11-17T20:04:14Z"
+  },
   "func_001C6BB8": {
-    "behaviorally_correct": true,
     "digest": "66d7b8bb06af2d6bb10ca97d725a8a656e1f907e8919ad6452da99e6bce67a14",
+    "problematic": false,
     "timestamp": "2026-11-16T01:58:26Z"
   },
   "func_001C6C48": {
@@ -6960,28 +7059,36 @@
     "timestamp": "2026-11-16T03:16:08Z"
   },
   "func_001C6C88": {
-    "behaviorally_correct": true,
     "digest": "da38e6af69432748962187eb36bd136de0d6403cf01836f236c00440e6832db8",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001C6CA8": {
-    "behaviorally_correct": true,
     "digest": "1fe1045a024e4f4a3c0b70d81a6b7bd341ba2d184aee3d416f78767b222fdcb9",
+    "problematic": false,
     "timestamp": "2026-11-16T19:03:25Z"
+  },
+  "func_001C6CB8": {
+    "digest": "eb74b6b7f04c581cc7b8db8ea0c219cb14e75ac7f6003dad1fafd77c5df6d0d4",
+    "timestamp": "2026-11-17T19:46:58Z"
   },
   "func_001C6F78": {
     "digest": "cc072b25f5f28a1fcc84e6252fa3c758c590348679ca062daec64e10725c1534",
     "timestamp": "2026-11-16T03:16:08Z"
   },
   "func_001C6FB8": {
-    "behaviorally_correct": true,
     "digest": "99cce0a33169f415cec5786e727534923c65da4c36409704c3584f8c01d09225",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001C6FD8": {
-    "behaviorally_correct": true,
     "digest": "844825a857f0385e4cba0ca6c2af72f106c1cd955aa8a830fcfa034db69236d3",
+    "problematic": false,
     "timestamp": "2026-11-16T19:03:25Z"
+  },
+  "func_001C6FE8": {
+    "digest": "d4b12d7b74e349b12dea9e0cdbf6b8ed6a8bcac22268198d3a6658daafe0e643",
+    "timestamp": "2026-11-17T19:46:58Z"
   },
   "func_001C72D0": {
     "digest": "ab9977cff6adbbf429e1c3ff9102c5aec323caed1a44747e899d3a06243384f4",
@@ -7076,8 +7183,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_001CDA38": {
-    "behaviorally_correct": true,
     "digest": "e3e5f85ea616c841369a285c2449975f3644b5b54a219fed412e6788e268cc2f",
+    "problematic": false,
     "timestamp": "2026-11-15T19:20:34Z"
   },
   "func_001CDAB0": {
@@ -7317,8 +7424,8 @@
     "timestamp": "2026-11-16T18:44:25Z"
   },
   "func_001DE8D0": {
-    "behaviorally_correct": true,
     "digest": "b3f4bf1a498b129eb0e33e2f8790aa431560048e091579088c28218966e7393f",
+    "problematic": false,
     "timestamp": "2026-11-15T19:20:34Z"
   },
   "func_001DE8F8": {
@@ -7533,6 +7640,14 @@
     "digest": "c7d6af38498c8b1a1bb9047806452d28e40f62f4b89a7222192f8da9502a6410",
     "timestamp": "2026-11-14T11:52:29Z"
   },
+  "func_001E0F10": {
+    "digest": "a497ca2e226f87a15c79ca7f08a56d1d31d7e458765920def4e39df6e2a089e3",
+    "timestamp": "2026-11-17T13:48:14Z"
+  },
+  "func_001E3A40": {
+    "digest": "efa874f2e409cefd790b6cf1a3b13e379610ebce6280b3cfc2793f07e6f8de1e",
+    "timestamp": "2026-11-17T19:41:18Z"
+  },
   "func_001E4A58": {
     "digest": "2fffdc10681b9a77652fd78659bbcacbf8cb4bce66e99d6a333afc6ba398965f",
     "timestamp": "2026-11-16T03:02:55Z"
@@ -7610,8 +7725,8 @@
     "timestamp": "2026-11-16T20:00:38Z"
   },
   "func_001E6F50": {
-    "behaviorally_correct": true,
     "digest": "9863f1e701d1538461385654666f9e9be86485f9909ab1ba888065460c2792d9",
+    "problematic": false,
     "timestamp": "2026-11-16T02:18:59Z"
   },
   "func_001E6F78": {
@@ -7715,8 +7830,8 @@
     "timestamp": "2026-11-16T20:59:19Z"
   },
   "func_001EF720": {
-    "behaviorally_correct": true,
     "digest": "432f075a475029686d1428abf47ca58f1be3132df30735eb9ad09828826e2bcf",
+    "problematic": false,
     "timestamp": "2026-11-16T02:36:17Z"
   },
   "func_001F0F18": {
@@ -7856,13 +7971,13 @@
     "timestamp": "2026-11-16T03:06:54Z"
   },
   "func_001FE680": {
-    "behaviorally_correct": true,
     "digest": "b4d4d146188fcca604b15932938f209552c6a2b95d7bcc1626dcf3de48ac96d8",
+    "problematic": false,
     "timestamp": "2026-11-15T19:20:34Z"
   },
   "func_001FE6A8": {
-    "behaviorally_correct": true,
     "digest": "dda4364fce40494d99ce7eb9ba00ce422267f9df413ac9857d1612a13271a624",
+    "problematic": false,
     "timestamp": "2026-11-15T19:20:34Z"
   },
   "func_001FE6D0": {
@@ -7926,13 +8041,13 @@
     "timestamp": "2026-11-16T02:18:59Z"
   },
   "func_00201048": {
-    "behaviorally_correct": true,
     "digest": "c7305cdc272ed355cbf9a47cf308c54f529c69f28db9564095c6fab918a5e3de",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_00202340": {
-    "behaviorally_correct": true,
     "digest": "83e49ed5acb5ec174562501fb638ea6dc164469c4ca48e4776bdfbcb30ddf0fc",
+    "problematic": false,
     "timestamp": "2026-11-15T19:20:34Z"
   },
   "func_00202368": {
@@ -7984,8 +8099,8 @@
     "timestamp": "2026-11-16T03:13:03Z"
   },
   "func_002093E0": {
-    "behaviorally_correct": true,
     "digest": "880d68a481766e9578f2829c6e771d4a4b8bbd02834e30cdf3c6bded91cb15ea",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_002093F8": {
@@ -7995,6 +8110,10 @@
   "func_00209430": {
     "digest": "8e710f5b0acde4080ba23e052e2457a1453b793a9debad35b4588b3711138c00",
     "timestamp": "2026-11-16T03:13:03Z"
+  },
+  "func_00209790": {
+    "digest": "3059e716d46a5acf45ef007b4a10ed868e19dc1b978cbc5b24472655bcb04bef",
+    "timestamp": "2026-11-17T18:38:07Z"
   },
   "func_002098E8": {
     "digest": "45c8ff2af8da8e18fa98a8c5b7b4bf4df640002aa83600f467893727147c92ed",
@@ -8028,6 +8147,14 @@
     "digest": "d4fcfc20bd3e7c03260f925e633fbb664036b0f7aea2bf836ff6d030aaefb9ad",
     "timestamp": "2026-11-14T11:52:29Z"
   },
+  "func_0020BD80": {
+    "digest": "6ca1b29692dad744580a8ae10c3c47043a73ffc2359b652c68dfa190b2d5ebe1",
+    "timestamp": "2026-11-17T16:32:35Z"
+  },
+  "func_0020BDB8": {
+    "digest": "e0ed8d71d76a04b19c35edc93d5869d5d016c9aaa25a293998e4a072ba8aafea",
+    "timestamp": "2026-11-17T16:32:35Z"
+  },
   "func_0020BDF0": {
     "digest": "7157b8353d7698f5764290f39fbbaa0be2214467e4a53a3ea3a418c017b49ca5",
     "timestamp": "2026-11-14T11:52:29Z"
@@ -8039,6 +8166,10 @@
   "func_0020BF88": {
     "digest": "5314a4dfedf492f0bed1e38084b4292e583a9c58c06fe789a3b2c1f0b4b3039d",
     "timestamp": "2026-11-14T11:52:29Z"
+  },
+  "func_0020BF90": {
+    "digest": "451dcc86226b8e5a5d952dc289a4c5e81005ac0ab8e3bd41f815662b973f9666",
+    "timestamp": "2026-11-17T18:35:10Z"
   },
   "func_0020BFD8": {
     "digest": "bec4c24b117e0f097bc26183ad825454bf397b0722e1f3e9f5fc3dddac84d9f8",
@@ -8055,6 +8186,14 @@
   "func_002118C8": {
     "digest": "bbfc85d1cc7e6d0219054f6ddd7afab3017b0b4b149a96714c7bb376c9f5fb4c",
     "timestamp": "2026-11-15T22:30:26Z"
+  },
+  "func_002118F0": {
+    "digest": "3816713a86f558953150180054e5efc149c882fe4d14532168f0975a2f3a9d05",
+    "timestamp": "2026-11-17T18:35:10Z"
+  },
+  "func_00211918": {
+    "digest": "5600fef80f2d3435de43e267f26e69474ce7fadc29b55669bb1463401e6ef482",
+    "timestamp": "2026-11-17T19:37:33Z"
   },
   "func_00211948": {
     "digest": "38e91eb257712f6e18f3d8e65f77b540cb52cf1dd12054baba2056ab00fd63c9",
@@ -8081,8 +8220,8 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_002133F0": {
-    "behaviorally_correct": true,
     "digest": "86587b5d6d6f0839a2f0bb4f0aa1ced800dc6e25f3b23754b3d43230f36efaf1",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_002134F0": {
@@ -8197,6 +8336,10 @@
     "digest": "6d79c67e4e816b30c202cc2cfa24140324ccddbfbbc69ed9d34bffb9e0e3f20c",
     "timestamp": "2026-11-14T11:52:29Z"
   },
+  "func_00215F60": {
+    "digest": "5318d72144ac02d15cee8ab6e590cef8a060dc3782be05c8f53b8e3501a89bb6",
+    "timestamp": "2026-11-17T13:42:13Z"
+  },
   "func_00215FA0": {
     "digest": "1bc89f1be4c97e4d11398e7ac5a0ec506b593f562bf95b44cbdd52535a174c51",
     "timestamp": "2026-11-14T11:52:29Z"
@@ -8242,8 +8385,8 @@
     "timestamp": "2026-11-16T02:44:50Z"
   },
   "func_00217BA8": {
-    "behaviorally_correct": true,
     "digest": "7e3a745b824821cdf68036e4e18df25584f91027e03e7b7d076637a8af72dbaa",
+    "problematic": false,
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0021A978": {
@@ -8251,13 +8394,13 @@
     "timestamp": "2026-11-16T20:59:19Z"
   },
   "func_0021ABA0": {
-    "behaviorally_correct": true,
     "digest": "b515d0fc7427672467b83e2a95b23efee4cd9d5bb1c9dc93b3c1b210bcafb3bb",
+    "problematic": false,
     "timestamp": "2026-11-16T01:58:26Z"
   },
   "func_0021ABC8": {
-    "behaviorally_correct": true,
     "digest": "a3238462e33fedd5fd00ffc1c4c8075209248bf98ba880436d12702e1143fcdf",
+    "problematic": false,
     "timestamp": "2026-11-16T01:58:26Z"
   },
   "func_0021AE88": {
@@ -8309,8 +8452,8 @@
     "timestamp": "2026-11-16T03:13:03Z"
   },
   "func_0021E720": {
-    "behaviorally_correct": true,
     "digest": "9729af0c1811c3507af5bc4f0af93776f8e0c250458a4833a8629831a9ad620e",
+    "problematic": false,
     "timestamp": "2026-11-16T02:29:05Z"
   },
   "func_0021E748": {
@@ -8340,6 +8483,10 @@
   "func_0021F908": {
     "digest": "1f9d28ed7cb5aa3ba48193b662ab4561a98659ce8a0f1f5c48136817565a1ed7",
     "timestamp": "2026-11-16T02:36:17Z"
+  },
+  "func_0021F9C0": {
+    "digest": "f04202fa00cc61170518aeaf8c6dd6319ea5d8142cf23052ccf8db216ae420a4",
+    "timestamp": "2026-11-17T19:46:58Z"
   },
   "func_00220538": {
     "digest": "52f2dd385498570e8103b2216601e9a447d6e5931574d0c241771f20edafb716",
@@ -8606,13 +8753,13 @@
     "timestamp": "2026-11-14T11:52:29Z"
   },
   "func_0022C278": {
-    "behaviorally_correct": true,
     "digest": "018276466b52235a424f89cc8f8e94b7f96388a3be0262806235f7ec745f1913",
+    "problematic": false,
     "timestamp": "2026-11-16T02:42:26Z"
   },
   "func_0022D298": {
-    "behaviorally_correct": true,
     "digest": "a7f0b9de143a89caf12eac0301a5ed4a0a06e672426a169acbcbf3bb2baf2dfd",
+    "problematic": false,
     "timestamp": "2026-11-16T03:13:03Z"
   }
 }

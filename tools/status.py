@@ -68,7 +68,7 @@ CSV_FIELDS = (
     "function",
     "address",
     "status",
-    "behaviorally_correct",
+    "problematic",
     "original_size_bytes",
     "matching_bytes",
     "first_difference",
@@ -315,7 +315,7 @@ def update_source_timestamps(
     for row in rows:
         name = row["name"]
         row["source_edited_at"] = ""
-        row["behaviorally_correct"] = False
+        row["problematic"] = False
         if row["status"] == "NOT STARTED":
             continue
         digest = fingerprints[name]
@@ -325,18 +325,18 @@ def update_source_timestamps(
             if record.get("digest") == digest
             else timestamp
         )
-        behaviorally_correct = False
+        problematic = False
         if row["status"] == "NOT MATCHING":
-            behaviorally_correct = record.get("behaviorally_correct", False)
+            problematic = record.get("problematic", False)
             current[name] = {
                 "digest": digest,
                 "timestamp": edited_at,
-                "behaviorally_correct": behaviorally_correct,
+                "problematic": problematic,
             }
         else:
             current[name] = {"digest": digest, "timestamp": edited_at}
         row["source_edited_at"] = edited_at
-        row["behaviorally_correct"] = behaviorally_correct
+        row["problematic"] = problematic
 
     if current != previous or not timestamp_file.exists():
         write_source_timestamp_state(current, timestamp_file)
@@ -353,8 +353,8 @@ def load_source_timestamp_state(timestamp_file=SOURCE_TIMESTAMPS):
         or not isinstance(record.get("digest"), str)
         or not isinstance(record.get("timestamp"), str)
         or (
-            "behaviorally_correct" in record
-            and not isinstance(record["behaviorally_correct"], bool)
+            "problematic" in record
+            and not isinstance(record["problematic"], bool)
         )
         for name, record in previous.items()
     ):
@@ -384,16 +384,16 @@ def write_source_timestamp_state(state, timestamp_file=SOURCE_TIMESTAMPS):
             temporary_path.unlink()
 
 
-def set_behaviorally_correct(symbol, value, timestamp_file=SOURCE_TIMESTAMPS):
+def set_problematic(symbol, value, timestamp_file=SOURCE_TIMESTAMPS):
     if not isinstance(symbol, str) or not FUNCTION_NAME.fullmatch(symbol):
         raise ValueError("Invalid function symbol.")
     if not isinstance(value, bool):
-        raise ValueError("Behavioral status must be true or false.")
+        raise ValueError("Problematic status must be true or false.")
     state = load_source_timestamp_state(timestamp_file)
     record = state.get(symbol)
     if record is None:
         raise ValueError(f"{symbol} has no tracked implementation status.")
-    record["behaviorally_correct"] = value
+    record["problematic"] = value
     write_source_timestamp_state(state, timestamp_file)
 
 
@@ -499,8 +499,8 @@ def write_csv(rows):
                     "function": row["name"],
                     "address": f"0x{row['address']:08X}",
                     "status": row["status"],
-                    "behaviorally_correct": (
-                        row["behaviorally_correct"]
+                    "problematic": (
+                        row["problematic"]
                         if row["status"] == "NOT MATCHING"
                         else ""
                     ),
@@ -612,27 +612,47 @@ def summary(rows):
     return counts
 
 
-def write_html(rows, counts, generated_at):
+def table_rows_html(rows):
     table_rows = []
     for row in rows:
         behavior_control = "-"
+        if row["status"] == "MATCHING":
+            behavior_control = '<span class="perfect-label">PERFECT</span>'
+        problematic = (
+            bool(row["problematic"]) if row["status"] == "NOT MATCHING" else False
+        )
+        problematic_attr = "true" if problematic else "false"
         if row["status"] == "NOT MATCHING":
-            checked = " checked" if row["behaviorally_correct"] else ""
+            pressed = "true" if problematic else "false"
+            label = "⚠ Problematic" if problematic else "Flag problematic"
+            readonly_text = "⚠ Problematic" if problematic else "OK"
+            readonly_class = (
+                "problematic-readonly is-problematic"
+                if problematic
+                else "problematic-readonly"
+            )
             behavior_control = (
-                '<label class="behavior-check">'
-                f'<input class="behavior-checkbox" type="checkbox" '
-                f'data-symbol="{html.escape(row["name"])}"{checked} disabled>'
-                '<span>Behaviorally correct</span></label>'
+                f'<span class="{readonly_class}" data-role="problematic-readonly">'
+                f'{readonly_text}</span>'
+                f'<button class="problematic-toggle" type="button" '
+                f'data-symbol="{html.escape(row["name"])}" '
+                f'title="Mark this function as not behaving like the original (retail)" '
+                f'aria-pressed="{pressed}" disabled>{label}</button>'
                 '<span class="behavior-save-status" role="status" '
                 'aria-live="polite"></span>'
             )
+        status_cell = (
+            f'<span class="badge {STATUS_CLASS[row["status"]]}">'
+            f'{STATUS_LABEL[row["status"]]}</span>'
+        )
         table_rows.append(
             f'<tr data-status="{html.escape(row["status"])}" '
+            f'data-symbol="{html.escape(row["name"])}" '
+            f'data-problematic="{problematic_attr}" '
             f'data-source-edited-at="{html.escape(row["source_edited_at"])}">'
             f"<td><code>{html.escape(row['name'])}</code></td>"
             f"<td>0x{row['address']:08X}</td>"
-            f'<td><span class="badge {STATUS_CLASS[row["status"]]}">'
-            f'{STATUS_LABEL[row["status"]]}</span></td>'
+            f'<td class="status-cell">{status_cell}</td>'
             f'<td class="behavior-cell">{behavior_control}</td>'
             f"<td>{row['retail_size']}</td>"
             f"<td>{(str(row['matching_bytes']) + ' / ' + str(row['retail_size'])) if row['matching_bytes'] != '' else '-'}</td>"
@@ -640,19 +660,10 @@ def write_html(rows, counts, generated_at):
             f"<td>{html.escape(row['source_edited_at'].replace('T', ' ').replace('Z', ' UTC') or '-')}</td>"
             "</tr>"
         )
+    return "".join(table_rows)
 
-    status_filters_html = "\n".join(
-        f'<button class="status-filter {css_class}" type="button" '
-        f'data-status-filter="{html.escape(status)}" aria-pressed="false">'
-        f'<span class="filter-dot" aria-hidden="true"></span>'
-        f'{html.escape(title)} <span class="filter-count">{counts[status]:,}</span>'
-        "</button>"
-        for status, title, css_class in (
-            ("MATCHING", STATUS_LABEL["MATCHING"], "matching"),
-            ("NOT MATCHING", STATUS_LABEL["NOT MATCHING"], "not-matching"),
-            ("NOT STARTED", STATUS_LABEL["NOT STARTED"], "not-started"),
-        )
-    )
+
+def progress_bar_html(counts):
     matching_percent = format_percentage(counts["MATCHING"], counts["total"])
     implemented_percent = format_percentage(counts["NOT MATCHING"], counts["total"])
     not_implemented_percent = format_percentage(
@@ -681,7 +692,7 @@ def write_html(rows, counts, generated_at):
             f'--status-opacity:{opacity}">'
             f'<i></i>{label} <strong>{count:,} ({percentage})</strong></span>'
         )
-    progress_bar = (
+    return (
         f'<div class="stacked-bar" role="img" aria-label="Function status: '
         f'byte match {counts["MATCHING"]:,} ({matching_percent}); implemented '
         f'{counts["NOT MATCHING"]:,} ({implemented_percent}); not implemented '
@@ -689,6 +700,35 @@ def write_html(rows, counts, generated_at):
         f'{"".join(progress_segments)}</div>'
         f'<div class="progress-legend">{"".join(progress_legend)}</div>'
     )
+
+
+def write_html(rows, counts, generated_at):
+    rows_html = table_rows_html(rows)
+
+    def status_filter_button(status, title, css_class):
+        extra = ""
+        if status == "NOT MATCHING":
+            extra = (
+                '<span class="implemented-problematic-count" '
+                'id="implemented-problematic-count" hidden></span>'
+            )
+        return (
+            f'<button class="status-filter {css_class}" type="button" '
+            f'data-status-filter="{html.escape(status)}" aria-pressed="false">'
+            f'<span class="filter-dot" aria-hidden="true"></span>'
+            f'{html.escape(title)} <span class="filter-count">{counts[status]:,}</span>'
+            f"{extra}</button>"
+        )
+
+    status_filters_html = "\n".join(
+        status_filter_button(status, title, css_class)
+        for status, title, css_class in (
+            ("MATCHING", STATUS_LABEL["MATCHING"], "matching"),
+            ("NOT MATCHING", STATUS_LABEL["NOT MATCHING"], "not-matching"),
+            ("NOT STARTED", STATUS_LABEL["NOT STARTED"], "not-started"),
+        )
+    )
+    progress_bar = progress_bar_html(counts)
     document = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -739,6 +779,8 @@ h1 {{ margin: 0 0 9px; font-size: clamp(2rem, 4vw, 3.25rem); letter-spacing: -.0
 .status-filter.matching .filter-dot {{ background: #55c5df; box-shadow: 0 0 10px #55c5df77; }}
 .status-filter.not-matching .filter-dot {{ background: #8286d1; }}
 .status-filter.not-started .filter-dot {{ background: #555767; }}
+.implemented-problematic-count {{ display: inline-flex; align-items: center; gap: 3px; margin-left: 3px; color: #ffd2c5; font-size: .78rem; font-weight: 700; }}
+.implemented-problematic-count[hidden] {{ display: none; }}
 .filter-count {{ min-width: 24px; padding: 2px 6px; text-align: center; color: #aaaabd; background: #08090f; border-radius: 99px; font-size: .72rem; }}
 .status-filter[aria-pressed="true"] .filter-count {{ color: #e3e3ff; background: #3a3d7144; }}
 .search-wrap {{ display: flex; align-items: center; gap: 9px; min-width: min(320px, 100%); padding: 0 11px; background: #08090f; border: 1px solid #292b3d; border-radius: 9px; }}
@@ -823,10 +865,21 @@ tbody tr:hover td {{ background: #17192a; }}
 .function-action {{ color: #bfc1ff; background: transparent; border: 0; font: inherit; cursor: pointer; }}
 .function-action:hover {{ text-decoration: underline; }}
 .function-order {{ padding: 9px 12px; color: #b9bac8; background: #11121b; border: 1px solid #282a39; border-radius: 9px; font: inherit; font-size: .82rem; }}
-.behavior-cell {{ min-width: 190px; }}
-.behavior-check {{ display: inline-flex; align-items: center; gap: 7px; color: #c5c6db; }}
-.behavior-checkbox {{ accent-color: #55c5df; }}
-.behavior-save-status {{ display: block; color: #9294a8; font-size: .72rem; white-space: normal; }}
+.behavior-cell {{ min-width: 150px; }}
+.problematic-readonly {{ color: #d7d8ff; font-size: .78rem; font-weight: 700; }}
+.problematic-readonly.is-problematic {{ color: #ffd2c5; font-weight: 700; }}
+.problematic-toggle {{ display: none; align-items: center; gap: 6px; padding: 5px 11px; color: #b6b7c8; background: #17192a; border: 1px solid #3a3d71; border-radius: 99px; font: inherit; font-size: .75rem; font-weight: 650; cursor: pointer; white-space: nowrap; transition: background .16s ease, border-color .16s ease, color .16s ease; }}
+.problematic-toggle:hover {{ border-color: #ff8a72; color: #ffd2c5; }}
+.problematic-toggle[aria-pressed="true"] {{ color: #ffd2c5; background: #30191a; border-color: #a8473a; box-shadow: 0 0 10px #ff8a7233; }}
+.problematic-toggle[disabled] {{ cursor: default; opacity: .7; }}
+.perfect-label {{ color: #bceffc; font-size: .78rem; font-weight: 700; }}
+.behavior-save-status {{ display: none; color: #9294a8; font-size: .72rem; white-space: normal; }}
+body.edit-mode .problematic-readonly {{ display: none; }}
+body.edit-mode .problematic-toggle {{ display: inline-flex; }}
+body.edit-mode .behavior-save-status {{ display: block; }}
+.edit-mode-toggle {{ display: inline-flex; align-items: center; gap: 6px; padding: 9px 12px; color: #b9bac8; background: #11121b; border: 1px solid #282a39; border-radius: 9px; font: inherit; font-size: .82rem; cursor: pointer; white-space: nowrap; }}
+.edit-mode-toggle[aria-pressed="true"] {{ color: #ffd2c5; background: #30191a; border-color: #a8473a; }}
+.edit-mode-toggle[hidden] {{ display: none; }}
 @media (max-width: 900px) {{ .toolbar {{ align-items: stretch; flex-direction: column; }} .search-wrap {{ min-width: 0; }} }}
 @media (max-width: 700px) {{ main {{ padding: 18px 14px 36px; }} .hero {{ padding: 24px 20px; }} .section-head {{ align-items: start; flex-direction: column; }} .controls {{ display: grid; grid-template-columns: 1fr; }} .status-filter {{ justify-content: space-between; }} .progress-track-heading {{ align-items: start; flex-direction: column; gap: 3px; }} }}
 @media (max-width: 800px) {{ .workspace-panes {{ grid-template-columns: 1fr; }} .workspace textarea, .workspace pre {{ height: 45vh; }} .assembly-row {{ grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1fr); gap: 5px; }} .playground-diff-row {{ grid-template-columns: 52px minmax(0, 1fr) minmax(0, 1fr); gap: 6px; padding: 7px 6px; font-size: 11px; }} }}
@@ -839,14 +892,14 @@ tbody tr:hover td {{ background: #17192a; }}
 <div class="eyebrow">Decompilation progress</div>
 <h1>Rayman Revolution</h1>
 <div class="subtitle">PAL PlayStation 2 main executable · SLES_500.44</div>
-<div class="subtitle updated">Progress report · {html.escape(generated_at)} · {counts["total"]:,} functions</div>
+<div class="subtitle updated">Progress report · <span id="report-updated">{html.escape(generated_at)}</span> · <span id="hero-total">{counts["total"]:,}</span> functions</div>
 <div class="subtitle">Automatically refreshed after successful builds; this page refreshes every 30 seconds.</div>
 </div>
-<section class="progress-track" aria-label="Function progress">
-<div class="progress-track-heading"><strong>{counts["total"]:,} functions</strong><span>Progress by function status</span></div>
+<section class="progress-track" id="progress-track" aria-label="Function progress">
+<div class="progress-track-heading"><strong id="track-total">{counts["total"]:,} functions</strong><span>Progress by function status</span></div>
 {progress_bar}
 </section>
-<p class="note"><strong>Function status:</strong> <b>Byte-match</b> means the compiled function matches the original bytes. <b>Implemented</b> means a C or hand-written assembly implementation replaces the retail fallback, but its compiled bytes differ. <b>Not implemented</b> means the function still uses the retail assembly fallback. For implemented, non-matching functions, mark <b>Behaviorally correct</b> to record your manual assessment; this does not change byte-match status or the source-edit timestamp.</p>
+<p class="note"><strong>Function status:</strong> <b style="color:#bceffc">Byte-match</b> means the compiled function matches the original bytes. <b style="color:#d7d8ff">Implemented</b> means there is a C implementation, but its compiled bytes differ and it can have a flag if the function is problematic in behavior. <b style="color:#c5c6d1">Not implemented</b> means the function still uses the retail assembly fallback.</p>
 </section>
 <nav class="tabs" role="tablist" aria-label="Dashboard views">
   <button class="tab" id="progress-tab" role="tab" aria-selected="true" aria-controls="progress-view">Progress</button>
@@ -867,7 +920,9 @@ tbody tr:hover td {{ background: #17192a; }}
     <option value="original">Original order</option>
     <option value="newest">Newest source edit</option>
     <option value="oldest">Oldest source edit</option>
+    <option value="problematic">Problematic first</option>
   </select>
+  <button class="edit-mode-toggle" id="edit-mode-toggle" type="button" aria-pressed="false" title="Reveal controls to flag problematic behavior" hidden>Flag edit</button>
 </div>
 <label class="search-wrap" for="filter">
   <span class="search-icon" aria-hidden="true">⌕</span>
@@ -878,7 +933,7 @@ tbody tr:hover td {{ background: #17192a; }}
 <div class="table-wrap">
 <table id="functions">
 <thead><tr><th>Function</th><th>Address</th><th>Status</th><th>Behavior</th><th>Retail size</th><th>Matching bytes</th><th>First difference</th><th>Last source edit (UTC)</th></tr></thead>
-<tbody id="function-rows">{''.join(table_rows)}</tbody>
+<tbody id="function-rows">{rows_html}</tbody>
 </table>
 <div class="empty" id="empty-state">No functions match these filters. Try another status or search.</div>
 </div>
@@ -936,6 +991,7 @@ const buttons = [...document.querySelectorAll("[data-status-filter]")];
 const rows = [...document.querySelectorAll("#functions tbody tr")];
 const originalRows = [...rows];
 const functionOrder = document.getElementById("function-order");
+const editModeToggle = document.getElementById("edit-mode-toggle");
 const functionRows = document.getElementById("function-rows");
 const resultCount = document.getElementById("result-count");
 const emptyState = document.getElementById("empty-state");
@@ -958,6 +1014,7 @@ const optimizationControl = document.getElementById("optimization");
 const preserveFramePointerControl = document.getElementById("preserve-frame-pointer");
 const otherFlagsControl = document.getElementById("other-flags");
 let activeStatus = "ALL";
+let reportSignature = null;
 let saveScrollTimer;
 let compileTimer;
 let draftSaveTimer;
@@ -982,7 +1039,105 @@ function updatePlaygroundLineStatus() {{
     : `Lines ${{startLine}}–${{endLine}} selected`;
 }}
 
+function updateProblematicCount() {{
+  const count = rows.filter(row => row.dataset.problematic === "true").length;
+  const badge = document.getElementById("implemented-problematic-count");
+  if (!badge) return;
+  badge.textContent = count ? `⚠ ${{count.toLocaleString()}}` : "";
+  badge.hidden = count === 0;
+}}
+
+function setRowProblematic(row, problematic) {{
+  row.dataset.problematic = problematic ? "true" : "false";
+  const readonly = row.querySelector('[data-role="problematic-readonly"]');
+  if (readonly) {{
+    readonly.textContent = problematic ? "⚠ Problematic" : "OK";
+    readonly.classList.toggle("is-problematic", problematic);
+  }}
+}}
+
+function wireRows() {{
+  const current = [...document.querySelectorAll("#functions tbody tr")];
+  rows.splice(0, rows.length, ...current);
+  originalRows.splice(0, originalRows.length, ...current);
+  functionOptions.replaceChildren();
+  const functions = [];
+  for (const row of current) {{
+    const name = row.dataset.symbol || row.cells[0].textContent.trim();
+    const cell = row.cells[0];
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "function-action";
+    button.textContent = name;
+    button.addEventListener("click", () => loadAssembly(name));
+    cell.replaceChildren(button);
+
+    const toggle = row.querySelector(".problematic-toggle");
+    if (toggle) {{
+      const problematic = row.dataset.problematic === "true";
+      toggle.setAttribute("aria-pressed", String(problematic));
+      toggle.textContent = problematic ? "⚠ Problematic" : "Flag problematic";
+      toggle.disabled = false;
+      toggle.addEventListener("click", async () => {{
+        const next = toggle.getAttribute("aria-pressed") !== "true";
+        const status = toggle.nextElementSibling;
+        toggle.disabled = true;
+        status.textContent = "Saving…";
+        try {{
+          await requestJson("/api/problematic", {{
+            method: "POST",
+            headers: {{ "Content-Type": "application/json" }},
+            body: JSON.stringify({{ symbol: toggle.dataset.symbol, problematic: next }})
+          }});
+          setRowProblematic(toggle.closest("tr"), next);
+          toggle.setAttribute("aria-pressed", String(next));
+          toggle.textContent = next ? "⚠ Problematic" : "Flag problematic";
+          status.textContent = next ? "Saved as problematic." : "Saved as not problematic.";
+          updateProblematicCount();
+          sortRows();
+          applyFilters();
+        }} catch (error) {{
+          status.textContent = `Save failed: ${{error.message}}`;
+        }} finally {{
+          toggle.disabled = false;
+        }}
+      }});
+    }}
+
+    const badge = row.cells[2].querySelector(".badge");
+    functions.push({{
+      symbol: name,
+      status: row.dataset.status,
+      statusLabel: badge ? badge.textContent.trim() : row.cells[2].textContent.trim()
+    }});
+  }}
+  functionStatuses = new Map(functions.map(item => [item.symbol, item.status]));
+  functionSymbols = new Map(functions.map(item => [item.symbol.toLowerCase(), item.symbol]));
+  for (const item of functions) {{
+    const address = item.symbol.match(/^func_([0-9a-f]+)$/i);
+    if (address) {{
+      functionSymbols.set(address[1].toLowerCase(), item.symbol);
+      functionSymbols.set(`0x${{address[1].toLowerCase()}}`, item.symbol);
+    }}
+    const option = document.createElement("option");
+    option.value = item.symbol;
+    option.label = item.statusLabel;
+    functionOptions.append(option);
+  }}
+}}
+
+function syncFlagEditVisibility() {{
+  const show = activeStatus === "NOT MATCHING";
+  editModeToggle.hidden = !show;
+  if (!show && document.body.classList.contains("edit-mode")) {{
+    document.body.classList.remove("edit-mode");
+    editModeToggle.setAttribute("aria-pressed", "false");
+    editModeToggle.textContent = "Flag edit";
+  }}
+}}
+
 function applyFilters() {{
+  syncFlagEditVisibility();
   const query = filter.value.trim().toLowerCase();
   let visible = 0;
   for (const row of rows) {{
@@ -997,7 +1152,14 @@ function applyFilters() {{
 
 function sortRows() {{
   const sorted = [...originalRows];
-  if (functionOrder.value !== "original") {{
+  if (functionOrder.value === "problematic") {{
+    sorted.sort((left, right) => {{
+      const leftProblematic = left.dataset.problematic === "true";
+      const rightProblematic = right.dataset.problematic === "true";
+      if (leftProblematic !== rightProblematic) return leftProblematic ? -1 : 1;
+      return 0;
+    }});
+  }} else if (functionOrder.value !== "original") {{
     const direction = functionOrder.value === "newest" ? -1 : 1;
     sorted.sort((left, right) => {{
       const leftTime = left.dataset.sourceEditedAt;
@@ -1011,18 +1173,24 @@ function sortRows() {{
   for (const row of sorted) functionRows.append(row);
 }}
 
-async function initializeBehaviorControls() {{
-  const checkboxes = [...document.querySelectorAll(".behavior-checkbox")];
-  if (!checkboxes.length) return;
+async function initializeProblematicControls() {{
+  const toggles = [...document.querySelectorAll(".problematic-toggle")];
+  if (!toggles.length) return;
   try {{
-    const result = await requestJson("/api/behavior");
-    for (const checkbox of checkboxes) {{
-      checkbox.checked = result.statuses[checkbox.dataset.symbol] === true;
-      checkbox.disabled = false;
+    const result = await requestJson("/api/problematic");
+    for (const toggle of toggles) {{
+      const problematic = result.statuses[toggle.dataset.symbol] === true;
+      setRowProblematic(toggle.closest("tr"), problematic);
+      toggle.setAttribute("aria-pressed", String(problematic));
+      toggle.textContent = problematic ? "⚠ Problematic" : "Flag problematic";
+      toggle.disabled = false;
     }}
+    updateProblematicCount();
+    sortRows();
+    applyFilters();
   }} catch (error) {{
-    for (const checkbox of checkboxes) {{
-      checkbox.parentElement.nextElementSibling.textContent =
+    for (const toggle of toggles) {{
+      toggle.nextElementSibling.textContent =
         `Could not load saved status: ${{error.message}}`;
     }}
   }}
@@ -1033,6 +1201,7 @@ function saveViewState() {{
   sessionStorage.setItem(refreshStateKey, JSON.stringify({{
     search: filter.value,
     status: activeStatus,
+    editMode: document.body.classList.contains("edit-mode"),
     order: functionOrder.value,
     scrollY: window.scrollY,
     rowName: topRow ? topRow.cells[0].textContent.trim() : "",
@@ -1366,15 +1535,7 @@ for (const tab of workspaceTabs) {{
     }}
   }});
 }}
-for (const row of rows) {{
-  const name = row.cells[0].textContent.trim();
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "function-action";
-  button.textContent = name;
-  button.addEventListener("click", () => loadAssembly(name));
-  row.cells[0].replaceChildren(button);
-}}
+wireRows();
 assemblyFunction.addEventListener("input", () => chooseFunctionFromSearch(assemblyFunction, loadAssembly));
 playgroundFunction.addEventListener("input", () => chooseFunctionFromSearch(playgroundFunction, loadPlaygroundFunction));
 document.getElementById("open-playground").addEventListener("click", () => {{
@@ -1402,36 +1563,12 @@ otherFlagsControl.addEventListener("input", () => {{
   scheduleCompilerProfileSave();
   scheduleCompile();
 }});
-try {{
-  const functions = rows.map(row => ({{
-    symbol: row.cells[0].querySelector("button").textContent,
-    status: row.dataset.status,
-    statusLabel: row.cells[2].textContent.trim()
-  }}));
-  functionStatuses = new Map(functions.map(item => [item.symbol, item.status]));
-  functionSymbols = new Map(functions.map(item => [item.symbol.toLowerCase(), item.symbol]));
-  for (const item of functions) {{
-      const address = item.symbol.match(/^func_([0-9a-f]+)$/i);
-      if (address) {{
-        functionSymbols.set(address[1].toLowerCase(), item.symbol);
-        functionSymbols.set(`0x${{address[1].toLowerCase()}}`, item.symbol);
-      }}
-      const option = document.createElement("option");
-    option.value = item.symbol;
-      option.label = item.statusLabel;
-    functionOptions.append(option);
-  }}
-  if (functions.length) {{
-    assemblyFunction.value = functions[0].symbol;
-    playgroundFunction.value = functions[0].symbol;
-  }}
-  requestJson("/api/ready").catch(() => {{
-    assemblyStatus.textContent = "Start tools\\\\dashboard.py to compare retail and build assembly.";
-    setPlaygroundStatus("Playground result: unavailable - start tools\\\\dashboard.py to compile and link functions.", "error");
-  }});
-}} catch (error) {{
-  assemblyStatus.textContent = error.message;
-}}
+if (rows.length && !assemblyFunction.value) assemblyFunction.value = rows[0].dataset.symbol;
+if (rows.length && !playgroundFunction.value) playgroundFunction.value = rows[0].dataset.symbol;
+requestJson("/api/ready").catch(() => {{
+  assemblyStatus.textContent = "Start tools\\\\dashboard.py to compare retail and build assembly.";
+  setPlaygroundStatus("Playground result: unavailable - start tools\\\\dashboard.py to compile and link functions.", "error");
+}});
 
 for (const button of buttons) {{
   button.addEventListener("click", () => {{
@@ -1441,6 +1578,12 @@ for (const button of buttons) {{
     saveViewState();
   }});
 }}
+editModeToggle.addEventListener("click", () => {{
+  const enabled = document.body.classList.toggle("edit-mode");
+  editModeToggle.setAttribute("aria-pressed", String(enabled));
+  editModeToggle.textContent = enabled ? "✓ Done flagging" : "Flag edit";
+  saveViewState();
+}});
 filter.addEventListener("input", () => {{
   applyFilters();
   saveViewState();
@@ -1450,31 +1593,7 @@ functionOrder.addEventListener("change", () => {{
   applyFilters();
   saveViewState();
 }});
-for (const checkbox of document.querySelectorAll(".behavior-checkbox")) {{
-  checkbox.addEventListener("change", async () => {{
-    const previousValue = !checkbox.checked;
-    const status = checkbox.parentElement.nextElementSibling;
-    checkbox.disabled = true;
-    status.textContent = "Saving…";
-    try {{
-      await requestJson("/api/behavior", {{
-        method: "POST",
-        headers: {{ "Content-Type": "application/json" }},
-        body: JSON.stringify({{
-          symbol: checkbox.dataset.symbol,
-          behaviorally_correct: checkbox.checked
-        }})
-      }});
-      status.textContent = checkbox.checked ? "Saved as behaviorally correct." : "Saved as unconfirmed.";
-    }} catch (error) {{
-      checkbox.checked = previousValue;
-      status.textContent = `Save failed: ${{error.message}}`;
-    }} finally {{
-      checkbox.disabled = false;
-    }}
-  }});
-}}
-initializeBehaviorControls();
+initializeProblematicControls();
 window.addEventListener("pagehide", () => {{
   saveViewState();
   window.clearTimeout(draftSaveTimer);
@@ -1516,7 +1635,7 @@ const refreshState = sessionStorage.getItem(refreshStateKey);
 const state = refreshState ? JSON.parse(refreshState) : null;
 if (state) {{
   filter.value = state.search;
-  if (["original", "newest", "oldest"].includes(state.order)) {{
+  if (["original", "newest", "oldest", "problematic"].includes(state.order)) {{
     functionOrder.value = state.order;
   }}
   if (buttons.some(button => button.dataset.statusFilter === state.status)) {{
@@ -1524,6 +1643,11 @@ if (state) {{
   }}
   for (const button of buttons) {{
     button.setAttribute("aria-pressed", String(button.dataset.statusFilter === activeStatus));
+  }}
+  if (state.editMode === true) {{
+    document.body.classList.add("edit-mode");
+    editModeToggle.setAttribute("aria-pressed", "true");
+    editModeToggle.textContent = "✓ Done flagging";
   }}
 }}
 sortRows();
@@ -1537,15 +1661,59 @@ if (state) {{
     window.scrollTo(0, state.scrollY);
   }}
 }}
-if (location.protocol !== "file:") function refreshProgressView() {{
-  if (location.protocol !== "file:" && document.getElementById("progress-view").classList.contains("active")) {{
-    saveViewState();
-    window.location.reload();
-  }} else {{
-    window.setTimeout(refreshProgressView, 30000);
+async function applyReport(data) {{
+  const active = document.activeElement;
+  let focus = null;
+  if (active && active.closest && active.closest("tr")) {{
+    const tr = active.closest("tr");
+    focus = {{ sym: tr.dataset.symbol, cls: active.className }};
+  }}
+
+  functionRows.innerHTML = data.rows_html;
+  document.getElementById("progress-track").innerHTML = data.progress_html;
+  document.getElementById("report-updated").textContent = data.generated_at;
+  document.getElementById("hero-total").textContent = data.total.toLocaleString();
+  document.getElementById("track-total").textContent = `${{data.total.toLocaleString()}} functions`;
+  for (const [status, count] of Object.entries(data.counts)) {{
+    if (status === "total") continue;
+    const el = document.querySelector(`[data-status-filter="${{status}}"] .filter-count`);
+    if (el) el.textContent = count.toLocaleString();
+  }}
+  const allCount = document.querySelector('[data-status-filter="ALL"] .filter-count');
+  if (allCount) allCount.textContent = data.total.toLocaleString();
+
+  wireRows();
+  await initializeProblematicControls();
+  sortRows();
+  applyFilters();
+
+  if (focus && focus.sym && focus.cls) {{
+    const target = rows.find(r => r.dataset.symbol === focus.sym);
+    if (target) {{
+      const selector = "." + focus.cls.trim().split(/\\s+/).join(".");
+      const element = target.querySelector(selector);
+      if (element) element.focus({{ preventScroll: true }});
+    }}
   }}
 }}
-window.setTimeout(refreshProgressView, 30000);
+
+async function pollReport() {{
+  if (location.protocol === "file:") return;
+  try {{
+    const sig = await requestJson("/api/report-signature");
+    if (reportSignature === null) {{
+      reportSignature = sig.signature;
+    }} else if (sig.signature !== reportSignature) {{
+      reportSignature = sig.signature;
+      const data = await requestJson("/api/report");
+      await applyReport(data);
+    }}
+  }} catch (error) {{
+    // Dashboard offline (e.g. stopped while the page is open); retry later.
+  }}
+  window.setTimeout(pollReport, 1500);
+}}
+pollReport();
 </script>
 </body>
 </html>

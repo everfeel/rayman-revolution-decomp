@@ -3,6 +3,7 @@
 
 import argparse
 import csv
+import hashlib
 import json
 import re
 import subprocess
@@ -40,7 +41,7 @@ def function_implementation_status(symbol):
     raise ValueError(f"{symbol} is missing from {progress.CSV_REPORT}.")
 
 
-def behavioral_statuses():
+def problematic_statuses():
     with progress.CSV_REPORT.open(encoding="utf-8-sig", newline="") as report:
         eligible = {
             row["function"]
@@ -49,17 +50,75 @@ def behavioral_statuses():
         }
     state = progress.load_source_timestamp_state()
     return {
-        symbol: state.get(symbol, {}).get("behaviorally_correct", False)
+        symbol: state.get(symbol, {}).get("problematic", False)
         for symbol in eligible
     }
 
 
-def save_behavioral_status(symbol, value):
+def save_problematic(symbol, value):
     if function_implementation_status(symbol) != "NOT MATCHING":
         raise ValueError(
-            "Behavioral status is available only for implemented, non-matching functions."
+            "Problematic status is available only for implemented, non-matching functions."
         )
-    progress.set_behaviorally_correct(symbol, value)
+    progress.set_problematic(symbol, value)
+
+
+def report_signature():
+    digest = hashlib.sha256()
+    for path in (progress.CSV_REPORT, progress.HTML_REPORT):
+        try:
+            info = path.stat()
+            digest.update(f"{path.name}:{info.st_mtime_ns}:{info.st_size};".encode())
+        except OSError:
+            digest.update(f"{path.name}:missing;".encode())
+    return digest.hexdigest()
+
+
+def report_generated_at():
+    try:
+        text = progress.HTML_REPORT.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    match = re.search(r'id="report-updated">([^<]*)<', text)
+    return match.group(1) if match else ""
+
+
+def report_payload():
+    with progress.CSV_REPORT.open(encoding="utf-8-sig", newline="") as report:
+        csv_rows = list(csv.DictReader(report))
+    statuses = problematic_statuses()
+    rows = []
+    for row in csv_rows:
+        status = row["status"]
+        rows.append(
+            {
+                "name": row["function"],
+                "address": int(row["address"], 16),
+                "status": status,
+                "problematic": (
+                    statuses.get(row["function"], False)
+                    if status == "NOT MATCHING"
+                    else False
+                ),
+                "retail_size": row["original_size_bytes"],
+                "matching_bytes": row["matching_bytes"],
+                "first_difference": row["first_difference"],
+                "source_edited_at": row["source_edited_at"],
+            }
+        )
+    counts = {
+        status: sum(row["status"] == status for row in rows)
+        for status in progress.STATUS_CLASS
+    }
+    counts["total"] = len(rows)
+    return {
+        "signature": report_signature(),
+        "generated_at": report_generated_at(),
+        "total": len(rows),
+        "counts": counts,
+        "rows_html": progress.table_rows_html(rows),
+        "progress_html": progress.progress_bar_html(counts),
+    }
 
 
 def function_reference(symbol):
@@ -413,9 +472,21 @@ class RequestHandler(BaseHTTPRequestHandler):
         if route.path == "/api/ready":
             self.send_json(200, {"ready": True})
             return
-        if route.path == "/api/behavior":
+        if route.path == "/api/report-signature":
             try:
-                self.send_json(200, {"statuses": behavioral_statuses()})
+                self.send_json(200, {"signature": report_signature()})
+            except (OSError, UnicodeError, ValueError) as error:
+                self.send_json(500, {"error": str(error)})
+            return
+        if route.path == "/api/report":
+            try:
+                self.send_json(200, report_payload())
+            except (OSError, UnicodeError, ValueError) as error:
+                self.send_json(500, {"error": str(error)})
+            return
+        if route.path == "/api/problematic":
+            try:
+                self.send_json(200, {"statuses": problematic_statuses()})
             except (OSError, UnicodeError, ValueError) as error:
                 self.send_json(500, {"error": str(error)})
             return
@@ -460,7 +531,7 @@ class RequestHandler(BaseHTTPRequestHandler):
             "/api/compile",
             "/api/draft",
             "/api/profile",
-            "/api/behavior",
+            "/api/problematic",
         ):
             self.send_error(404)
             return
@@ -480,18 +551,18 @@ class RequestHandler(BaseHTTPRequestHandler):
         if not isinstance(request, dict):
             self.send_json(400, {"error": "Request body must be a JSON object."})
             return
-        if route.path == "/api/behavior":
+        if route.path == "/api/problematic":
             try:
-                save_behavioral_status(
+                save_problematic(
                     request.get("symbol"),
-                    request.get("behaviorally_correct"),
+                    request.get("problematic"),
                 )
             except (UnicodeError, ValueError) as error:
                 self.send_json(400, {"error": str(error)})
                 return
             except OSError as error:
                 self.send_json(
-                    500, {"error": f"Could not save behavioral status: {error}"}
+                    500, {"error": f"Could not save problematic status: {error}"}
                 )
                 return
             self.send_json(200, {"saved": True})

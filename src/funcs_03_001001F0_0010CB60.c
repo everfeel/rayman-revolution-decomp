@@ -4,6 +4,14 @@ typedef struct __attribute__((packed)) {
     u64 value;
 } UnalignedU64;
 
+/* Plain 12-byte record; the codegen for copying it is the ldl/ldr + sdl/sdr
+   doubleword pair plus a trailing word, which is what retail does. */
+typedef struct {
+    u32 a;
+    u32 b;
+    u32 c;
+} Struct12;
+
 extern s32 D_00392F24;
 extern s32 D_0039347C;
 extern s32 D_00393178;
@@ -2046,7 +2054,25 @@ void func_00106E40(u8 *arg0, u8 arg1)
         arg0[0xF3] = 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00106E60);
+/* Byte-matching.  Advances a byte counter, wrapping it back to zero when it reaches the limit. */
+void func_00106E60(void *node)
+{
+    u8 *a = (u8 *)node;
+    u8 *q;
+    u8 *n;
+    int v;
+
+    if (a == 0)
+        return;
+    q = *(u8 **)(a + 4);
+    n = *(u8 **)q;
+    if (n == 0)
+        return;
+    v = n[0xF3] + 1;
+    n[0xF3] = v;
+    if (!((s8)v < n[0xF2]))
+        n[0xF3] = 0;
+}
 
 s32 func_00106EA8(void *node)
 {
@@ -2073,7 +2099,19 @@ s32 func_00106ED8(u8 *arg0, s32 arg1, u8 *arg2)
     return arg0[0xF1] & mask;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00106F10);
+/* Byte-matching.  Sets or clears bit arg1 in the flags at +0xF1 and, when arg3
+   is given, copies its 12-byte record into +0xE4. */
+void func_00106F10(u8 *arg0, s32 arg1, s32 arg2, Struct12 *arg3)
+{
+    u8 mask = 1 << arg1;
+
+    if (arg2 != 0)
+        *(u8 *)(arg0 + 0xF1) |= mask;
+    else
+        *(u8 *)(arg0 + 0xF1) &= ~mask;
+    if (arg3 != 0)
+        *(Struct12 *)(arg0 + 0xE4) = *arg3;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00106F60);
 
@@ -2155,7 +2193,19 @@ INCLUDE_ASM(const s32, "core/main", func_00107DB8);
 
 INCLUDE_ASM(const s32, "core/main", func_00107F10);
 
-INCLUDE_ASM(const s32, "core/main", func_00107F58);
+/* Byte-matching.  Clears the byte at +0x10 of each 0x14-stride record in the
+   table that starts at +0x17C, for the count held at +0x244. */
+void func_00107F58(u8 *arg0)
+{
+    s32 n = *(s16 *)(arg0 + 0x244);
+    u8 *p = arg0 + 0x17C;
+    u8 *end = p + n * 0x14;
+
+    while (p < end) {
+        *(u8 *)(p + 0x10) = 0;
+        p += 0x14;
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00107FA0);
 
@@ -2183,7 +2233,21 @@ INCLUDE_ASM(const s32, "core/main", func_001084E8);
 
 INCLUDE_ASM(const s32, "core/main", func_00108568);
 
-INCLUDE_ASM(const s32, "core/main", func_001085B0);
+/* Byte-matching.  Returns the per-case field of arg1 for the masked selector. */
+s32 func_001085B0(s32 arg0, u8 *arg1)
+{
+    switch (arg0 & 0xFF) {
+    case 0:
+        return *(s32 *)(arg1 + 0x10);
+    case 2:
+        return *(s32 *)(arg1 + 0x14);
+    case 1:
+        return *(s32 *)(arg1 + 0x18);
+    case 3:
+        return *(s32 *)(arg1 + 0x1C);
+    }
+    return 0;
+}
 
 s32 func_00108618(u8 *arg0)
 {
@@ -2476,8 +2540,8 @@ extern void func_0010DBB8();
 extern void func_00119518();
 extern void func_0010DC28();
 extern s32 func_0011BC68(void);
-extern void func_0011D0C0();
-extern void func_0014BAA0();
+extern s32 func_0011D0C0(void);
+extern s32 func_0014BAA0(void);
 extern void func_0014C1B8();
 extern void func_001456F0();
 extern void func_0016EFA8();
@@ -2709,7 +2773,22 @@ INCLUDE_ASM(const s32, "core/main", func_0010A9F0);
 
 void func_0010AA48(void) { func_0010AA50(); }
 
-INCLUDE_ASM(const s32, "core/main", func_0010AA50);
+/* Byte-matching.  Releases the id held at +0 when there is one, then clears the
+   record: state byte at +8, the -1 at +4 and the id itself. */
+void func_0010AA50(u8 *arg0)
+{
+    void func_001DFD08(s32 id);
+    s32 id;
+
+    if (arg0 == 0)
+        return;
+    id = *(s32 *)arg0;
+    if (id != 0)
+        func_001DFD08(id);
+    *(u8 *)(arg0 + 8) = 0;
+    *(s32 *)(arg0 + 4) = -1;
+    *(s32 *)arg0 = 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0010AA98);
 
