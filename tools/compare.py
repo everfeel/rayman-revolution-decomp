@@ -19,6 +19,7 @@ class Elf32LE:
     def __init__(self, path):
         self.path = Path(path)
         self.data = self.path.read_bytes()
+        self._symbols = None
         if len(self.data) < 52 or self.data[:4] != b"\x7fELF":
             raise ValueError(f"{self.path}: not an ELF file")
         if self.data[4:6] != b"\x01\x01":
@@ -109,7 +110,12 @@ class Elf32LE:
             "is not file-backed (overlay functions need an extracted overlay image)"
         )
 
-    def symbol(self, name):
+    def _symbol_index(self):
+        """Every symbol table read once: lookups are called per function and
+        a linear scan per call is quadratic over a 4000-function object."""
+        if self._symbols is not None:
+            return self._symbols
+        index = {}
         for section in self.sections:
             if section["type"] != SHT_SYMTAB:
                 continue
@@ -120,14 +126,23 @@ class Elf32LE:
             if entry_size < 16 or section["size"] % entry_size:
                 raise ValueError(f"{self.path}: malformed symbol table")
             count = section["size"] // entry_size
-            for index in range(count):
-                offset = section["offset"] + index * entry_size
+            base = section["offset"]
+            for position in range(count):
                 name_offset, value, size, info, _, _ = struct.unpack_from(
-                    "<IIIBBH", self.data, offset
+                    "<IIIBBH", self.data, base + position * entry_size
                 )
-                if self._string_at(strings, name_offset) == name:
-                    return {"value": value, "size": size, "type": info & 0xF}
-        raise ValueError(f"{self.path}: symbol {name!r} not found in a symbol table")
+                name = self._string_at(strings, name_offset)
+                if name and name not in index:
+                    index[name] = {"value": value, "size": size, "type": info & 0xF}
+        self._symbols = index
+        return index
+
+    def symbol(self, name):
+        index = self._symbol_index()
+        try:
+            return index[name]
+        except KeyError:
+            raise ValueError(f"{self.path}: symbol {name!r} not found in a symbol table")
 
 
 def parse_int(value):

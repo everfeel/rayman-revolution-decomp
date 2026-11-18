@@ -59,7 +59,7 @@ s32 func_00139BA0();
 s32 func_00139CE0();
 s32 func_0013A910();
 s32 func_001378C0();
-s32 func_0012F180(s32, s32, s32, s32, f32);
+s32 func_0012F180(s32, s32, s32, s32, s32, s32, f32);  /* 0x333C0/0x33894: $4-$9 + $f12 */
 s32 func_0013A148(s32, f32);
 
 s32 func_00131D78(s32, s32, f32);   /* recursive */
@@ -376,9 +376,8 @@ L_00132428:
     /* "c1 0x84" (0x84000046) targets $0: no effect */
     r4 = M32(r19, 0xC);                           /* bc1fl delay slot */
     if (!(f1 < 0.5f)) goto L_00132458;            /* bc1fl: f1 >= 0.5 */
-    r4 = M32(r19, 0xC);                           /* delay slot of jal */
-    r2 = func_0013B420();                         /* 0x32440 */
-    r4 = arg2;                                    /* reloaded by delay at 0x32444 */
+    r4 = M32(sp, 0x210);                          /* jal delay slot: $4 = arg2 */
+    r2 = func_0013B420(r4);                       /* 0x32440 */
     if (r2 == 0) goto L_00132454;
     r2 = 1;                                       /* delay slot */
     D_003931A8 = r2;
@@ -694,7 +693,7 @@ L_0013295C:
     r4 = M32(sp, 0x204);
     if (r2 == 0) goto L_00132970;                 /* beqz; delay lw $4,0x204 */
     r6 = r19;
-    func_001399D8(r4, D_003931B0);                /* 0x32968 (delay $5) */
+    func_001399D8(r4, D_003931B0, r6);            /* 0x32968 (delay $5) */
 L_00132970:
     r7 = M32(sp, 0x20C);
     r6 = r19;                                     /* beqz delay slot at 0x32978: always */
@@ -715,8 +714,8 @@ L_001329A4:
     r7 = (s32)sp + 0x180;
     r8 = r20;                                     /* delay slot */
     func_0013A910(r4, r5, r6, r7, r8);            /* 0x329B0 */
-    r2 = func_0013B420();                         /* 0x329B8 */
-    r4 = M32(sp, 0x210);                          /* delay slot */
+    r4 = M32(sp, 0x210);                          /* jal delay slot: $4 = arg2 */
+    r2 = func_0013B420(r4);                       /* 0x329B8 */
     if (r2 == 0) goto L_001329E4;                 /* beqz result of 3B420 */
     r3 = D_003931A4;
     r2 = 1;
@@ -1303,7 +1302,7 @@ L_00133368:
     f12 = f23;
     MF(r2, 0xC) = f0;                             /* delay slot */
     r9 = 0;
-    func_0012F180(r4, r5, r6, r7, f23);           /* 0x333C0: $f12 = fArg */
+    func_0012F180(r4, r5, r6, r7, r8, r9, f23);   /* 0x333C0: $4-$9 + $f12 = fArg */
     /* ---- near-vector recursive check (0x333C8 - 0x33528) ------------- */
     r3 = M32(sp, 0x224);
     r2 = M32(r19, 0xC) & 0x4;
@@ -1369,7 +1368,7 @@ L_001334C8:
     r4 = M32(sp, 0x204);                          /* delay slot */
     if (r2 == 0) goto L_00133528;
     r6 = r19;
-    func_0013AD90(r4, D_003931B0);                /* delay $5 */
+    func_0013AD90(r4, D_003931B0, r6);            /* delay $5 */
     func_0013B258(r4, D_003931B0);                /* delay $5 */
     r6 = M32(sp, 0x204);
     r16 = (s32)sp + 0x190;
@@ -1577,7 +1576,7 @@ L_00133850:
     f12 = f23;
     MF(r2, 0xC) = f0;                             /* delay slot */
     r9 = 0;
-    func_0012F180(r4, r5, r6, r7, f23);           /* 0x33894: $f12 = fArg */
+    func_0012F180(r4, r5, r6, r7, r8, r9, f23);   /* 0x33894: $4-$9 + $f12 = fArg */
     /* ---- near check + second recursive call (0x3389C - 0x3394C) ------- */
     f1 = 0.0f;
     r2 = 0;

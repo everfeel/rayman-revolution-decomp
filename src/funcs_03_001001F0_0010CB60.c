@@ -4,6 +4,13 @@ typedef struct __attribute__((packed)) {
     u64 value;
 } UnalignedU64;
 
+/* 12-byte record copied as a whole: packed doubleword + aligned word. The
+   aggregate copy keeps ldl/ldr/lw together before sdl/sdr/sw, as retail does. */
+typedef struct
+{
+    UnalignedU64 v;
+    u32 w;
+} Unaligned12;
 /* Plain 12-byte record; the codegen for copying it is the ldl/ldr + sdl/sdr
    doubleword pair plus a trailing word, which is what retail does. */
 typedef struct {
@@ -2092,10 +2099,7 @@ s32 func_00106ED8(u8 *arg0, s32 arg1, u8 *arg2)
     u8 mask = (1 << arg1) & 0xFF;
 
     if (arg2 != 0)
-    {
-        *(UnalignedU64 *)arg2 = *(UnalignedU64 *)(arg0 + 0xE4);
-        *(s32 *)(arg2 + 8) = *(s32 *)(arg0 + 0xEC);
-    }
+        *(Unaligned12 *)arg2 = *(Unaligned12 *)(arg0 + 0xE4);
     return arg0[0xF1] & mask;
 }
 
@@ -2785,9 +2789,9 @@ void func_0010AA50(u8 *arg0)
     id = *(s32 *)arg0;
     if (id != 0)
         func_001DFD08(id);
-    *(u8 *)(arg0 + 8) = 0;
-    *(s32 *)(arg0 + 4) = -1;
     *(s32 *)arg0 = 0;
+    *(s32 *)(arg0 + 4) = -1;
+    *(u8 *)(arg0 + 8) = 0;
 }
 
 INCLUDE_ASM(const s32, "core/main", func_0010AA98);

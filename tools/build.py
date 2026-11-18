@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Build the main Rayman Revolution ELF with the configured SN Systems SDK."""
 
+import hashlib
 import re
 import shlex
 import subprocess
@@ -52,6 +53,10 @@ RESERVED_FLAG = re.compile(r"-(?:[cSE]|o.*|x.*)")
 GLOBAL_DIRECTIVE = "@global"
 # Set to True to apply @global arguments to every C module in modules.txt.
 USE_GLOBAL_COMPILER_FLAGS = False
+# Optional alternate C frontend (a cc1.exe) for experiments, set by
+# tools/compiler_sweep.py. Only the -S step uses it; assembling and linking
+# stay with the real driver, and the normal build leaves it None.
+C_FRONTEND = None
 
 
 @dataclass(frozen=True)
@@ -168,6 +173,35 @@ def assembly_flags(global_flags, module_flags=()):
 def fail(message):
     print(f"build: {message}", file=sys.stderr)
     return 1
+
+
+PREPROCESSED = BUILD / "pp"
+
+
+def preprocessed_source(source, common_flags, log):
+    """The preprocessed form of a C input, cached by its text and flags.
+
+    A frontend sweep compiles the same input once per frontend; without this
+    the preprocessor runs again for each. Keyed by content, so a candidate that
+    is tried twice, or in two frontends, costs one cpp run. Returns None on
+    failure.
+    """
+    text = source.read_bytes()
+    digest = hashlib.sha1()
+    for flag in common_flags:
+        digest.update(str(flag).encode() + b"\0")
+    digest.update(b"\0" + text)
+    target = PREPROCESSED / (digest.hexdigest() + ".i")
+    if target.is_file() and target.stat().st_size:
+        return target
+    PREPROCESSED.mkdir(parents=True, exist_ok=True)
+    if not compile_source(
+        [str(COMPILER), *common_flags, "-E", str(source), "-o", str(target)],
+        f"preprocess {source.name}",
+        log,
+    ):
+        return None
+    return target
 
 
 def compile_source(command, label, log):
@@ -373,12 +407,25 @@ def compile_c_source(
     assembly_path.parent.mkdir(parents=True, exist_ok=True)
     object_path.parent.mkdir(parents=True, exist_ok=True)
 
+    compiler_input = source
+    if C_FRONTEND is None:
+        frontend_command = [str(COMPILER), *common_flags, "-S"]
+    else:
+        # A bare cc1 does not preprocess and takes no driver options: run the
+        # real driver's preprocessor first (cached by content), then hand the
+        # .i file to the frontend.
+        compiler_input = preprocessed_source(source, common_flags, log)
+        if compiler_input is None:
+            return None
+        frontend_command = [
+            str(C_FRONTEND),
+            *[flag for flag in common_flags if not flag.startswith("-Wa")],
+            "-quiet",
+        ]
     if not compile_source(
         [
-            str(COMPILER),
-            *common_flags,
-            "-S",
-            str(source),
+            *frontend_command,
+            str(compiler_input),
             "-o",
             str(assembly_path),
         ],

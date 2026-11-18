@@ -49,9 +49,10 @@ def elf_symbols():
 
 def retail_size(func):
     import csv
-    for row in csv.reader(open(ROOT / 'progress/functions.csv')):
-        if len(row) > 3 and row[0] == func:
-            return int(row[3])
+    with open(ROOT / 'progress/functions.csv', encoding='utf-8-sig', newline='') as f:
+        for row in csv.DictReader(f):
+            if row['function'] == func:
+                return int(row['original_size_bytes'])
     raise KeyError(func)
 
 

@@ -13,9 +13,9 @@ This project originally started with the goal of achieving a byte-matching decom
 # Rayman Revolution (PAL) decompilation project
 
 <!-- BEGIN GENERATED PROGRESS -->
-![Progress: 2,037 byte-matches, 123 implemented (1 problematic), 3,485 not implemented](progress/progress.svg)
+![Progress: 2,058 byte-matches, 118 implemented, 3,469 not implemented](progress/progress.svg)
 
-**Byte-match:** 2,037 · **Implemented:** 123 (1 problematic) · **Not implemented:** 3,485.
+**Byte-match:** 2,058 · **Implemented:** 118 · **Not implemented:** 3,469.
 <!-- END GENERATED PROGRESS -->
 
 This is a decompilation of the PAL PlayStation 2 main executable, `SLES_500.44`. The goal is to recover the executable as buildable C source while preserving the original game's behavior, and ultimately to match the retail executable byte for byte. These goals can be pursued in stages: a behaviorally faithful C implementation is valuable even before it matches the original machine code.
@@ -111,6 +111,8 @@ Arguments apply to the entire C file, so separate functions into different modul
 The optional `@global` line in `src\modules.txt` defines C arguments to use for all C files when `USE_GLOBAL_COMPILER_FLAGS = True` is selected in `tools\build.py`. It is `False` by default, so per-file arguments are active. Prefer the existing per-file mode unless a project-wide change is intentional and has been checked against existing implementations.
 
 For detailed options supported by this installed compiler, see [docs/ee-compiler-options.txt](docs/ee-compiler-options.txt). The playground is useful for isolated compiler experiments, but a playground match does not automatically change the project build settings.
+
+When a function resists matching, read [docs/REFERENCE.md](docs/REFERENCE.md): the central source of truth for build facts, pattern→construct idioms, struct and statement-order levers, known walls, dead ends, function-specific findings, and the tool map. Update it whenever a new pattern or confirmed discovery is found. The fast loop is `python tools/try_func.py <func> candidate.c [--diff]` (candidate tested inside its real source file, no full build), with `python tools/regalloc.py <func> candidate.c` when only a register differs, `python tools/dossier.py <func>` to gather everything about a function before starting, `python tools/diff_words.py` for per-word differences across the build, `python tools/file_check.py <src/file.c>` to confirm a landing did not break neighbours, `python tools/check_regressions.py` to prove nothing fell out of the tree, `python tools/rank_candidates.py` to pick the next function, `python tools/nonmatching.py` for the near-miss queue, `python tools/apply_candidate.py` to land a passing candidate, and `python tools/permute.py` when only the statement order is wrong.
 
 ## Setup
 
@@ -209,3 +211,8 @@ Edit project C under `src\` and hand-written assembly under `src\asm\`. Treat re
 - **Missing `asm\data` or linker inputs:** run `tools\setup_asm.py` successfully before building.
 - **Dashboard reports stale build inputs:** run `tools\build.py`, then refresh the page.
 - **Compiler or linker errors:** inspect `build\build.log`; for playground-only failures, read the reported compiler/linker output and check unresolved symbols and declarations.
+
+## Credits
+
+- [OpenRAC/rac1-decomp](https://github.com/OpenRAC/rac1-decomp) — the matching tools in `tools/` are adapted from its toolset (GPL-3.0).
+- The decompilation environment and pinned compiler toolchain follow the setup documented by the PS2 decompilation community.

@@ -3,6 +3,14 @@
 typedef struct __attribute__((packed)) {
     u64 value;
 } UnalignedU64;
+
+/* 16-byte unaligned record: two packed doublewords. Copying it as one
+   aggregate keeps both loads before both stores. */
+typedef struct
+{
+    UnalignedU64 lo;
+    UnalignedU64 hi;
+} Unaligned16;
 typedef struct __attribute__((packed)) {
     u64 value;
     u32 extra;
@@ -804,7 +812,19 @@ s32 func_001138A8(s32 *p, s32 value) { p[6] = value; p[7] = 1; return 1; }
 
 INCLUDE_ASM(const s32, "core/main", func_001138B8);
 
-INCLUDE_ASM(const s32, "core/main", func_00113998);
+typedef struct {
+    u8 data[16];
+    u32 value;
+} S00113998Blk;
+
+typedef struct {
+    S00113998Blk *arr;
+} S00113998Hdr;
+
+void func_00113998(S00113998Hdr *a, S00113998Hdr *b, u16 i, u16 j)
+{
+    a->arr[i] = b->arr[j];
+}
 
 u16 func_001139E8(const u16 *p) { return p[4]; }
 
@@ -1278,8 +1298,7 @@ s32 func_00119508(const u8 *source, s32 *destination) { s32 value = *source != 0
 
 void func_00119518(u8 *arg0, u8 *arg1)
 {
-    *(UnalignedU64 *)(arg0 + 0x70) = *(UnalignedU64 *)arg1;
-    *(UnalignedU64 *)(arg0 + 0x78) = *(UnalignedU64 *)(arg1 + 8);
+    *(Unaligned16 *)(arg0 + 0x70) = *(Unaligned16 *)arg1;
     func_0014E7D8(arg0);
 }
 
