@@ -3787,7 +3787,14 @@ f32 func_00217DA0(f32);
 /* Globals: the contact array, the movement-sequence pass counter, the
  * tangential delta remembered for the first pass, and the literal-pool
  * constants (referenced by symbol, never by value). */
-extern u8  D_003931B0[];
+/* D_003931B0 is a POINTER variable, not the array itself: the word at
+ * 0x003931B0 holds 0x00384178 in the retail image and every one of the 67
+ * references in the game is a `lw` (load the pointer), never an `addiu`/
+ * `la` (take the address).  Passing its address hands the contact routines
+ * the 4 bytes of the pointer plus whatever follows them (0xFF7FFFF8 lives at
+ * 0x003931BC), so contacts used to be written over the globals instead of
+ * into the buffer. */
+extern u8 *D_003931B0;
 extern f32 D_00331148[3];
 extern f32 D_003926B4;          /* 1.0471976 = pi/3, fed to tanf          */
 extern f32 D_003926B8;          /* 0.001  - delta-is-zero epsilon         */
