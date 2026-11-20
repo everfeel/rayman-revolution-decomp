@@ -2664,7 +2664,221 @@ INCLUDE_ASM(const s32, "core/main", func_001232E8);
 
 INCLUDE_ASM(const s32, "core/main", func_001241D8);
 
-INCLUDE_ASM(const s32, "core/main", func_00124260);
+/* The matrix macros above are #undef'd before func_001224F8; the classifier
+ * below needs the field accessor again. */
+#define M_F(p, o) (*(f32 *)((p) + (o)))
+
+/* ------------------------------------------------------------------------- */
+/* func_00124260 - transform node classifier (0x448 bytes)                    */
+/* ------------------------------------------------------------------------- */
+/* Classifies the 0x54-byte transform record (16 floats at +0x00: four rows of
+ * four, translation in row 3 at +0x30/+0x34/+0x38 with 1.0 at +0x3C), stores
+ * the scale factors the inverse path (func_00121888) expects at +0x40/+0x44/
+ * +0x48 (w at +0x4C) and writes the type tag at +0x50:
+ *
+ *   1  identity                  (func_00120D48 writes this tag)
+ *   2  translation only          matrix forced to identity, scale = 1
+ *   3  uniform scale             +0x40/+0x44/+0x48 = the diagonal value
+ *   4  scale                     +0x40/+0x44/+0x48 = the three diagonal values
+ *   5  rotation                  rows have unit length, scale = 1
+ *   6  uniform scale + rotation  +0x40/+0x44/+0x48 = sqrt(|row0|^2)
+ *   7  scale + rotation          +0x40/+0x44/+0x48 = sqrt of each row length
+ *   8  general (shear)           scale slots = D_0039318C (0x7F7FFFF8,
+ *                                "not decomposable" marker)
+ *
+ * Nothing is returned: only the record is classified in place.  The function
+ * has no stack frame and, when the record is already an identity, tail-calls
+ * func_00120D48 (the identity reset).                                             */
+extern f32 D_0039255C;          /* 0.0001f - off-diagonal is zero */
+extern f32 D_00392560;          /* 0.0001f - diagonal entry is one */
+extern f32 D_00392564;          /* 0.0001f - diagonal entries agree */
+extern f32 D_00392568;          /* 0.0001f - length / orthogonality */
+extern f32 D_0039318C;          /* 3.40282205e+38f (0x7F7FFFF8), unknown scale */
+
+f32 fabsf(f32);
+
+/* R5900 sqrt.s.  This module is compiled with -O2 only (no -ffast-math), so
+ * sqrtf() would become a library call that the retail link does not provide;
+ * spell the instruction out (same idiom as funcs_06).  ee-as encodes the
+ * source operand in the ft field, e.g. `sqrt.s $f1,$f1` is 0x46010044, which
+ * is exactly how the retail build encodes the three square roots below. */
+#define F_SQRT(x) ({                                            \
+    float r_;                                                   \
+    __asm__ volatile ("sqrt.s %0,%1" : "=&f"(r_) : "f"(x));    \
+    r_;                                                         \
+})
+
+/* Three-term dot product in the FPU accumulator, which rounds once like the
+ * retail mula.s/madda.s/madd.s triples (a plain a*b+c*d+e*f rounds twice and
+ * can flip the 1e-4 comparisons below at the last bit). */
+#define F_DOT3(a, b, c, d, e, f) ({                             \
+    float r_;                                                   \
+    __asm__ volatile ("mula.s %1,%2\n\t"                        \
+                      "madda.s %3,%4\n\t"                       \
+                      "madd.s %0,%5,%6"                         \
+                      : "=&f"(r_)                               \
+                      : "f"(a), "f"(b), "f"(c),                 \
+                        "f"(d), "f"(e), "f"(f));                \
+    r_;                                                         \
+})
+
+void func_00124260(u8 *arg0)
+{
+    f32 d0;
+    f32 d1;
+    f32 d2;
+    f32 mx;
+    f32 s;
+    s32 diagonal;
+    s32 identity;
+    s32 untranslated;
+
+    /* the 3x3 part is diagonal (all six off-diagonal entries are zero) */
+    diagonal = 0;
+    if (fabsf(M_F(arg0, 0x04)) < D_0039255C &&
+        fabsf(M_F(arg0, 0x08)) < D_0039255C &&
+        fabsf(M_F(arg0, 0x10)) < D_0039255C &&
+        fabsf(M_F(arg0, 0x18)) < D_0039255C &&
+        fabsf(M_F(arg0, 0x20)) < D_0039255C &&
+        fabsf(M_F(arg0, 0x24)) < D_0039255C)
+        diagonal = 1;
+
+    /* ... and diagonal with unit scale, i.e. an identity rotation */
+    identity = 0;
+    if (diagonal &&
+        fabsf(M_F(arg0, 0x00) - 1.0f) < D_00392560 &&
+        fabsf(M_F(arg0, 0x14) - 1.0f) < D_00392560 &&
+        fabsf(M_F(arg0, 0x28) - 1.0f) < D_00392560)
+        identity = 1;
+
+    /* exact zero test on the translation row */
+    untranslated = 0;
+    if (M_F(arg0, 0x30) == 0.0f && M_F(arg0, 0x34) == 0.0f &&
+        M_F(arg0, 0x38) == 0.0f)
+        untranslated = 1;
+
+    if (identity) {
+        if (untranslated != 0) {
+            /* fully identity: let the canonical reset tag and fill it */
+            func_00120D48((u32)arg0);
+            return;
+        }
+
+        /* pure translation: identity rotation, scale 1, translation kept */
+        *(u8 *)(arg0 + 0x50) = 2;
+        M_F(arg0, 0x00) = 1.0f;
+        M_F(arg0, 0x04) = 0.0f;
+        M_F(arg0, 0x08) = 0.0f;
+        M_F(arg0, 0x0C) = 0.0f;
+        M_F(arg0, 0x10) = 0.0f;
+        M_F(arg0, 0x14) = 1.0f;
+        M_F(arg0, 0x18) = 0.0f;
+        M_F(arg0, 0x1C) = 0.0f;
+        M_F(arg0, 0x20) = 0.0f;
+        M_F(arg0, 0x24) = 0.0f;
+        M_F(arg0, 0x28) = 1.0f;
+        M_F(arg0, 0x2C) = 0.0f;
+        M_F(arg0, 0x40) = 1.0f;
+        M_F(arg0, 0x44) = 1.0f;
+        M_F(arg0, 0x48) = 1.0f;
+        M_F(arg0, 0x4C) = 1.0f;
+        return;
+    }
+
+    if (diagonal) {
+        if (fabsf(M_F(arg0, 0x00) - M_F(arg0, 0x14)) < D_00392564 &&
+            fabsf(M_F(arg0, 0x00) - M_F(arg0, 0x28)) < D_00392564) {
+            /* uniform scale */
+            *(u8 *)(arg0 + 0x50) = 3;
+            M_F(arg0, 0x40) = M_F(arg0, 0x00);
+            M_F(arg0, 0x44) = M_F(arg0, 0x00);
+            M_F(arg0, 0x48) = M_F(arg0, 0x00);
+            M_F(arg0, 0x4C) = 1.0f;
+            return;
+        }
+
+        /* non-uniform scale */
+        *(u8 *)(arg0 + 0x50) = 4;
+        M_F(arg0, 0x40) = M_F(arg0, 0x00);
+        M_F(arg0, 0x44) = M_F(arg0, 0x14);
+        M_F(arg0, 0x48) = M_F(arg0, 0x28);
+        M_F(arg0, 0x4C) = 1.0f;
+        return;
+    }
+
+    /* squared length of each basis row (row 0 at +0x00, row 1 at +0x10,
+     * row 2 at +0x20) */
+    d0 = F_DOT3(M_F(arg0, 0x00), M_F(arg0, 0x00),
+                M_F(arg0, 0x04), M_F(arg0, 0x04),
+                M_F(arg0, 0x08), M_F(arg0, 0x08));
+    d2 = F_DOT3(M_F(arg0, 0x10), M_F(arg0, 0x10),
+                M_F(arg0, 0x14), M_F(arg0, 0x14),
+                M_F(arg0, 0x18), M_F(arg0, 0x18));
+    d1 = F_DOT3(M_F(arg0, 0x20), M_F(arg0, 0x20),
+                M_F(arg0, 0x24), M_F(arg0, 0x24),
+                M_F(arg0, 0x28), M_F(arg0, 0x28));
+    M_F(arg0, 0x40) = d0;
+    M_F(arg0, 0x44) = d2;
+    M_F(arg0, 0x48) = d1;
+    M_F(arg0, 0x4C) = 1.0f;
+
+    mx = d0;
+    if (mx < d2)
+        mx = d2;
+    if (mx < d1)
+        mx = d1;
+
+    if (fabsf(mx - 1.0f) < D_00392568) {
+        /* every row already has unit length: pure rotation */
+        *(u8 *)(arg0 + 0x50) = 5;
+        M_F(arg0, 0x40) = 1.0f;
+        M_F(arg0, 0x44) = 1.0f;
+        M_F(arg0, 0x48) = 1.0f;
+        M_F(arg0, 0x4C) = 1.0f;
+        return;
+    }
+
+    /* the three rows are mutually orthogonal: rotation times a diagonal scale */
+    if (fabsf(F_DOT3(M_F(arg0, 0x00), M_F(arg0, 0x10),
+                     M_F(arg0, 0x04), M_F(arg0, 0x14),
+                     M_F(arg0, 0x08), M_F(arg0, 0x18))) < D_00392568 &&
+        fabsf(F_DOT3(M_F(arg0, 0x00), M_F(arg0, 0x20),
+                     M_F(arg0, 0x04), M_F(arg0, 0x24),
+                     M_F(arg0, 0x08), M_F(arg0, 0x28))) < D_00392568 &&
+        fabsf(F_DOT3(M_F(arg0, 0x10), M_F(arg0, 0x20),
+                     M_F(arg0, 0x14), M_F(arg0, 0x24),
+                     M_F(arg0, 0x18), M_F(arg0, 0x28))) < D_00392568) {
+        if (fabsf(d0 - d2) < D_00392568 && fabsf(d0 - d1) < D_00392568) {
+            /* uniform scale + rotation */
+            *(u8 *)(arg0 + 0x50) = 6;
+            s = F_SQRT(M_F(arg0, 0x40));
+            M_F(arg0, 0x40) = s;
+            M_F(arg0, 0x44) = s;
+            M_F(arg0, 0x48) = s;
+            M_F(arg0, 0x4C) = 1.0f;
+            return;
+        }
+
+        /* non-uniform scale + rotation */
+        *(u8 *)(arg0 + 0x50) = 7;
+        M_F(arg0, 0x40) = F_SQRT(M_F(arg0, 0x40));
+        M_F(arg0, 0x44) = F_SQRT(M_F(arg0, 0x44));
+        M_F(arg0, 0x48) = F_SQRT(M_F(arg0, 0x48));
+        M_F(arg0, 0x4C) = 1.0f;
+        return;
+    }
+
+    /* skewed basis: the scale cannot be extracted (retail loads the marker
+     * once and stores it in all three slots) */
+    s = D_0039318C;
+    *(u8 *)(arg0 + 0x50) = 8;
+    M_F(arg0, 0x40) = s;
+    M_F(arg0, 0x44) = s;
+    M_F(arg0, 0x48) = s;
+    M_F(arg0, 0x4C) = 1.0f;
+}
+
+#undef M_F
 
 INCLUDE_ASM(const s32, "core/main", func_001246A8);
 
@@ -2817,7 +3031,642 @@ INCLUDE_ASM(const s32, "core/main", func_0012B800);
 
 INCLUDE_ASM(const s32, "core/main", func_0012B908);
 
-INCLUDE_ASM(void, "core/main", func_0012BA18);
+/* ------------------------------------------------------------------------- */
+/* func_0012BA18 - per-frame update of a transform object (0x1D34 = 7476 B)  */
+/* ------------------------------------------------------------------------- */
+/* The object is a 0x114-byte-plus record that owns two 0x54-byte transform
+ * nodes: node A at +0x78 and node B at +0xCC (in this function's terms).  The
+ * routine is the "update" callback of the object vtable installed by
+ * func_00101980 (ptr[1] = func_0012BA18), so it runs once per frame per object.
+ *
+ * It does not return a status: the return value is the object pointer itself
+ * (`daddu $2,$16` on the way out), which the callers ignore.  Everything it
+ * does is driven by two flag words:
+ *   *(u32 *)(obj + 0x08)  behaviour bits, tested all over the function
+ *   *(u32 *)(obj + 0x0C)  state bits, cleared/re-set as the update proceeds
+ * plus a 16-bit-ish flag word at ctx+0x04 and the pointer at ctx+0x24 (the
+ * node the object is supposed to mirror).
+ *
+ * Two mutually exclusive paths, selected by bit 0x200 of the +0x0C word:
+ *   set    - "constrained" path: only integrates the stored velocity vector
+ *            (+0x3C/+0x40/+0x44), copies node B into ctx->node and returns.
+ *   clear  - the full update: up to `count` (= func_0014B930()) sub-steps of
+ *            dt (= func_0014B910()), running the whole per-bit behaviour chain
+ *            (func_00137CB8/func_00138170/func_00138390/... ) and finishing
+ *            with the node bookkeeping at the tail.
+ *
+ * Arguments of the tail calls are always (obj, ctx, step) or
+ * (obj, ctx_stack_node_copy, step, scratch node) - see the confirmed
+ * prototypes below. */
+
+/* 0x54-byte node copy, done as a struct assignment so that the compiler emits
+ * an inline block move (this module links without a libc memcpy). */
+typedef struct UBytes54 { u32 w[0x15]; } UBytes54;
+typedef struct UBytes12 { u32 w[3]; } UBytes12;
+#define U_COPY54(d, s) (*(UBytes54 *)(d) = *(UBytes54 *)(s))
+#define U_COPY12(d, s) (*(UBytes12 *)(d) = *(UBytes12 *)(s))
+
+/* Callees; all of them are still INCLUDE_ASM.  The float arguments must be
+ * declared, otherwise an implicit int prototype would put the value in the
+ * wrong register class. */
+s32 func_00108618(u8 *);
+s32 func_00108648(u8 *);
+s32 func_0010C9F0(u8 *);
+s32 func_0010CA50(u8 *);
+s32 func_0013B440(u8 *);
+f32 func_0014B910(void);
+s32 func_0014B930(void);
+void func_00121610(u8 *, u8 *, u8 *);
+u32 func_00124BB0(u8 *, u8 *, f32);
+s32 func_00124988(u8 *, u8 *);
+void func_00126510(u8 *, f32 *);
+void func_00127868(u8 *, f32 *);
+void func_00138030(u8 *);
+void func_00138170(u8 *, u8 *, f32, u8 *);
+void func_00138390(u8 *, u8 *, f32, u8 *);
+void func_001385D0(u8 *, u8 *, f32, u8 *);
+void func_001387F0(u8 *, s32, f32);
+void func_00138830(u8 *);
+void func_00138840(u8 *);
+void func_00138850(u8 *, f32 *);
+void func_00138988(u8 *, u8 *, f32, u8 *);
+void func_00138C28(u8 *, u8 *, u8 *);
+void func_00138ED0(u8 *, u8 *, u8 *, u8 *);
+u32 func_00138FA0(u8 *, u8 *);
+/* Second argument is a gate: the body returns obj->f1C only when it is
+ * non-zero (and obj->flags has 0x80), otherwise 0.0f.  Retail passes a
+ * non-zero global address at both call sites, so any non-null value is
+ * behaviourally identical. */
+f32 func_00139828(u8 *, void *);
+s32 func_00139800(u8 *);
+s32 func_0013A148(u8 *, f32);
+void func_0013A1C8(u8 *);
+void func_0013A468(u8 *, u8 *);
+void func_0013A4A8(u8 *, f32 *);
+void func_0013A5D0(u8 *, f32 *);
+void func_0013A610(u8 *, f32);
+void func_0013B320(u8 *, f32 *);
+void func_0013B388(u8 *, f32);
+void func_00136970(u8 *);
+void func_00137C68(u8 *, f32);
+void func_00137CB8(u8 *, u8 *, f32, u8 *);
+void func_00137E10(u8 *, f32);
+void func_00133F40(u8 *, f32);
+void func_0012B800(u8 *, u8 *, f32);
+void func_0012B908(u8 *, u8 *, f32);
+s32 func_0012F6F0(u8 *, u8 *, f32);
+void func_0012F8D8(u8 *, u8 *, f32);
+void func_00130888(u8 *, u8 *, f32);
+s32 func_00131D78(u8 *, u8 *, f32);
+void func_001340F0(u8 *, u8 *, f32);
+s32 func_001346E8(u8 *, u8 *, f32);
+void func_0014AD50(u8 *);
+void func_0014AF20(u8 *);
+void func_0014B050(u8 *);
+
+extern f32 D_00392654;                  /* 0.0001f-ish tolerance, scale == 1 */
+extern f32 D_00392658;                  /* argument handed to func_00124BB0 */
+extern f32 D_00393198;                  /* "velocity is zero" threshold */
+extern f32 D_0039319C;
+extern f32 D_003931A0;
+extern u32 D_003931A4;
+extern u8  D_003931A8;
+extern s32 D_003931B8;                  /* frame counter, saturates at 10 */
+
+/* D_00330ED0 lives at 0x00330ED0, far outside gp range: retail addresses it
+ * absolutely with lui/addiu, so it is reached through an absolute pointer here
+ * (an extern would be assembled gp-relative and fail to link). Retail reads it
+ * twice in the tail, spelled D_00330ED4[-1] and D_00330F3C[-27] in the listing;
+ * both folds resolve to this same word. */
+#define U_D30ED0 (*(u32 *)0x00330ED0)
+
+u8 *func_0012BA18(u8 *obj, u8 *ctx)
+{
+    u32 n0[0x15];                       /* node copies (0x54 bytes each) */
+    u32 n60[0x15];
+    u32 nC0[0x15];
+    u32 n120[0x15];
+    u32 n180[0x15];
+    f32 v1E0[3];
+    f32 v1F0[3];
+    f32 v200[3];
+    f32 v210[3];
+    f32 v220[7];                        /* +0x00..; +0x0C is the w slot */
+    f32 v240[3];
+    u32 v250[4];
+    u8 *nodeA;                          /* obj + 0x78 */
+    u8 *nodeB;                          /* obj + 0xCC */
+    u8 *nodeC;                          /* obj + 0x2D4 */
+    u8 *nodeD;                          /* obj + 0x280 */
+    u8 *p148;                           /* *(obj + 0x148) */
+    u8 *p24;                            /* *(ctx + 0x24) */
+    u8 *pd;
+    u32 ctrl;
+    u32 flg8;
+    f32 dt;
+    f32 cnt;
+    f32 step;
+    f32 len;
+    s32 count;
+    s32 i;
+    s32 n;
+    s32 flag30;
+    u32 r274;
+    u32 r278;
+    u32 r27C;
+    u8 *scratch;                        /* 4th argument of func_00138ED0 */
+    u32 done;
+    s32 res;
+
+    nodeA = obj + 0x78;
+    nodeB = obj + 0xCC;
+    nodeC = obj + 0x2D4;
+    nodeD = obj + 0x280;
+    p148 = 0;
+    r274 = 0;
+    r278 = 0;
+    r27C = 0;
+
+    ctrl = *(u32 *)(obj + 0x0C);
+    if ((ctrl & 0x4000) != 0) {
+        p148 = *(u8 **)(obj + 0x148);
+        if ((ctrl & 0x4004) == 0x4004) {
+            for (i = 0; i < 7; i++)
+                v220[i] = 0.0f;
+        }
+        r274 = (u32)p148;
+        if ((*(u32 *)(p148 + 0x04) & 0x80) != 0)
+            *(u32 *)(p148 + 0x04) = 0x10000;
+        else
+            *(u32 *)(p148 + 0x04) = 0;
+        ctrl = *(u32 *)(obj + 0x0C);
+    }
+    /* mark "updated" and drop the pending-transform bit */
+    ctrl = (ctrl | 0x2000) & 0xFEFFFFFF;
+    *(u32 *)(obj + 0x0C) = ctrl;
+
+    /* early out: invisible / not attached / nothing pending */
+    if (func_00108618(ctx) == 0) {
+        if (func_0013B440(obj) != 0) {
+            ctrl = *(u32 *)(obj + 0x0C);
+            if ((ctrl & 0x1080) == 0)
+                return obj;
+        }
+    }
+
+    dt = func_0014B910();
+    count = func_0014B930();
+    cnt = (f32)count;
+    step = cnt * dt;
+
+    ctrl = *(u32 *)(obj + 0x0C);
+
+    func_00120D48((u8 *)n0);
+    func_00120D48((u8 *)nC0);
+    p24 = *(u8 **)(ctx + 0x24);
+    func_00120D48((u8 *)n180);
+
+    i = (s32)D_003931B8;
+    *(u32 *)(obj + 0x0C) |= 0x800;
+    U_D30ED0 = 0;
+    D_003931A4 = 0;
+    D_003931A8 = 0;
+    if (i < 10)
+        D_003931B8 = i + 1;
+
+    /* Everything down to the 0x80 clear lives INSIDE `if (ctrl & 0x80)`: retail
+     * jumps from 12BBC0 (`beqz v0,+0x40C`) straight to 12BFD0, past the node
+     * copies, the 0x02/0x04/0x1000 blocks, the velocity zeroing at
+     * 12BFB0/12BFB4/12BFB8 and the `ctrl &= ~0x80` at 12BFBC.  Zeroing
+     * 0x3C/0x40/0x44 outside that test kills the object: those three floats are
+     * the sub-step loop's stop condition, so the loop exits on its first pass
+     * and no sub-step (movement, animation, ground follow) ever runs. */
+    ctrl = *(u32 *)(obj + 0x0C);
+    if ((ctrl & 0x80) != 0) {
+        U_COPY54(nodeB, p24);
+        U_COPY54(nodeA, p24);
+        ctrl = *(u32 *)(obj + 0x0C);
+        if ((ctrl & 0x04) != 0) {
+            U_COPY54(nodeC, p24);
+            U_COPY54(nodeD, p24);
+        }
+        ctrl = *(u32 *)(obj + 0x0C);
+        if ((ctrl & 0x02) != 0)
+            U_COPY12(obj + 0x1A0, obj + 0xFC);
+        if ((ctrl & 0x1000) == 0) {
+            func_00127868(p24, v200);
+            *(f32 *)(obj + 0x48) = v200[0];
+            *(f32 *)(obj + 0x4C) = v200[1];
+            *(f32 *)(obj + 0x50) = v200[2];
+        }
+        *(f32 *)(obj + 0x3C) = 0.0f;
+        *(f32 *)(obj + 0x40) = 0.0f;
+        *(f32 *)(obj + 0x44) = 0.0f;
+        ctrl = *(u32 *)(obj + 0x0C) & 0xFFFFFF7F;
+        *(u32 *)(obj + 0x0C) = ctrl;
+    }
+    if ((ctrl & 0x14) == 0x14)
+        func_00138030(obj);
+    U_COPY54(n180, nodeA);
+
+    if ((*(u32 *)(obj + 0x08) & 0x20000000) != 0)
+        func_001266B0((u8 *)n180, obj + 0x120);
+
+    ctrl = *(u32 *)(obj + 0x0C);
+    if ((ctrl & 0x02) != 0) {
+        if (*(s8 *)(obj + 0x1D0) <= 0) {
+            *(u8 *)(obj + 0x1D0) = (u8)func_00108648(ctx);
+            ctrl = *(u32 *)(obj + 0x0C);
+        }
+    }
+
+    if ((ctrl & 0x200) != 0) {
+        /* ---- constrained path: integrate the stored velocity ------------ */
+        v240[0] = step * *(f32 *)(obj + 0x3C);
+        v240[1] = step * *(f32 *)(obj + 0x40);
+        v240[2] = step * *(f32 *)(obj + 0x44);
+        flag30 = (s32)((*(u32 *)(obj + 0x08) >> 29) & 1);
+        func_0013B320(obj, v240);
+        U_COPY54(n0, nodeA);
+        if ((*(u32 *)(obj + 0x08) & 0x000E0000) != 0) {
+            func_00138170(obj, (u8 *)n180, step, (u8 *)n120);
+            *(u32 *)(obj + 0x08) &= 0xFFF1FFFF;
+        }
+        if (flag30 != 0) {
+            func_00138830(obj);
+            *(u32 *)(obj + 0x08) &= 0xDFFFFFFF;
+        }
+        if ((*(u32 *)(obj + 0x08) & 0x02) != 0) {
+            if ((*(u32 *)(obj + 0x0C) & 0x02) != 0) {
+                n = (s32)(s8)(*(u8 *)(obj + 0x1D0) - 1);
+                *(u8 *)(obj + 0x1D0) = (u8)n;
+                if (n == 0) {
+                    func_0012B800(obj, ctx, step);
+                    if ((u32)func_00108648(ctx) >= 2)
+                        U_COPY12(obj + 0x1A0, obj + 0xFC);
+                }
+            } else {
+                func_0012B800(obj, ctx, step);
+            }
+        }
+        func_0013A148(obj, step);
+        done = 0;
+        func_0013A468(obj, nodeB);
+        if (func_00124988(p24, nodeB) == 0) {
+            U_COPY54(p24, nodeB);
+            done = 1;
+            func_0014AD50(ctx);
+        }
+        if (done == 0 && func_00124988(nodeA, nodeB) != 0)
+            goto l_4e8;
+        if (func_0010CA50(ctx) != 0) {
+            func_0014AF20(ctx);
+            /* retail keeps the 4th argument in $s1: it is n120 unless the bit-29
+               branch replaces it with n60, and that survives into the call. */
+            scratch = (u8 *)n120;
+            if (flag30 != 0) {
+                func_00121888((u8 *)n60, (u8 *)n0);
+                scratch = (u8 *)n60;
+            } else if ((*(u32 *)(obj + 0x0C) & 0x800) != 0) {
+                func_00121888((u8 *)n120, (u8 *)n180);
+                *(u32 *)(obj + 0x0C) &= 0xFFFFF7FF;
+            }
+            func_00138ED0(obj, ctx, (u8 *)n0, scratch);
+        } else {
+            if ((func_0010C9F0(ctx) & 0x02) != 0)
+                func_0014AF20(ctx);
+            else
+                func_0014B050(ctx);
+        }
+    l_4e8:
+        func_0013A1C8(obj);
+        func_00136970(obj);
+        return obj;
+    }
+
+    /* ---- full update --------------------------------------------------- */
+    U_COPY12(v1F0, obj + 0xA8);
+    U_COPY54(n0, nodeA);
+    if ((ctrl & 0x04) != 0)
+        U_COPY54(nC0, nodeC);
+    ctrl = *(u32 *)(obj + 0x0C) & 0xFFFFFFDF & 0xFFFFFFBF;
+    *(u32 *)(obj + 0x0C) = ctrl;
+
+    if ((*(u32 *)(obj + 0x08) & 0x2000) != 0) {
+        if (!(fabsf(*(f32 *)(obj + 0x48) - 1.0f) < D_00392654 &&
+              fabsf(*(f32 *)(obj + 0x4C) - 1.0f) < D_00392654 &&
+              fabsf(*(f32 *)(obj + 0x50) - 1.0f) < D_00392654))
+            func_00138C28(obj, (u8 *)n180, (u8 *)n120);
+    }
+
+    *(f32 *)(obj + 0x54) = dt * *(f32 *)(obj + 0x54);
+    *(f32 *)(obj + 0x58) = dt * *(f32 *)(obj + 0x58);
+    *(f32 *)(obj + 0x5C) = dt * *(f32 *)(obj + 0x5C);
+    func_00121610(obj + 0x54, nodeB, obj + 0x54);
+    *(f32 *)(obj + 0x6C) = *(f32 *)(obj + 0x6C) / cnt;
+    *(f32 *)(obj + 0x70) = *(f32 *)(obj + 0x70) / cnt;
+    *(f32 *)(obj + 0x74) = *(f32 *)(obj + 0x74) / cnt;
+    func_0013A4A8(obj, (f32 *)v250);
+
+    /* Retail re-reads obj+0x08 before every single flag test: the helpers
+     * called here clear their own request bits, so a cached copy takes the
+     * wrong branches. */
+    for (i = 0; i < count; i++) {
+        if ((*(u32 *)(obj + 0x08) & 0x00000001) != 0)
+            func_0013B320(obj, (f32 *)(obj + 0x54));
+        if ((*(u32 *)(obj + 0x08) & 0x00700000) != 0)
+            func_001385D0(obj, (u8 *)n180, dt, (u8 *)n120);
+        if ((*(u32 *)(obj + 0x08) & 0x00000800) != 0) {
+            if (*(f32 *)(obj + 0x158) == 0.0f)
+                func_001387F0(obj, 1, dt);
+        }
+        func_00137CB8(obj, (u8 *)n180, dt, (u8 *)n120);
+        if ((*(u32 *)(obj + 0x08) & 0x00000004) != 0)
+            func_00137C68(obj, dt);
+        if ((*(u32 *)(obj + 0x08) & 0x000E0000) != 0)
+            func_00138170(obj, (u8 *)n180, dt, (u8 *)n120);
+        if ((*(u32 *)(obj + 0x08) & 0x03800000) != 0)
+            func_00138390(obj, (u8 *)n180, dt, (u8 *)n120);
+        /* Retail runs func_00138840 on BOTH paths: the 0x20000000 branch does
+           func_00138830 (node <- obj+0x120) then jumps to the single
+           func_00138840 call (rebuild the basis from obj+0x6C), and the
+           `flags < 0` branch falls into that same call.  The bit-29 path must
+           not skip the basis rebuild.  Both tests read one cached copy, and
+           there is only one call site in retail. */
+        flg8 = *(u32 *)(obj + 0x08);
+        if ((flg8 & 0x20000000) != 0)
+            func_00138830(obj);
+        if ((flg8 & 0x20000000) != 0 || (s32)flg8 < 0)
+            func_00138840(obj);
+        if ((*(u32 *)(obj + 0x08) & 0x00000800) != 0) {
+            if (*(f32 *)(obj + 0x158) == 1.0f)
+                func_001387F0(obj, 0, dt);
+        }
+        if ((*(u32 *)(obj + 0x08) & 0x00000200) != 0)
+            func_00138988(obj, (u8 *)n180, dt, (u8 *)n120);
+        func_0013A148(obj, dt);
+        if ((*(u32 *)(obj + 0x0C) & 0x02) != 0)
+            func_0013B388(obj, dt);
+        if ((*(u32 *)(obj + 0x0C) & 0x04) != 0)
+            U_COPY54(nodeC, nodeA);
+        U_COPY54(nodeA, nodeB);
+        if (*(f32 *)(obj + 0x3C) == 0.0f &&
+            *(f32 *)(obj + 0x40) == 0.0f &&
+            *(f32 *)(obj + 0x44) == 0.0f)
+            break;
+    }
+
+    ctrl = *(u32 *)(obj + 0x0C);
+    if ((ctrl & 0x04) != 0)
+        U_COPY54(nodeC, (u8 *)nC0);
+    U_COPY54(nodeA, (u8 *)n0);
+    func_0013A5D0(obj, (f32 *)v250);
+    func_0013A610(obj, step);
+    flg8 = *(u32 *)(obj + 0x08);
+    if ((flg8 & 0x08) != 0)
+        func_00137E10(obj, step);
+    res = (s32)(u8)func_00139800(obj);
+    ctrl = *(u32 *)(obj + 0x0C);
+    if ((ctrl & 0x04) != 0)
+        r278 = (*(u32 *)(obj + 0x27C) != 0);
+    ctrl &= 0xFFFF7FFF;
+    *(u32 *)(obj + 0x0C) = ctrl;
+
+    if ((ctrl & 0x02) != 0) {
+        n = (s32)(s8)(*(u8 *)(obj + 0x1D0) - 1);
+        *(u8 *)(obj + 0x1D0) = (u8)n;
+        if (n != 0) {
+            goto l_cfd4;
+        }
+        if (res == 0 && r278 == 0 && func_00108618(ctx) == 0)
+            goto l_cfa0;
+        {
+            u32 f8b;
+            f8b = *(u32 *)(obj + 0x08);
+            if ((f8b & 0x10) != 0) {
+                func_0012F8D8(obj, ctx, step);
+            } else if ((f8b & 0x40) != 0) {
+                func_00130888(obj, ctx, step);
+                len = F_SQRT(F_DOT3(*(f32 *)(obj + 0x3C), *(f32 *)(obj + 0x3C),
+                                    *(f32 *)(obj + 0x40), *(f32 *)(obj + 0x40),
+                                    *(f32 *)(obj + 0x44), *(f32 *)(obj + 0x44)));
+                if (len < D_00393198) {
+                    if (*(u8 *)(obj + 0x11C) == 1)
+                        *(u8 *)(obj + 0x11C) = 2;
+                    U_COPY12(obj + 0xFC, obj + 0xA8);
+                    *(f32 *)(obj + 0x108) = 1.0f;
+                    *(f32 *)(obj + 0x3C) = 0.0f;
+                    *(f32 *)(obj + 0x40) = 0.0f;
+                    *(f32 *)(obj + 0x44) = 0.0f;
+                }
+            } else if ((f8b & 0x20) != 0) {
+                func_00131D78(obj, ctx, step);
+            } else if ((ctrl & 0x100) != 0) {
+                func_001340F0(obj, ctx, step);
+            } else if ((ctrl & 0x100000) != 0) {
+                func_001346E8(obj, ctx, step);
+            } else if ((f8b & 0x02) != 0) {
+                func_0012F6F0(obj, ctx, step);
+            }
+        }
+    l_cfa0:
+        if ((u32)func_00108648(ctx) >= 2)
+            U_COPY12(obj + 0x1A0, obj + 0xFC);
+        goto l_d154;
+
+    l_cfd4:
+        flg8 = *(u32 *)(obj + 0x08);
+        if ((flg8 & 0x20) != 0)
+            func_00133F40(obj, step);
+        ctrl = *(u32 *)(obj + 0x0C);
+        if ((ctrl & 0x4000) != 0) {
+            pd = (u8 *)r274;
+            *(u32 *)(pd + 0x04) = *(u32 *)pd;
+        }
+        goto l_d150;
+    } else {
+        if (res == 0 && func_00108618(ctx) == 0)
+            goto l_d154;
+        {
+            u32 f8b;
+            f8b = *(u32 *)(obj + 0x08);
+            if ((f8b & 0x10) != 0) {
+                func_0012F8D8(obj, ctx, step);
+            } else if ((f8b & 0x40) != 0) {
+                func_00130888(obj, ctx, step);
+                len = F_SQRT(F_DOT3(*(f32 *)(obj + 0x3C), *(f32 *)(obj + 0x3C),
+                                    *(f32 *)(obj + 0x40), *(f32 *)(obj + 0x40),
+                                    *(f32 *)(obj + 0x44), *(f32 *)(obj + 0x44)));
+                if (len < D_00393198) {
+                    if (*(u8 *)(obj + 0x11C) == 1)
+                        *(u8 *)(obj + 0x11C) = 2;
+                    U_COPY12(obj + 0xFC, obj + 0xA8);
+                    *(f32 *)(obj + 0x108) = 1.0f;
+                    *(f32 *)(obj + 0x3C) = 0.0f;
+                    *(f32 *)(obj + 0x40) = 0.0f;
+                    *(f32 *)(obj + 0x44) = 0.0f;
+                }
+            } else if ((f8b & 0x20) != 0) {
+                func_0012B908(obj, ctx, step);
+            } else if ((ctrl & 0x100) != 0) {
+                func_001340F0(obj, ctx, step);
+            } else if ((ctrl & 0x100000) != 0) {
+                func_001346E8(obj, ctx, step);
+            } else if ((f8b & 0x02) != 0) {
+                func_0012B800(obj, ctx, step);
+            }
+        }
+    }
+
+    l_d150:
+    l_d154:
+    func_00138850(obj, v1F0);
+    ctrl = *(u32 *)(obj + 0x0C);
+    if ((ctrl & 0x04) != 0)
+        r27C = func_00138FA0(obj, ctx);
+    func_0013A468(obj, nodeB);
+
+    ctrl = *(u32 *)(obj + 0x0C);
+    if ((ctrl & 0x4004) == 0x4004) {
+        v1E0[0] = *(f32 *)(nodeB + 0x30) - *(f32 *)(nodeD + 0x30);
+        v1E0[1] = *(f32 *)(nodeB + 0x34) - *(f32 *)(nodeD + 0x34);
+        v1E0[2] = *(f32 *)(nodeB + 0x38) - *(f32 *)(nodeD + 0x38);
+        v1E0[0] = v1E0[0] / step;
+        v1E0[1] = v1E0[1] / step;
+        v1E0[2] = v1E0[2] / step;
+        func_00126510(nodeD, v210);
+        v220[3] = 1.0f;
+        U_COPY12(&v220[4], v210);
+        U_COPY12(v220, v1E0);
+        /* retail reloads obj+0x148 here, after func_00126510, rather than reusing the
+           pointer saved at entry: the callee may have attached a different node. */
+        pd = *(u8 **)(obj + 0x148);
+        U_COPY12(pd + 0x114, v220);
+        *(f32 *)(pd + 0x120) = v220[3];
+        U_COPY12(pd + 0x124, &v220[4]);
+    }
+
+    done = 0;
+    /* retail: `beqz ret,.publish` then `beqz r27C,.skip`, so the mirror node is
+       refreshed whenever func_00124BB0 reports "same" or r27C is set. */
+    if (func_00124BB0(p24, nodeB, D_00392658) != 0 && r27C == 0)
+        goto l_d39c;
+    U_COPY54(p24, nodeB);
+    done = 1;
+    func_0014AD50(ctx);
+    *(u32 *)(obj + 0x0C) |= 0x01000000;
+    l_d39c:
+    if (done == 0 && func_00124988(nodeA, nodeB) != 0)
+        goto l_d46c;
+    if (func_0010CA50(ctx) != 0) {
+        func_0014AF20(ctx);
+        scratch = (u8 *)n120;
+        if ((*(u32 *)(obj + 0x08) & 0x20000000) != 0) {
+            func_00121888((u8 *)n60, (u8 *)n0);
+            scratch = (u8 *)n60;
+        } else if ((*(u32 *)(obj + 0x0C) & 0x800) != 0) {
+            func_00121888((u8 *)n120, (u8 *)n180);
+            *(u32 *)(obj + 0x0C) &= 0xFFFFF7FF;
+        }
+        func_00138ED0(obj, ctx, (u8 *)n0, scratch);
+    } else {
+        if ((func_0010C9F0(ctx) & 0x02) != 0)
+            func_0014AF20(ctx);
+        else
+            func_0014B050(ctx);
+    }
+
+    l_d46c:
+    func_0013A1C8(obj);
+    ctrl = *(u32 *)(obj + 0x0C);
+    if ((ctrl & 0x4004) == 0x4004) {
+        pd = *(u8 **)(obj + 0x148);
+        U_COPY12(v240, (u8 *)nodeB + 0x30);
+        v220[3] = 0.0f;
+        v220[4] = 0.0f;
+        v220[5] = 0.0f;
+        v220[6] = 0.0f;
+        U_COPY12(v220, v240);
+        U_COPY12(pd + 0x14C, v220);
+        *(f32 *)(pd + 0x158) = v220[3];
+        U_COPY12(pd + 0x15C, &v220[4]);
+    }
+    func_00136970(obj);
+
+    ctrl = *(u32 *)(obj + 0x0C);
+    if ((ctrl & 0x4000) != 0) {
+        pd = (u8 *)r274;
+        *(u32 *)pd = *(u32 *)(pd + 0x04);
+    }
+
+    *(u8 *)(obj + 0x144) = (u8)count;
+    *(f32 *)(obj + 0x24) = 0.0f;
+    *(f32 *)(obj + 0x28) = 0.0f;
+    *(f32 *)(obj + 0x2C) = 0.0f;
+    *(f32 *)(obj + 0x30) = 0.0f;
+    *(f32 *)(obj + 0x34) = 0.0f;
+    *(f32 *)(obj + 0x38) = 0.0f;
+    *(f32 *)(obj + 0x54) = 0.0f;
+    *(f32 *)(obj + 0x58) = 0.0f;
+    *(f32 *)(obj + 0x5C) = 0.0f;
+    *(f32 *)(obj + 0x6C) = 0.0f;
+    *(f32 *)(obj + 0x70) = 0.0f;
+    *(f32 *)(obj + 0x74) = 0.0f;
+
+    flg8 = *(u32 *)(obj + 0x08);
+    flg8 &= 0xFFFFBFFF;
+    flg8 &= 0xFFFF7FFF;
+    flg8 &= 0xFFFEFFFF;
+    flg8 &= 0xFFFDFFFF;
+    flg8 &= 0xFFFBFFFF;
+    flg8 &= 0xFFF7FFFF;
+    flg8 &= 0xFFEFFFFF;
+    flg8 &= 0xFFDFFFFF;
+    flg8 &= 0xFFBFFFFF;
+    flg8 &= 0xFF7FFFFF;
+    flg8 &= 0xFEFFFFFF;
+    flg8 &= 0xFDFFFFFF;
+    flg8 &= 0xDFFFFFFF;
+    flg8 &= 0x7FFFFFFF;
+    *(u32 *)(obj + 0x08) = flg8;
+
+    ctrl = *(u32 *)(obj + 0x0C);
+    *(u32 *)(obj + 0x0C) = ctrl & 0xFFFFFFEF & 0xFFFFEFFF;
+
+    /* retail clears both accumulators unconditionally (one store sits in a
+       branch delay slot); only obj+0x16C is behind the 0x0C & 2 test. */
+    D_003931A0 = 0.0f;
+    D_0039319C = 0.0f;
+    if ((ctrl & 0x02) != 0) {
+        if (U_D30ED0 != 0)
+            *(f32 *)(obj + 0x16C) = func_00139828(obj, (void *)1);
+        else
+            *(f32 *)(obj + 0x16C) = 0.0f;
+    }
+
+    if ((U_D30ED0 & 0x01) != 0 && func_00139828(obj, (void *)1) != 0.0f) {
+        /* the set path re-reads 0x0C after the call, so keep whatever it set */
+        *(u32 *)(obj + 0x0C) = *(u32 *)(obj + 0x0C) | 0x00020000;
+    } else {
+        /* retail re-reads 0x0C in the branch-likely delay slot here, so the getter's
+           effect on +0x0C survives into the clear. */
+        *(u32 *)(obj + 0x0C) = *(u32 *)(obj + 0x0C) & 0xFFFDFFFF;
+    }
+
+    ctrl = *(u32 *)(obj + 0x0C);
+    if ((ctrl & 0x02) != 0) {
+        *(f32 *)(obj + 0x17C) = 0.0f;
+        *(f32 *)(obj + 0x180) = 0.0f;
+        *(f32 *)(obj + 0x184) = 0.0f;
+        *(f32 *)(obj + 0x188) = 0.0f;
+        *(f32 *)(obj + 0x18C) = 0.0f;
+        *(f32 *)(obj + 0x190) = 0.0f;
+    }
+    return obj;
+}
+
+#undef U_COPY54
+#undef U_COPY12
 
 INCLUDE_ASM(const s32, "core/main", func_0012D750);
 
@@ -2868,6 +3717,665 @@ INCLUDE_ASM(const s32, "core/main", func_0012F8D8);
 
 extern s32 D_003931C4;
 
-INCLUDE_ASM(const s32, "core/main", func_00130888);
+/* ------------------------------------------------------------------------- */
+/* func_00130888 - contact-constrained movement step (0x14F0 = 5360 bytes)   */
+/* ------------------------------------------------------------------------- */
+/* The actor-side mover used when obj+0x08 has bit 0x40 set (see func_0012BA18,
+ * which calls it as (obj, ctx, step) right after the countdown dispatch).  One
+ * call resolves the current sub-step's translation against the contact list
+ * that func_00135530 fills from D_003931B0, writes the result into node B
+ * (obj+0xCC) and, when the actor cannot make progress, stops it
+ * (velocity +0x3C/+0x40/+0x44 zeroed, ctrl |= 0x10000).
+ *
+ * The query is swept: node B is copied twice and the copies' translations are
+ * moved along the last stored surface normal (obj+0x1C4) by +-scale, so the
+ * contact builder sees a short segment across the surface instead of a point.
+ * The result is then snapped to the surface plane (func_0012F180) and the whole
+ * step is retried while the correction still points along the global movement
+ * direction (D_00331148).
+ *
+ * D_003931A4 counts the passes of one movement sequence (it is cleared by
+ * func_0012BA18 each frame): pass 1 remembers the tangential delta in
+ * D_00331148, and from pass 4 on the actor is considered stuck and snapped
+ * back onto node A.
+ *
+ * Layout of the 0x250 stack frame used below (retail offsets):
+ *   sp+0x00 axis[3]     node B's local Y axis (func_00126510)
+ *   sp+0x10 off[3]      scratch vector (normal component, then position delta)
+ *   sp+0x20 pos[3]      func_00136C08 accumulator (in/out position)
+ *   sp+0x30 delta[3]    node B translation - node A translation
+ *   sp+0x40 nComp[3]    normal part of delta
+ *   sp+0x50 tang[3]     tangential part of delta
+ *   sp+0x60 out[3]      func_0012F180 correction
+ *   sp+0x70            (0,0,1) written and never read - retail dead store
+ *   sp+0x80 resolved[3] candidate node B translation
+ *   sp+0x90 dir[3]      unit movement direction
+ *   sp+0xA0 tdir[3]     unit tangential direction
+ *   sp+0xB0 probe[3]    probe translation under construction
+ *   sp+0xC0 node copy A ("+scale" probe, 5th argument of func_00135530)
+ *   sp+0x114 node copy B ("-scale" probe, 6th argument)
+ *   sp+0x170 count      contact count written by func_00135530
+ *   sp+0x178 lastIndex  last contact index the scans looked at
+ *   sp+0x180 best       best contact candidate (0 = none)
+ *   sp+0x184 node A     obj+0x78
+ *   sp+0x188 &nodeB+0x30, sp+0x18C &nodeA+0x30
+ */
+
+/* Callees (all still INCLUDE_ASM; the declarations fix the float register
+ * class and the argument count):
+ *   func_00135530(out, contacts, actor, ctx, node5, node6, flag) -> nonzero
+ *                 when at least one contact was produced
+ *   func_00135CF8(actor, ctx, count, contacts, indexLimit) rebuilds the list
+ *   func_00136C08(position, actor, count, contacts, indexLimit) folds the
+ *                 usable contacts' offsets into `position`
+ *   func_0012F180(out, actor, delta, normalA, normalB, flag, step) snaps node B
+ *                 onto the plane spanned by the two normals and moves it by the
+ *                 remaining depth; the float argument is ignored by the callee
+ *   func_0012F518(actor, normal) wall response for a contact normal that is not
+ *                 the actor's own up axis
+ *   func_0013A148(actor, step) closes the movement step
+ */
+s32 func_00139708(u8 *, f32 *);
+s32 func_001396A0(u8 *, f32 *);
+void func_0013AC60(s32, u8 *, u8 *, f32 *);
+s32 func_00135530(s32 *, u8 *, u8 *, u8 *, u8 *, u8 *, s32);
+void func_0012F180(f32 *, u8 *, f32 *, f32 *, f32 *, s32, f32);
+void func_0012F518(u8 *, f32 *);
+s32 func_00136C08(f32 *, u8 *, s32, u8 *, s32);
+f32 func_00217DA0(f32);
+
+/* Globals: the contact array, the movement-sequence pass counter, the
+ * tangential delta remembered for the first pass, and the literal-pool
+ * constants (referenced by symbol, never by value). */
+extern u8  D_003931B0[];
+extern f32 D_00331148[3];
+extern f32 D_003926B4;          /* 1.0471976 = pi/3, fed to tanf          */
+extern f32 D_003926B8;          /* 0.001  - delta-is-zero epsilon         */
+extern f32 D_003926BC;          /* 0.001  - tangential delta epsilon      */
+extern f32 D_003926C0;          /* 0.45   - minimum probe scale           */
+extern f32 D_003926C4;          /* 0.707  - contact normals too parallel  */
+extern f32 D_003926C8;          /* 0.1    - contact behind the wall plane */
+extern f32 D_003926CC;          /* 0.001  - correction-is-zero epsilon    */
+extern f32 D_003926D0;          /* 0.001  - correction-is-zero epsilon    */
+extern f32 D_003926D4;          /* 0.001  - normal == node axis epsilon   */
+
+/* U_COPY54 / U_COPY12 were #undef'd above; the typedefs survive. */
+#define BM_COPY54(d, s) (*(UBytes54 *)(d) = *(UBytes54 *)(s))
+#define BM_COPY12(d, s) (*(UBytes12 *)(d) = *(UBytes12 *)(s))
+
+/* A node written by this function is either left alone or becomes a
+ * translation-only node (tag 1 -> 2) with a 1.0 homogeneous element. */
+#define BM_TAG2(p)                                                         \
+    do {                                                                   \
+        if (*(u8 *)((p) + 0x50) == 1)                                      \
+            *(u8 *)((p) + 0x50) = 2;                                       \
+    } while (0)
+
+void func_00130888(u8 *obj, u8 *ctx, f32 step)
+{
+    u8  nPos[0x54];             /* sp+0xC0 */
+    u8  nNeg[0x54];             /* sp+0x114 */
+    f32 axis[3];                /* sp+0x00 */
+    f32 off[3];                 /* sp+0x10 */
+    f32 pos[3];                 /* sp+0x20 */
+    f32 delta[3];               /* sp+0x30 */
+    f32 nComp[3];               /* sp+0x40 */
+    f32 tang[3];                /* sp+0x50 */
+    f32 out[3];                 /* sp+0x60 */
+    f32 resolved[3];            /* sp+0x80 */
+    f32 dir[3];                 /* sp+0x90 */
+    f32 tdir[3];                /* sp+0xA0 */
+    f32 probe[3];               /* sp+0xB0 */
+    s32 count;                  /* sp+0x170 */
+    s32 lastIndex;              /* sp+0x178 */
+    u8 *best;                   /* sp+0x180 */
+    u8 *wall;                   /* $21: first own, wall-like contact */
+    u8 *nodeA = obj + 0x78;
+    u8 *nodeB = obj + 0xCC;
+    f32 *surfNormal = (f32 *)(obj + 0x1C4);
+    f32 tanStep;
+    f32 scale;
+    f32 len;
+    f32 d;
+    f32 minDot;
+    s32 scanEnd;                /* $22: one past the last contact examined */
+    s32 stop;
+    s32 anySmall;
+    u16 f6w;
+    u32 ctrl;
+    u8 *c;
+    s32 i;
+
+    /* tan(pi/3) = sqrt(3): the probe scale for a full-length step. */
+    tanStep = func_00217DA0(D_003926B4);
+
+    /* ---- entry: respond to the surface normal func_00135CF8 stored ---------
+     * Bit 0x10 of ctrl means "a near-side contact was found last query"; the
+     * 12 bytes at obj+0x1C4 then hold that contact's normal.  A zero normal
+     * (never written) must not call the wall helper. */
+    if ((*(u32 *)(obj + 0x0C) & 0x10) != 0 &&
+        (surfNormal[0] != 0.0f || surfNormal[1] != 0.0f || surfNormal[2] != 0.0f))
+        func_0012F518(obj, surfNormal);
+
+    /* ---- probe nodes: two copies of node B (retail copies "-scale" first) - */
+    BM_COPY54(nNeg, nodeB);
+
+    delta[0] = *(f32 *)(nodeB + 0x30) - *(f32 *)(nodeA + 0x30);
+    delta[1] = *(f32 *)(nodeB + 0x34) - *(f32 *)(nodeA + 0x34);
+    delta[2] = *(f32 *)(nodeB + 0x38) - *(f32 *)(nodeA + 0x38);
+
+    BM_COPY54(nPos, nodeB);
+
+    /* ---- movement direction -------------------------------------------------
+     * Unit node-B-minus-node-A translation; zero when the two nodes coincide,
+     * and the raw difference when its length is exactly zero (NaN/degenerate). */
+    if (fabsf(delta[0]) < D_003926B8 && fabsf(delta[1]) < D_003926B8 &&
+        fabsf(delta[2]) < D_003926B8)
+    {
+        dir[0] = 0.0f;
+        dir[1] = 0.0f;
+        dir[2] = 0.0f;
+    }
+    else
+    {
+        len = F_SQRT(F_DOT3(delta[0], delta[0], delta[1], delta[1],
+                            delta[2], delta[2]));
+        if (len == 0.0f)
+        {
+            dir[0] = delta[0];
+            dir[1] = delta[1];
+            dir[2] = delta[2];
+        }
+        else
+        {
+            d = 1.0f / len;
+            dir[0] = d * delta[0];
+            dir[1] = d * delta[1];
+            dir[2] = d * delta[2];
+        }
+    }
+
+    /* ---- stuck detection: from the fourth pass the actor is snapped back --
+     * Node B is placed exactly on node A, the velocity is dropped and the
+     * movement sequence ends (no ctrl bit and no parent update here). */
+    D_003931A4 = D_003931A4 + 1;
+    if ((s32)D_003931A4 >= 4)
+    {
+        BM_TAG2(nodeB);
+        BM_COPY12(nodeB + 0x30, nodeA + 0x30);
+        *(f32 *)(nodeB + 0x3C) = 1.0f;
+        *(f32 *)(obj + 0x3C) = 0.0f;
+        *(f32 *)(obj + 0x40) = 0.0f;
+        *(f32 *)(obj + 0x44) = 0.0f;
+        return;
+    }
+
+    /* ---- split the movement into normal / tangential components ------------
+     * The normal is the surface normal of the previous query, not one of the
+     * contacts about to be built. */
+    func_00126510(nodeB, axis);
+
+    d = F_DOT3(delta[0], surfNormal[0], delta[1], surfNormal[1],
+               delta[2], surfNormal[2]);
+    nComp[0] = d * surfNormal[0];
+    nComp[1] = d * surfNormal[1];
+    nComp[2] = d * surfNormal[2];
+    tang[0] = delta[0] - nComp[0];
+    tang[1] = delta[1] - nComp[1];
+    tang[2] = delta[2] - nComp[2];
+
+    /* First pass of a movement sequence: remember the tangential delta, it is
+     * what every later pass is compared against (func_0012F180). */
+    if (D_003931A4 == 1)
+        BM_COPY12(&D_00331148[0], tang);
+
+    /* ---- unit tangential direction ----------------------------------------- */
+    len = F_SQRT(F_DOT3(tang[0], tang[0], tang[1], tang[1], tang[2], tang[2]));
+    if (fabsf(tang[0]) < D_003926BC && fabsf(tang[1]) < D_003926BC &&
+        fabsf(tang[2]) < D_003926BC)
+    {
+        tdir[0] = 0.0f;
+        tdir[1] = 0.0f;
+        tdir[2] = 0.0f;
+    }
+    else if (len == 0.0f)
+    {
+        tdir[0] = tang[0];
+        tdir[1] = tang[1];
+        tdir[2] = tang[2];
+    }
+    else
+    {
+        d = 1.0f / len;
+        tdir[0] = d * tang[0];
+        tdir[1] = d * tang[1];
+        tdir[2] = d * tang[2];
+    }
+
+    /* ---- probe half-length --------------------------------------------------
+     * ctrl bit 0x10 ("contact already known") uses a fixed 0.75 instead of the
+     * distance-proportional thickness.  0.45 is the floor for both. */
+    ctrl = *(u32 *)(obj + 0x0C);
+    if ((ctrl & 0x10) == 0)
+        scale = tanStep * len;
+    else
+        scale = 0.75f;
+    if (scale < D_003926C0)
+        scale = D_003926C0;
+
+    /* ---- build the two probe nodes -----------------------------------------
+     * nPos = A + tang + scale*n, nNeg = A + tang - scale*n (node A's
+     * translation, not node B's: the probes straddle the ground at the actor's
+     * own position advanced by the tangential movement). */
+    off[0] = scale * surfNormal[0];
+    off[1] = scale * surfNormal[1];
+    off[2] = scale * surfNormal[2];
+
+    probe[0] = *(f32 *)(nodeA + 0x30) + tang[0] + off[0];
+    probe[1] = *(f32 *)(nodeA + 0x34) + tang[1] + off[1];
+    probe[2] = *(f32 *)(nodeA + 0x38) + tang[2] + off[2];
+    BM_TAG2(nPos);
+    BM_COPY12(nPos + 0x30, probe);
+    *(f32 *)(nPos + 0x3C) = 1.0f;
+
+    probe[0] = *(f32 *)(nodeA + 0x30) + tang[0] - off[0];
+    probe[1] = *(f32 *)(nodeA + 0x34) + tang[1] - off[1];
+    probe[2] = *(f32 *)(nodeA + 0x38) + tang[2] - off[2];
+    BM_TAG2(nNeg);
+    BM_COPY12(nNeg + 0x30, probe);
+    *(f32 *)(nNeg + 0x3C) = 1.0f;
+
+    /* ---- contact query over the swept segment ------------------------------- */
+    best = 0;
+    wall = 0;
+    lastIndex = 0;
+    scanEnd = 0;
+    stop = 0;
+    minDot = 0.0f;
+    count = 0;
+
+    if (func_00135530(&count, D_003931B0, obj, ctx, nPos, nNeg, 1) == 0)
+        goto l_reset;                       /* 0x31C30 */
+
+    /* Drop the contacts that do not face the movement direction. */
+    func_0013AC60(count, D_003931B0, obj, tdir);
+
+    /* ---- scan 1: first contact that belongs to this actor and is wall-like - */
+    if (count > 0)
+    {
+        for (i = 0; i < count; i++)
+        {
+            c = D_003931B0 + i * 0x68;
+            scanEnd = i + 1;
+            if (*(s16 *)(c + 0x2E) == 0x63)
+                continue;
+            f6w = *(u16 *)(*(u8 **)(c + 0x20) + 0x06);
+            if ((f6w & 0x40) == 0 || (f6w & 0x8000) != 0)
+                continue;
+            if ((func_001396A0(obj, (f32 *)(c + 0x04)) & 0xFF) != 0)
+            {
+                wall = c;
+                break;
+            }
+        }
+    }
+
+    /* ---- scan 2: first floor-like contact, re-queried on its own ----------- */
+    if (count > 0)
+    {
+        for (i = 0; i < count; i++)
+        {
+            c = D_003931B0 + i * 0x68;
+            if (*(s16 *)(c + 0x2E) == 0x63)
+                continue;
+            if ((func_00139708(obj, (f32 *)(c + 0x04)) & 0xFF) == 0)
+                continue;
+            func_00135CF8(obj, ctx, 1, c, 0);
+            break;
+        }
+    }
+
+    /* ---- scan 3 (only with a wall contact): pick the contact the actor is
+     * moving into.  `best` is the one with the smallest dot(tdir, normal),
+     * which for surfaces not facing the movement is negative.  All the dots
+     * here use the wall contact's own normal (wall+0x04), not the copy that
+     * func_00135CF8 may have left at obj+0x1C4. */
+    if (wall != 0)
+    {
+        best = 0;
+        minDot = 0.0f;
+        lastIndex = 0;
+        stop = 0;
+        if (count > 0)
+        {
+            for (i = 0; i < count; i++)
+            {
+                c = D_003931B0 + i * 0x68;
+                lastIndex = i + 1;
+                if (*(s16 *)(c + 0x2E) != 0x63)
+                {
+                    d = F_DOT3(*(f32 *)(c + 0x04), *(f32 *)(wall + 0x04),
+                               *(f32 *)(c + 0x08), *(f32 *)(wall + 0x08),
+                               *(f32 *)(c + 0x0C), *(f32 *)(wall + 0x0C));
+                    if (d < D_003926C4)
+                    {
+                        off[0] = *(f32 *)(c + 0x10) - *(f32 *)(wall + 0x10);
+                        off[1] = *(f32 *)(c + 0x14) - *(f32 *)(wall + 0x14);
+                        off[2] = *(f32 *)(c + 0x18) - *(f32 *)(wall + 0x18);
+                        d = F_DOT3(off[0], *(f32 *)(wall + 0x04),
+                                   off[1], *(f32 *)(wall + 0x08),
+                                   off[2], *(f32 *)(wall + 0x0C));
+                        if (d > D_003926C8)
+                        {
+                            f6w = *(u16 *)(*(u8 **)(c + 0x20) + 0x06);
+                            d = F_DOT3(tdir[0], *(f32 *)(c + 0x04),
+                                       tdir[1], *(f32 *)(c + 0x08),
+                                       tdir[2], *(f32 *)(c + 0x0C));
+                            if ((f6w & 0x40) != 0 && (f6w & 0x8000) == 0)
+                            {
+                                /* A contact of ours: the search is over. */
+                                best = 0;
+                                stop = 1;
+                            }
+                            else if (d < minDot)
+                            {
+                                best = c;
+                                minDot = d;
+                            }
+                        }
+                    }
+                }
+                if (i + 1 >= count)
+                    break;
+                if (stop != 0)
+                    break;
+            }
+        }
+
+        /* Reject a "best" that is one of our own wall contacts unless its
+         * normal is exactly perpendicular to the wall contact's normal. */
+        if (best != 0)
+        {
+            f6w = *(u16 *)(*(u8 **)(best + 0x20) + 0x06);
+            if ((f6w & 0x40) != 0 && (f6w & 0x8000) == 0 &&
+                (func_001396A0(obj, (f32 *)(best + 0x04)) & 0xFF) != 0)
+            {
+                d = F_DOT3(*(f32 *)(best + 0x04), *(f32 *)(wall + 0x04),
+                           *(f32 *)(best + 0x08), *(f32 *)(wall + 0x08),
+                           *(f32 *)(best + 0x0C), *(f32 *)(wall + 0x0C));
+                if (d != 0.0f)
+                    best = 0;
+            }
+        }
+    }
+
+    /* ---- walking down a step edge: stop at the first floor contact ---------
+     * Only for actors with a scene record that is not flagged yet, that do not
+     * already know a contact, while moving "down" (tangential z < 0). */
+    ctrl = *(u32 *)(obj + 0x0C);
+    if ((ctrl & 0x4000) != 0 && (*(u32 *)(*(u8 **)(obj + 0x148)) & 1) == 0 &&
+        (ctrl & 0x10) == 0 && tang[2] < 0.0f && count > 0)
+    {
+        for (i = 0; i < count; i++)
+        {
+            c = D_003931B0 + i * 0x68;
+            if (*(s16 *)(c + 0x2E) == 0x63)
+                continue;
+            if ((*(u16 *)(*(u8 **)(c + 0x20) + 0x06) & 0x8000) != 0)
+                continue;
+            if ((func_00139708(obj, (f32 *)(c + 0x04)) & 0xFF) == 0)
+                continue;
+
+            BM_TAG2(nodeB);
+            BM_COPY12(nodeB + 0x30, nodeA + 0x30);
+            /* Retail hoists a fresh 1.0 into $f21 at 0x312C4 here (overwriting
+             * tan(pi/3)), so this is the plain homogeneous 1.0, not the step
+             * scale. */
+            *(f32 *)(nodeB + 0x3C) = 1.0f;
+            *(f32 *)(obj + 0x3C) = 0.0f;
+            *(f32 *)(obj + 0x40) = 0.0f;
+            *(f32 *)(obj + 0x44) = 0.0f;
+            *(u32 *)(obj + 0x0C) = ctrl | 0x10000;
+            func_00135CF8(obj, ctx, count, D_003931B0, lastIndex - 1);
+            return;
+        }
+    }
+
+    if (best != 0 && scanEnd < lastIndex)
+        scanEnd = lastIndex;
+
+    func_00135CF8(obj, ctx, count, D_003931B0, scanEnd - 1);
+
+    if (wall == 0)
+        goto l_no_wall;                     /* 0x31884 */
+
+    /* ---- wall contact found: publish its normal, then place node B ---------- */
+    BM_COPY12(obj + 0x1C4, wall + 0x04);
+
+    if (best != 0)
+        goto l_best;                        /* 0x315CC */
+
+    if ((u16)(*(u16 *)(wall + 0x2E) - 7) < 2)
+    {
+        /* Step edge of type 7/8: look for a wall-like partner of the same kind. */
+        best = 0;
+        if (count > 0)
+        {
+            for (i = 0; i < count; i++)
+            {
+                c = D_003931B0 + i * 0x68;
+                if (*(s16 *)(c + 0x2E) == 0x63)
+                    continue;
+                if ((func_001396A0(obj, (f32 *)(c + 0x04)) & 0xFF) == 0)
+                    continue;
+                if ((u16)(*(u16 *)(c + 0x2E) - 7) < 2)
+                    best = c;
+                if (best != 0)
+                    break;
+            }
+        }
+
+        if (best != 0)
+        {
+            resolved[0] = *(f32 *)(nNeg + 0x30) + *(f32 *)(best + 0x30);
+            resolved[1] = *(f32 *)(nNeg + 0x34) + *(f32 *)(best + 0x34);
+            resolved[2] = *(f32 *)(nNeg + 0x38) + *(f32 *)(best + 0x38);
+        }
+        else
+        {
+            resolved[0] = *(f32 *)(nNeg + 0x30) + *(f32 *)(wall + 0x30);
+            resolved[1] = *(f32 *)(nNeg + 0x34) + *(f32 *)(wall + 0x34);
+            resolved[2] = *(f32 *)(nNeg + 0x38) + *(f32 *)(wall + 0x38);
+        }
+        BM_TAG2(nodeB);
+        BM_COPY12(nodeB + 0x30, resolved);
+        *(f32 *)(nodeB + 0x3C) = 1.0f;
+        goto l_check;
+    }
+
+    /* Plain wall: node B goes to the negative probe plus the contact offset. */
+    resolved[0] = *(f32 *)(nNeg + 0x30) + *(f32 *)(wall + 0x30);
+    resolved[1] = *(f32 *)(nNeg + 0x34) + *(f32 *)(wall + 0x34);
+    resolved[2] = *(f32 *)(nNeg + 0x38) + *(f32 *)(wall + 0x38);
+    BM_TAG2(nodeB);
+    BM_COPY12(nodeB + 0x30, resolved);
+    *(f32 *)(nodeB + 0x3C) = 1.0f;
+    goto l_check;
+
+l_best:                                     /* 0x315CC */
+    /* Near-side contact (distance < 0): resolve the movement against the wall
+     * plane.  The full version needs the pass counter to be 3 or the surface
+     * normal to be known; otherwise node A's own translation is used. */
+    if (*(f32 *)(best + 0x00) < 0.0f)
+    {
+        if ((s32)D_003931A4 < 3 && (*(u32 *)(obj + 0x0C) & 0x10) == 0)
+        {
+            resolved[0] = *(f32 *)(nodeA + 0x30);
+            resolved[1] = *(f32 *)(nodeA + 0x34);
+            resolved[2] = *(f32 *)(nodeA + 0x38);
+        }
+        else
+        {
+            func_00136C08(pos, obj, count, D_003931B0, scanEnd - 1);
+
+            /* Remove the normal part of the accumulated offset and add the
+             * contact's own offset: the point on the wall plane. */
+            d = F_DOT3(pos[0], *(f32 *)(wall + 0x04), pos[1], *(f32 *)(wall + 0x08),
+                       pos[2], *(f32 *)(wall + 0x0C));
+            off[0] = d * *(f32 *)(wall + 0x04);
+            off[1] = d * *(f32 *)(wall + 0x08);
+            off[2] = d * *(f32 *)(wall + 0x0C);
+            pos[0] = pos[0] - off[0];
+            pos[1] = pos[1] - off[1];
+            pos[2] = pos[2] - off[2];
+            pos[0] = pos[0] + *(f32 *)(wall + 0x30);
+            pos[1] = pos[1] + *(f32 *)(wall + 0x34);
+            pos[2] = pos[2] + *(f32 *)(wall + 0x38);
+
+            resolved[0] = *(f32 *)(nNeg + 0x30) + pos[0];
+            resolved[1] = *(f32 *)(nNeg + 0x34) + pos[1];
+            resolved[2] = *(f32 *)(nNeg + 0x38) + pos[2];
+
+            /* The delta handed to func_0012F180 is what is left to resolve. */
+            off[0] = resolved[0] - *(f32 *)(nodeA + 0x30);
+            off[1] = resolved[1] - *(f32 *)(nodeA + 0x34);
+            off[2] = resolved[2] - *(f32 *)(nodeA + 0x38);
+            delta[0] = delta[0] - off[0];
+            delta[1] = delta[1] - off[1];
+            delta[2] = delta[2] - off[2];
+        }
+    }
+    else
+    {
+        resolved[0] = *(f32 *)(nodeA + 0x30);
+        resolved[1] = *(f32 *)(nodeA + 0x34);
+        resolved[2] = *(f32 *)(nodeA + 0x38);
+    }
+
+    BM_TAG2(nodeB);
+    BM_COPY12(nodeB + 0x30, resolved);
+    *(f32 *)(nodeB + 0x3C) = 1.0f;
+    func_0012F180(out, obj, delta, (f32 *)(wall + 0x04), (f32 *)(best + 0x04),
+                  1, step);
+
+    /* 0x31794: a correction that points back along the movement direction, or
+     * one that is (practically) zero, leaves node B on the resolved position;
+     * only a correction that still moves the actor forward is resolved again.
+     * This variant uses D_003926CC, not the D_003926D0 of the other one. */
+    if (fabsf(out[0]) < D_003926CC && fabsf(out[1]) < D_003926CC &&
+        fabsf(out[2]) < D_003926CC)
+        goto l_snapResolved;                /* 0x31848 */
+    if (F_DOT3(D_00331148[0], out[0], D_00331148[1], out[1],
+               D_00331148[2], out[2]) < 0.0f)
+        goto l_snapResolved;                /* 0x31848 */
+    goto l_recurse;
+
+l_no_wall:                                  /* 0x31884 */
+    if (best == 0)
+        goto l_reset;                       /* 0x31A8C */
+
+    func_00136C08(pos, obj, count, D_003931B0, scanEnd);
+
+    resolved[0] = *(f32 *)(nNeg + 0x30) + pos[0];
+    resolved[1] = *(f32 *)(nNeg + 0x34) + pos[1];
+    resolved[2] = *(f32 *)(nNeg + 0x38) + pos[2];
+    off[0] = resolved[0] - *(f32 *)(nodeA + 0x30);
+    off[1] = resolved[1] - *(f32 *)(nodeA + 0x34);
+    off[2] = resolved[2] - *(f32 *)(nodeA + 0x38);
+    delta[0] = delta[0] - off[0];
+    delta[1] = delta[1] - off[1];
+    delta[2] = delta[2] - off[2];
+
+    BM_TAG2(nodeB);
+    BM_COPY12(nodeB + 0x30, resolved);
+    *(f32 *)(nodeB + 0x3C) = 1.0f;
+    /* No wall normal here: the node's own axis and the best contact normal
+     * define the plane. */
+    func_0012F180(out, obj, delta, axis, (f32 *)(best + 0x04), 1, step);
+
+    /* 0x3197C: unlike the wall variant, a correction pointing back along the
+     * movement direction stops the actor (node B on node A, velocity zeroed);
+     * a zero correction keeps the resolved position; only a forward correction
+     * is resolved again. */
+    if (F_DOT3(D_00331148[0], out[0], D_00331148[1], out[1],
+               D_00331148[2], out[2]) < 0.0f)
+        goto l_snapA;                       /* 0x319BC */
+
+    if (fabsf(out[0]) < D_003926D0 && fabsf(out[1]) < D_003926D0 &&
+        fabsf(out[2]) < D_003926D0)
+        goto l_snapResolved;                /* 0x31A50 */
+
+l_recurse:                                  /* 0x31830 */
+    /* The actor moved, so resolve the rest of the step from the new position. */
+    func_00130888(obj, ctx, step);
+    func_0013A148(obj, step);
+    return;
+
+l_snapResolved:                             /* 0x31A50 */
+    BM_TAG2(nodeB);
+    BM_COPY12(nodeB + 0x30, resolved);
+    *(f32 *)(nodeB + 0x3C) = 1.0f;
+    goto l_check;
+
+l_snapA:                                    /* 0x319BC */
+    BM_TAG2(nodeB);
+    BM_COPY12(nodeB + 0x30, nodeA + 0x30);
+    *(f32 *)(nodeB + 0x3C) = 1.0f;
+    *(f32 *)(obj + 0x3C) = 0.0f;
+    *(f32 *)(obj + 0x40) = 0.0f;
+    *(f32 *)(obj + 0x44) = 0.0f;
+    return;
+
+l_check:                                    /* 0x31B78 */
+    /* A wall contact whose normal is not the actor's own up axis needs the wall
+     * response before the step is closed.  Contacts of type 7/8 (step edges)
+     * never do. */
+    anySmall = 0;
+    if (wall != 0)
+    {
+        if ((u16)(*(u16 *)(wall + 0x2E) - 7) < 2)
+            goto l_tail;
+        d = *(f32 *)(wall + 0x04) - axis[0];
+        anySmall = (fabsf(d) < D_003926D4);
+        if (anySmall)
+        {
+            d = *(f32 *)(wall + 0x08) - axis[1];
+            anySmall = (fabsf(d) < D_003926D4);
+            if (anySmall)
+            {
+                d = *(f32 *)(wall + 0x0C) - axis[2];
+                anySmall = (fabsf(d) < D_003926D4);
+            }
+        }
+        if (anySmall)
+            goto l_tail;
+        func_0012F518(obj, (f32 *)(wall + 0x04));
+    }
+
+l_tail:
+    func_0013A148(obj, step);
+    return;
+
+l_reset:                                    /* 0x31C30 / 0x31A8C */
+    /* Nothing usable came out of the query: node B is node A, the velocity is
+     * dropped and the movement sequence is told to end. */
+    BM_COPY54(nodeB, nodeA);
+    *(f32 *)(obj + 0x3C) = 0.0f;
+    *(f32 *)(obj + 0x40) = 0.0f;
+    *(f32 *)(obj + 0x44) = 0.0f;
+    ctrl = *(u32 *)(obj + 0x0C) | 0x10000;
+    *(u32 *)(obj + 0x0C) = ctrl;
+    if ((ctrl & 0x4000) != 0)
+    {
+        u8 *pd = *(u8 **)(obj + 0x148);
+
+        *(u32 *)(pd + 0x04) = *(u32 *)pd;
+    }
+    return;
+}
+
+#undef BM_COPY54
+#undef BM_COPY12
+#undef BM_TAG2
 
 

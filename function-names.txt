@@ -1,148 +1,202 @@
 # DO NOT DELETE THIS FILE. ONLY EDIT A NAME IF YOU ARE SURE OR APPEND A NEW ONE.
-# One function per line: func_XXXXXXXX<TAB>candidate_name
+# One function per line: func_XXXXXXXX<TAB>candidate_name<TAB>size_bytes
+# Two sections: game functions first, then external library (newlib/libgcc/libm).
+# Each section sorted by size descending.
 
-func_001346E8	actorSwimMovementStep
-func_00139800	actorSubobjectsDoNotOverlap
-func_00139828	actorGetSurfaceProjectionWeight
-func_00139858	actorGetSurfaceReflectionWeight
-func_00160E48	abs
-func_00217640	modf
-func_00217818	atanf
-func_00217AC0	cosf
-func_00217BA8	fabsf
-func_00217BC8	floorf
-func_00217CB0	sinf
-func_00217DA0	tanf
-func_00217F28	atan2f
-func_00218050	powf
-func_00218558	sqrtf
-func_00218670	__ieee754_acosf
-func_00218AA0	__ieee754_atan2f
-func_00218D88	__ieee754_powf
-func_00219618	__ieee754_rem_pio2f
-func_002199F8	__ieee754_sqrtf
-func_00219B30	__kernel_cosf
-func_00219C88	__kernel_rem_pio2f
-func_0021A5D8	__kernel_sinf
-func_0021A6E0	__kernel_tanf
-func_0021A978	matherr
-func_0021A9A0	rint
-func_0021ABA0	finitef
-func_0021ABC8	isnanf
-func_0021ABF0	scalbnf
-func_0021AD50	copysignf
-func_00222048	abort
-func_00222068	__assert
-func_002220A0	atoi
-func_002220C8	atol
-func_00222120	fclose
-func_00222228	feof
-func_00222238	fflush
-func_00222340	fgets
-func_00222468	std
-func_002224C0	__sfmoreglue
-func_00222530	__sfp
-func_00222630	__sinit
-func_002226F8	_fopen_r
-func_00222808	fputs
-func_00222858	fread
-func_00222978	_free_r
-func_00222C98	_malloc_trim_r
-func_00222E08	fseek
-func_002232F8	__sfvwrite
-func_002236D0	_fwalk
-func_00223768	fwrite
-func_00223810	localtime
-func_00223838	localtime_r
-func_00223B08	__smakebuf
-func_00223C88	_memalign_r
-func_00223E90	malloc_extend_top
-func_002240E8	_malloc_r
-func_00224860	memchr
-func_00224940	memcmp
-func_002249D4	memcpy
-func_00224A84	memmove
-func_00224B88	memset
-func_00224CB8	qsort
-func_002256E0	srand
-func_002256F0	rand
-func_00225750	_realloc_r
-func_00225CE0	__srefill
-func_00225E78	_sbrk_r
-func_00225ED8	_init_signal_r
-func_00225F48	_signal_r
-func_00225FD8	_raise_r
-func_002260C8	__sigtramp_r
-func_002262A8	_sprintf_r
-func_00226388	sscanf
-func_00226410	__sread
-func_00226478	__swrite
-func_002264F8	__sseek
-func_00226560	__sclose
-func_00226580	strcasecmp
-func_00226634	strcat
-func_00226760	strchr
-func_002268F0	strcmp
-func_00226A34	strcpy
-func_00226B48	strlen
-func_00226C80	strlwr
-func_00226CD8	strncat
-func_00226E88	strncmp
-func_00227040	strncpy
-func_00227200	strrchr
-func_00227250	strstr
-func_002272C0	strtok
-func_002272E8	strtok_r
-func_00227388	_strtol_r
-func_002275F8	strupr
-func_00227650	__sprint
-func_00227698	__sbprintf
-func_002277C8	_vfiprintf_r
-func_00228398	__sprint
-func_002283E0	__sbprintf
-func_00228510	_vfprintf_r
-func_00229A28	cvt
-func_00229BD8	exponent
-func_00229CB8	__svfscanf
-func_0022A7C0	__sccl
-func_0022A8C8	vsprintf
-func_0022A980	__swsetup
-func_0022AA90	asctime
-func_0022AAB8	asctime_r
-func_0022ABB0	quorem
-func_0022ADC8	_dtoa_r
-func_0022BF98	__sflags
-func_0022C040	_setlocale_r
-func_0022C190	_mbtowc_r
-func_0022C1D0	_Balloc
-func_0022C278	_Bfree
-func_0022C2A8	_multadd
-func_0022C3C0	_s2b
-func_0022C508	_hi0bits
-func_0022C590	_lo0bits
-func_0022C650	_i2b
-func_0022C688	_multiply
-func_0022C8B8	_pow5mult
-func_0022C9B8	_lshift
-func_0022CB30	__mcmp
-func_0022CB98	__mdiff
-func_0022CD28	_ulp
-func_0022CDC0	_b2d
-func_0022CF40	_d2b
-func_0022D0C0	_ratio
-func_0022D180	_mprec_log10
-func_0022D250	isinf
-func_0022D298	isnan
-func_0022D2D0	_strtod_r
-func_0022E228	_strtoul_r
-func_0022E480	__submore
-func_0022E570	ungetc
-func_0022E6F8	_calloc_r
-func_001040F0	sceneExchangeRecords
-func_00106068	fillFloatTable256
-func_00106400	actorNodeIsScript
-func_00108F20	actorNodeGetAnimActor
-func_00157F10	nextLengthPrefixedEntry
-func_0015B7B8	vectorSetUnitX
-func_0015B7D8	vectorSetUnitY
-func_0015B7F8	vectorSetUnitZ
+## GAME FUNCTIONS
+
+func_00131D78	actorResolveSurfaceCollisions	8648
+func_0012BA18	updateObjectPerFrame	7476
+func_001D5568	updateAndDrawPoolRecord	5552
+func_001346E8	actorSwimMovementStep	3652
+func_00135CF8	categorizeCollisionSurfaces	3192
+func_0013D1B0	updateNodeOrientation	1916
+func_00137208	resolveActorGroundSlopeDirection	1720
+func_001040F0	sceneExchangeRecords	1580
+func_00136C08	accumulateSurfaceContactOffsets	1536
+func_00124260	classifyTransformNode	1096
+func_0018BC08	updateActorTransform	936
+func_001BE398	interpolateColorRamp4	856
+func_00101E30	sceneRefreshPerFrame	776
+func_001022E8	resetActorSystemForNewLevel	608
+func_00101438	actorNodeRelinkToGlobalList	384
+func_001016B0	actorDetachAllManaged	376
+func_00102160	dropActorsAndSelectLevelLayout	308
+func_00102570	fullSceneReloadOnLevelStart	292
+func_001015B8	actorNodeDetachEntityFromList	244
+func_00101B20	actorRunScriptCallback	208
+func_00101BF0	actorShouldRunScriptCallbackThisFrame	196
+func_00101380	refreshFlaggedObjectsInSecondWorld	180
+func_001019C8	actorCopyAnimSampleAndPose	176
+func_00101A78	actorAdvanceAnimation	168
+func_00101CF0	beginWorldTeardownState5	156
+func_00101D90	beginState2AndRebuildScene	156
+func_00101828	activateCurrentWorldAndDetachPrevious	140
+func_001012A0	countActorsInWorldAndGroups	124
+func_001085B0	getCaseFieldBySelector	104
+func_001615C0	copyDescriptorNegateFlags	96
+func_00162C08	copyDescriptorMergeOneFlag	96
+func_001CA0F8	layerToRunMode	96
+func_00101320	isKind2ActorInPrimaryWorldWithFlag2	92
+func_001C6CB8	decodeHardwareStatusWord0	80
+func_001C6FE8	decodeHardwareStatusWord1	80
+func_00159810	copySelectedFieldsToDescriptor	76
+func_0010AA50	releaseRecordId	72
+func_001018C0	actorSetEventValue	68
+func_00106E60	advanceWrappingByteCounter	68
+func_00119FD8	copyTwoFloatsAndDecodeMode	68
+func_0013EA20	fillStridedArrayWithValue	68
+func_001E3A40	followThreeLinksThenCheckFlags	68
+func_00101260	countActorsWithEntityFlag1	60
+func_001C6C48	enableBlockIfHardwareStatus0IsOne	60
+func_001C6F78	enableBlockIfHardwareStatus1IsOne	60
+func_00106068	fillFloatTable256	52
+func_00106ED8	advanceByteCounterWithLimit	52
+func_00108618	isMirrorNodeFlag10Set	44
+func_00139828	actorGetSurfaceProjectionWeight	44
+func_00139858	actorGetSurfaceReflectionWeight	44
+func_00106400	actorNodeIsScript	36
+func_00139800	actorSubobjectsDoNotOverlap	36
+func_00196060	lookupIndirectTableEntry	36
+func_00108F20	actorNodeGetAnimActor	32
+func_00157F10	nextLengthPrefixedEntry	32
+func_0015B7B8	vectorSetUnitX	28
+func_0015B7D8	vectorSetUnitY	28
+func_0015B7F8	vectorSetUnitZ	28
+
+## EXTERNAL LIBRARY FUNCTIONS (newlib / libgcc / libm)
+
+func_00228510	_vfprintf_r	5400
+func_0022ADC8	_dtoa_r	4556
+func_0022D2D0	_strtod_r	3840
+func_002277C8	_vfiprintf_r	3020
+func_00229CB8	__svfscanf	2824
+func_00224CB8	qsort	2596
+func_00219C88	__kernel_rem_pio2f	2380
+func_00218D88	__ieee754_powf	2188
+func_002240E8	_malloc_r	1912
+func_00225750	_realloc_r	1392
+func_00218050	powf	1288
+func_00222E08	fseek	1164
+func_00218670	__ieee754_acosf	1072
+func_00219618	__ieee754_rem_pio2f	992
+func_002232F8	__sfvwrite	984
+func_00222978	_free_r	796
+func_00218AA0	__ieee754_atan2f	744
+func_00223838	localtime_r	720
+func_00217818	atanf	680
+func_0021A6E0	__kernel_tanf	660
+func_00223E90	malloc_extend_top	596
+func_00227388	_strtol_r	568
+func_0022C688	_multiply	556
+func_0022E228	_strtoul_r	540
+func_0022ABB0	quorem	532
+func_0021A9A0	rint	508
+func_00217640	modf	468
+func_00223C88	_memalign_r	464
+func_00227040	strncpy	444
+func_00226E88	strncmp	440
+func_00229A28	cvt	432
+func_00226CD8	strncat	428
+func_00226760	strchr	400
+func_0022CB98	__mdiff	400
+func_0022E570	ungetc	392
+func_0022CDC0	_b2d	380
+func_0022CF40	_d2b	380
+func_00225CE0	__srefill	376
+func_0022C9B8	_lshift	376
+func_00222C98	_malloc_trim_r	364
+func_0021ABF0	scalbnf	352
+func_00219B30	__kernel_cosf	344
+func_00223B08	__smakebuf	336
+func_0022C3C0	_s2b	328
+func_002268F0	strcmp	324
+func_002199F8	__ieee754_sqrtf	312
+func_00226B48	strlen	312
+func_00226634	strcat	300
+func_00217F28	atan2f	296
+func_00222340	fgets	296
+func_00222858	fread	284
+func_00218558	sqrtf	276
+func_00226A34	strcpy	276
+func_0022C2A8	_multadd	276
+func_0022A980	__swsetup	268
+func_0021A5D8	__kernel_sinf	260
+func_00222120	fclose	260
+func_00222238	fflush	260
+func_00224A84	memmove	260
+func_0022A7C0	__sccl	260
+func_0022C8B8	_pow5mult	256
+func_00217CB0	sinf	240
+func_00225FD8	_raise_r	240
+func_0022E480	__submore	240
+func_00217AC0	cosf	232
+func_00217BC8	floorf	228
+func_00222530	__sfp	224
+func_00224860	memchr	224
+func_00229BD8	exponent	224
+func_002226F8	_fopen_r	220
+func_00224B88	memset	192
+func_0022C590	_lo0bits	192
+func_0022D0C0	_ratio	192
+func_0022E6F8	_calloc_r	188
+func_002260C8	__sigtramp_r	184
+func_00226580	strcasecmp	180
+func_00227698	__sbprintf	180
+func_002283E0	__sbprintf	180
+func_002249D4	memcpy	176
+func_0022BF98	__sflags	168
+func_0022C1D0	_Balloc	168
+func_002272E8	strtok_r	156
+func_0022CD28	_ulp	152
+func_002236D0	_fwalk	148
+func_00224940	memcmp	148
+func_00222630	__sinit	140
+func_00225F48	_signal_r	140
+func_00217DA0	tanf	136
+func_00226388	sscanf	136
+func_00223768	fwrite	132
+func_0022C040	_setlocale_r	132
+func_0022C508	_hi0bits	132
+func_00226478	__swrite	128
+func_0022AAB8	asctime_r	128
+func_002224C0	__sfmoreglue	112
+func_00225ED8	_init_signal_r	112
+func_00227250	strstr	108
+func_0022D180	_mprec_log10	108
+func_002262A8	_sprintf_r	104
+func_002264F8	__sseek	104
+func_0022CB30	__mcmp	104
+func_00226410	__sread	100
+func_00225E78	_sbrk_r	92
+func_00222468	std	88
+func_00226C80	strlwr	84
+func_002275F8	strupr	84
+func_0022A8C8	vsprintf	84
+func_0021F9C0	decodeSignedLeb128	80
+func_00222808	fputs	80
+func_00227200	strrchr	80
+func_0022D250	isinf	72
+func_00227650	__sprint	68
+func_00228398	__sprint	68
+func_0022C190	_mbtowc_r	60
+func_0022C650	_i2b	56
+func_0022D298	isnan	56
+func_00222068	__assert	52
+func_0021AD50	copysignf	48
+func_002256F0	rand	48
+func_0022C278	_Bfree	44
+func_002220A0	atoi	40
+func_0021A978	matherr	36
+func_0021ABA0	finitef	36
+func_0021ABC8	isnanf	36
+func_00223810	localtime	36
+func_002272C0	strtok	36
+func_0022AA90	asctime	36
+func_00222048	abort	32
+func_002220C8	atol	32
+func_00226560	__sclose	32
+func_00217BA8	fabsf	28
+func_00160E48	abs	20
+func_00222228	feof	16
+func_002256E0	srand	16

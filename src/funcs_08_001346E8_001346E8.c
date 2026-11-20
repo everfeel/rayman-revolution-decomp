@@ -10,6 +10,12 @@ void func_001826C8(void);
  * cvt.s.w -- which fed garbage into the reflection weights below. */
 f32 func_00139828(u8 *arg0, s32 arg1);
 f32 func_00139858(u8 *arg0, s32 arg1);
+/* Confirmed from the retail listing (see REFERENCE-BEHAVIORMATCH.md):
+ * `func_00139708(actor, f32 *normal)` returns 1 when
+ * `actor->+0x18 <= normal[2]`, i.e. a floor-like surface test.  The second
+ * argument is the ADDRESS of a SurfaceContact's three-float normal at +0x04,
+ * not the contact pointer and not a scalar. */
+s32 func_00139708(s32 actor, f32 *normal);
 extern s32 D_00393480;
 extern s32 D_00393484;
 extern s32 D_0039313C;
@@ -538,7 +544,7 @@ s32 func_001346E8(s32 arg1, s32 arg2, f32 fArg)
         for (i = 0; i < len; i++) {
             entry = (s32 *)((s8 *)listBase + i * 0x68);
             if (*(s16 *)((s8 *)entry + 0x2E) != 0x63) {
-                if ((func_00139708(arg1, (s32)entry + 4) & 0xFF) != 0) {
+                if ((func_00139708(arg1, (f32 *)((s8 *)entry + 0x4)) & 0xFF) != 0) {
                     found = entry;
                     valB = i;
                 }

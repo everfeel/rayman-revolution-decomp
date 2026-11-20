@@ -43,6 +43,7 @@ extern f32 D_00392718;
 extern f32 D_0039271C;
 extern f32 D_00392720;
 extern f32 D_00392724;
+extern f32 D_00392918;  /* 0.1f, shared lit4 constant - used to avoid a new .lit4 entry */
 extern f32 D_00392728;
 extern f32 D_0039272C;
 extern f32 D_00392730;
@@ -502,9 +503,486 @@ extern void func_0014EBA8();
 
 INCLUDE_ASM(const s32, "core/main", func_00136970);
 
-INCLUDE_ASM(const s32, "core/main", func_00136C08);
+/* ------------------------------------------------------------------------- */
+/* func_00136C08 - surface contact offset accumulator (0x600 bytes)          */
+/* ------------------------------------------------------------------------- */
 
-INCLUDE_ASM(const s32, "core/main", func_00137208);
+/* One entry of the contact list D_003931B0 (filled in by func_00135CF8),
+ * stride 0x68.  Only the fields this function addresses are named; the gaps
+ * keep the offsets the retail code uses. */
+typedef struct SurfaceContact {
+    f32 distance;                       /* +0x00: lateral distance, < 0 = near side */
+    f32 normalX;                        /* +0x04: contact normal */
+    f32 normalY;                        /* +0x08 */
+    f32 normalZ;                        /* +0x0C */
+    f32 posX;                           /* +0x10: contact position */
+    f32 posY;                           /* +0x14 */
+    f32 posZ;                           /* +0x18 */
+    u8 *objectA;                        /* +0x1C: u16 flags at +0x06, bit 0x4000 */
+    u8 *objectB;                        /* +0x20: same */
+    u8  unk24[0x04];                    /* +0x24 */
+    u32 flags;                          /* +0x28: bit0 = pass 1, bit1 = pass 2, bit2 = done */
+    u8  unk2C[0x02];                    /* +0x2C */
+    s16 type;                           /* +0x2E: 0x63 = no surface, 7/8 = step surfaces */
+    f32 offsetX;                        /* +0x30: contact offset */
+    f32 offsetY;                        /* +0x34 */
+    f32 offsetZ;                        /* +0x38 */
+    u8  unk3C[0x0C];                    /* +0x3C */
+    f32 extraX;                         /* +0x48: second offset, see func_00137208 */
+    f32 extraY;                         /* +0x4C */
+    f32 extraZ;                         /* +0x50 */
+    u8  unk54[0x14];                    /* +0x54 */
+} SurfaceContact;                       /* 0x68 */
+
+/* Both objects linked to a contact carry the "participates in a surface pair"
+ * flag.  Retail tests objectA first and only then loads objectB. */
+#define OWNERS_FLAGGED(c) \
+    (((*(u16 *)((c)->objectA + 6) & 0x4000) != 0) && \
+     ((*(u16 *)((c)->objectB + 6) & 0x4000) != 0))
+
+/* R5900 FPU accumulator forms: `mula.s` / `madda.s` / `madd.s`.  C cannot make
+ * this toolchain emit them (see REFERENCE-BYTEMATCH.md), and they round once
+ * instead of twice, so spell them out - same idiom as funcs_06 / funcs_08.
+ *
+ * The parameters are two vectors, component by component, so the products pair
+ * as (ax*bx), (ay*by), (az*bz); retail's three dot products here are
+ * `mula.s a,b` / `madda.s c,d` / `madd.s r,e,f` in that order. */
+#define F_DOT3(ax, ay, az, bx, by, bz) (                        \
+    {                                                           \
+        float r_;                                               \
+        __asm__ volatile("mula.s %1,%4\n\t"                     \
+                         "madda.s %2,%5\n\t"                    \
+                         "madd.s %0,%3,%6"                      \
+                         : "=&f"(r_)                            \
+                         : "f"(ax), "f"(ay), "f"(az),            \
+                           "f"(bx), "f"(by), "f"(bz));           \
+        r_;                                                     \
+    })
+
+/* ax*ax + ay*ay + az*az */
+#define F_LEN2(x, y, z) F_DOT3(x, y, z, x, y, z)
+
+f32 sqrtf(f32);
+f32 fabsf(f32);
+
+/* Thresholds of this function.  Retail loads them from the literal pool at
+ * these addresses (lwc1 %hi/%lo(D)($2)), so name them instead of writing float
+ * literals: a local literal would add a new .lit4 entry to this object, which
+ * pushes .main past its retail end and breaks the fixed layout at link time. */
+extern f32 D_0039274C;                 /* 0.001f, "accumulation is zero" */
+extern f32 D_00392750;                 /* 0.001f, "contact offset is zero" */
+extern f32 D_00392754;                 /* -0.258f, pass-2 facing threshold */
+extern f32 D_00392758;                 /* 0.01f, bias of the final snap */
+
+/* Accumulates the offset vectors of a set of surface contacts into
+ * `position` (three floats, written from scratch) and finally snaps the result
+ * to the plane of the reference contact.
+ *
+ *   position    output vector (three floats), zeroed on entry
+ *   actor       the actor the contacts belong to; every caller passes it, this
+ *               function never reads it
+ *   count       number of contacts (0 skips both passes)
+ *   contacts    contact array, stride 0x68
+ *   indexLimit  contacts past this index are only used when distance < 0; the
+ *               first one that is not ends the current pass
+ *
+ * Returns 1 when no contact needed the "faces against the accumulation" path,
+ * 0 otherwise. */
+s32 func_00136C08(f32 *position, void *actor, s32 count, SurfaceContact *contacts,
+                  s32 indexLimit)
+{
+    SurfaceContact *anchor;
+    SurfaceContact *contact;
+    f32 e[3];
+    f32 n[3];
+    f32 d[3];
+    f32 len;
+    f32 inv;
+    f32 proj;
+    f32 bias;
+    s32 negative;
+    s32 seeded;
+    s32 pass;
+    s32 i;
+
+    (void)actor;
+
+    position[0] = 0.0f;
+    position[1] = 0.0f;
+    position[2] = 0.0f;
+
+    /* Reference contact: the first entry that is a surface and whose two
+     * linked objects are both flagged.  It is the plane the result is snapped
+     * to at the end and is skipped by the accumulation passes. */
+    anchor = 0;
+    if (count > 0) {
+        contact = contacts;
+        i = 0;
+        for (;;) {
+            if (contact->type != 0x63 && OWNERS_FLAGGED(contact))
+                anchor = contact;
+            i++;
+            if (i >= count)
+                break;
+            contact++;
+            if (anchor != 0)
+                break;
+        }
+    }
+
+    /* Pass 1 uses the contacts flagged bit 0, pass 2 those flagged bit 1.  A
+     * contact beyond `indexLimit` is only kept while it is behind the actor
+     * (distance < 0); the first one that is not abandons the rest of the
+     * pass. */
+    seeded = 0;
+    negative = 0;
+    pass = 1;
+    while (pass != 9) {
+        for (i = 0; i < count; i++) {
+            contact = contacts + i;
+
+            if ((contact->flags & (u32)pass) != (u32)pass)
+                continue;
+            if (i > indexLimit && !(contact->distance < 0.0f))
+                break;
+            if (contact->type == 0x63)
+                continue;
+            if (OWNERS_FLAGGED(contact))
+                continue;
+
+            e[0] = contact->offsetX;
+            e[1] = contact->offsetY;
+            e[2] = contact->offsetZ;
+
+            /* the first accepted contact seeds the accumulation */
+            if (seeded == 0) {
+                position[0] = e[0];
+                position[1] = e[1];
+                position[2] = e[2];
+                seeded = 1;
+                continue;
+            }
+
+            /* unit direction of what is accumulated so far */
+            if (fabsf(position[0]) < D_0039274C &&
+                fabsf(position[1]) < D_0039274C &&
+                fabsf(position[2]) < D_0039274C) {
+                n[0] = position[0];
+                n[1] = position[1];
+                n[2] = position[2];
+            } else {
+                len = sqrtf(F_LEN2(position[0], position[1], position[2]));
+                if (len == 0.0f) {
+                    n[0] = position[0];
+                    n[1] = position[1];
+                    n[2] = position[2];
+                } else {
+                    inv = 1.0f / len;
+                    n[0] = inv * position[0];
+                    n[1] = inv * position[1];
+                    n[2] = inv * position[2];
+                }
+            }
+
+            /* signed length of this contact offset along that direction */
+            proj = F_DOT3(n[0], n[1], n[2], e[0], e[1], e[2]);
+
+            if (proj > 0.0f) {
+                if (proj < sqrtf(F_LEN2(position[0], position[1], position[2]))) {
+                    /* add the part of the offset across the accumulation */
+                    position[0] = position[0] + (e[0] - proj * n[0]);
+                    position[1] = position[1] + (e[1] - proj * n[1]);
+                    position[2] = position[2] + (e[2] - proj * n[2]);
+                } else {
+                    /* the contact reaches further than the accumulation */
+                    position[0] = e[0];
+                    position[1] = e[1];
+                    position[2] = e[2];
+                }
+                continue;
+            }
+
+            /* the contact faces against the accumulation */
+            negative = 1;
+            if (fabsf(e[0]) < D_00392750 && fabsf(e[1]) < D_00392750 &&
+                fabsf(e[2]) < D_00392750) {
+                d[0] = e[0];
+                d[1] = e[1];
+                d[2] = e[2];
+            } else {
+                len = sqrtf(F_LEN2(e[0], e[1], e[2]));
+                if (len == 0.0f) {
+                    d[0] = e[0];
+                    d[1] = e[1];
+                    d[2] = e[2];
+                } else {
+                    inv = 1.0f / len;
+                    d[0] = inv * e[0];
+                    d[1] = inv * e[1];
+                    d[2] = inv * e[2];
+                }
+            }
+
+            /* pass 2 only keeps contacts that do not face away */
+            if (pass == 1 ||
+                F_DOT3(n[0], n[1], n[2], d[0], d[1], d[2]) > D_00392754) {
+                position[0] = position[0] + (e[0] - proj * n[0]);
+                position[1] = position[1] + (e[1] - proj * n[1]);
+                position[2] = position[2] + (e[2] - proj * n[2]);
+            }
+        }
+        pass = (pass == 1) ? 2 : 9;
+    }
+
+    /* Snap to the reference contact: drop the component of the accumulated
+     * offset along its normal (leaving a 0.01 bias) and add its own offset. */
+    if (anchor != 0) {
+        d[0] = anchor->normalX;
+        d[1] = anchor->normalY;
+        d[2] = anchor->normalZ;
+        len = sqrtf(F_LEN2(d[0], d[1], d[2]));
+        if (len != 0.0f) {
+            inv = 1.0f / len;
+            d[0] = inv * anchor->normalX;
+            d[1] = inv * anchor->normalY;
+            d[2] = inv * anchor->normalZ;
+        }
+        bias = F_DOT3(d[0], d[1], d[2], position[0], position[1], position[2]) -
+               D_00392758;
+        position[0] = (position[0] - bias * d[0]) + anchor->offsetX;
+        position[1] = (position[1] - bias * d[1]) + anchor->offsetY;
+        position[2] = (position[2] - bias * d[2]) + anchor->offsetZ;
+    }
+
+    return negative ^ 1;
+}
+
+/* ------------------------------------------------------------------------- */
+/* func_00137208 - actor surface resolution (0x6B8 bytes)                     */
+/* ------------------------------------------------------------------------- */
+
+/* The actor is much larger than this; only the fields this function touches
+ * are named and the gaps keep the retail offsets. */
+typedef struct ActorSurfaceState {
+    u8  unk00[0x0C];
+    u32 flags0C;                        /* +0x0C: bit 0x40 = resolved, bit 0x04 = has slope dir */
+    u8  unk10[0x08];
+    f32 minSurfaceZ;                    /* +0x18: floor/wall threshold on normal.z */
+    u8  unk1C[0x150];
+    f32 slopeScale;                     /* +0x16C: compared against 0.5f */
+    u8  unk170[0x84];
+    f32 groundDirX;                     /* +0x1F4: horizontal direction of the slope */
+    f32 groundDirY;                     /* +0x1F8 */
+    f32 groundDirZ;                     /* +0x1FC */
+} ActorSurfaceState;
+
+/* func_00139708: `actor->minSurfaceZ <= normal[2]` (surface counts as a floor).
+ * func_001396A0: `|normal[2]| < actor->minSurfaceZ` (surface counts as a wall).
+ * Both read the three floats the pointer points at.  Still retail assembly in
+ * this module; only the symbols are needed here. */
+s32 func_00139708(ActorSurfaceState *actor, f32 *normal);
+s32 func_001396A0(ActorSurfaceState *actor, f32 *normal);
+
+/* Thresholds and gates, all read from the literal pool (see func_00136C08). */
+extern f32 D_0039275C;                 /* 0.001f,  coincident-contact epsilon */
+extern f32 D_00392760;                 /* 0.001f,  same-spot epsilon for type 8 */
+extern f32 D_00392764;                 /* 0.707f,  parallel-surface gate (45 deg) */
+extern f32 D_00392768;                 /* -0.001f, opposing wall gate */
+extern f32 D_0039276C;                 /* 0.001f,  normal-sum epsilon */
+extern f32 D_00392770;                 /* 0.9848f, direction must not be vertical (10 deg) */
+extern f32 D_00392774;                 /* 0.001f,  ground-direction epsilon */
+
+/* Resolves which surface the actor is standing on and writes the horizontal
+ * slope direction into the actor.
+ *
+ *   actor     the actor being resolved; `+0x0C` bit 0x40 is cleared on entry and
+ *             set again when a direction is accepted
+ *   count     number of contacts in `contacts`
+ *   contacts  contact array (stride 0x68)
+ *   selected  the contact the caller already picked, or 0 to search for one
+ *
+ * Nothing is returned; the only side effects are `actor->flags0C` and
+ * `actor->groundDir` (0x1F4).  A surface contact only participates when its
+ * `+0x10` position is at the actor's contact position and its type is 7 or 8. */
+void func_00137208(ActorSurfaceState *actor, s32 count, SurfaceContact *contacts,
+                   SurfaceContact *selected)
+{
+    SurfaceContact *entry;
+    SurfaceContact *best;
+    f32 origin[3];
+    f32 delta[3];
+    f32 dir[3];
+    f32 sum[3];
+    f32 len;
+    f32 inv;
+    f32 proj;
+    /* Retail initialises this to 0.0f and never writes it again, so the "best"
+     * contact is really the first one with a positive projection. */
+    f32 bestDot = 0.0f;
+    s32 coincident;
+    s32 found;
+    s32 near;
+    s32 i;
+
+    actor->flags0C &= ~0x40u;
+
+    /* Phase 1 (only when the caller passes no contact): the first contact the
+     * actor overlaps that is floor-like.  Unlike the main scan this does not
+     * require a coincident position. */
+    if (selected == 0) {
+        entry = contacts;
+        for (i = 0; i < count; i++, entry++) {
+            if (entry->type == 0x63)
+                continue;
+            if (func_00139708(actor, &entry->normalX) == 0)
+                continue;
+            if ((u16)(entry->type - 7) >= 2)
+                return;
+            selected = entry;
+            break;
+        }
+        if (selected == 0)
+            return;
+    }
+
+    if ((u16)(selected->type - 7) >= 2)
+        return;
+    if (((selected->flags >> 2) & 1) != 0)
+        return;
+
+    origin[0] = selected->posX;
+    origin[1] = selected->posY;
+    origin[2] = selected->posZ;
+
+    /* direction of the selected contact: its (offset + extra) minus its own
+     * position */
+    dir[0] = (selected->offsetX + selected->extraX) - origin[0];
+    dir[1] = (selected->offsetY + selected->extraY) - origin[1];
+    dir[2] = (selected->offsetZ + selected->extraZ) - origin[2];
+    len = sqrtf(F_LEN2(dir[0], dir[1], dir[2]));
+    if (len != 0.0f) {
+        inv = 1.0f / len;
+        dir[0] = inv * dir[0];
+        dir[1] = inv * dir[1];
+        dir[2] = inv * dir[2];
+    }
+
+    /* Phase 2: classify the other contacts at the same spot. */
+    coincident = 0;
+    found = 0;
+    best = 0;
+    for (i = 0; i < count; i++) {
+        entry = contacts + i;
+
+        if (entry->type == 0x63)
+            continue;
+
+        near = func_00139708(actor, &entry->normalX);
+        if (near != 0) {
+            /* a floor-like contact that is not a step surface aborts */
+            if ((u16)(entry->type - 7) >= 2)
+                return;
+            delta[0] = origin[0] - entry->posX;
+            delta[1] = origin[1] - entry->posY;
+            delta[2] = origin[2] - entry->posZ;
+            if (fabsf(delta[0]) < D_0039275C && fabsf(delta[1]) < D_0039275C &&
+                fabsf(delta[2]) < D_0039275C)
+                coincident++;
+            continue;
+        }
+
+        if (entry->type == 8) {
+            delta[0] = origin[0] - entry->posX;
+            delta[1] = origin[1] - entry->posY;
+            delta[2] = origin[2] - entry->posZ;
+            if (!(fabsf(delta[0]) < D_00392760 && fabsf(delta[1]) < D_00392760 &&
+                  fabsf(delta[2]) < D_00392760))
+                continue;
+            /* two nearly parallel step surfaces on a slope: give up */
+            if (0.5f < actor->slopeScale &&
+                F_DOT3(selected->normalX, selected->normalY, selected->normalZ,
+                       entry->normalX, entry->normalY, entry->normalZ) >
+                    D_00392764)
+                return;
+            /* the contact whose normal faces the contact direction wins */
+            proj = F_DOT3(entry->normalX, entry->normalY, entry->normalZ,
+                          dir[0], dir[1], dir[2]);
+            if (best == 0 && bestDot < proj) {
+                found = 1;
+                best = entry;
+            }
+            continue;
+        }
+
+        /* wall-like contacts: only those the actor stands in front of, and only
+         * when the contact is not itself a step surface */
+        if (func_001396A0(actor, &entry->normalX) == 0)
+            continue;
+        if (entry->type == 7)
+            continue;
+        delta[0] = origin[0] - entry->posX;
+        delta[1] = origin[1] - entry->posY;
+        delta[2] = origin[2] - entry->posZ;
+        if (!(F_DOT3(selected->normalX, selected->normalY, selected->normalZ,
+                     delta[0], delta[1], delta[2]) < 0.0f))
+            continue;
+        if (F_DOT3(entry->normalX, entry->normalY, entry->normalZ,
+                   delta[0], delta[1], delta[2]) < D_00392768)
+            return;
+    }
+
+    /* A slope direction is only derived with at least two coincident contacts
+     * and with the contact direction pointing into the surface. */
+    if (coincident < 2)
+        return;
+
+    if (found != 0) {
+        sum[0] = selected->normalX + best->normalX;
+        sum[1] = selected->normalY + best->normalY;
+        sum[2] = selected->normalZ + best->normalZ;
+        if (!(fabsf(sum[0]) < D_0039276C && fabsf(sum[1]) < D_0039276C &&
+              fabsf(sum[2]) < D_0039276C)) {
+            len = sqrtf(F_LEN2(sum[0], sum[1], sum[2]));
+            if (len != 0.0f) {
+                inv = 1.0f / len;
+                sum[0] = inv * sum[0];
+                sum[1] = inv * sum[1];
+                sum[2] = inv * sum[2];
+            }
+            if (F_DOT3(dir[0], dir[1], dir[2], sum[0], sum[1], sum[2]) < 0.0f)
+                return;
+        }
+    }
+
+    /* the contact direction has to be at least ~10 degrees away from vertical */
+    if (!(dir[2] < D_00392770))
+        return;
+
+    actor->flags0C |= 0x40u;
+    if ((actor->flags0C & 4u) == 0)
+        return;
+
+    /* keep only the horizontal part of the direction.  Retail also tests |z|
+     * here after zeroing it, which is always true, so two tests are enough. */
+    dir[2] = 0.0f;
+    if (fabsf(dir[0]) < D_00392774 && fabsf(dir[1]) < D_00392774) {
+        dir[0] = 0.0f;
+        dir[1] = 0.0f;
+        dir[2] = 0.0f;
+    } else {
+        len = sqrtf(F_LEN2(dir[0], dir[1], dir[2]));
+        if (len != 0.0f) {
+            inv = 1.0f / len;
+            dir[0] = inv * dir[0];
+            dir[1] = inv * dir[1];
+            dir[2] = inv * dir[2];
+        }
+    }
+
+    actor->groundDirX = dir[0];
+    actor->groundDirY = dir[1];
+    actor->groundDirZ = dir[2];
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001378C0);
 
@@ -753,7 +1231,163 @@ INCLUDE_ASM(const s32, "core/main", func_0013CF50);
 
 INCLUDE_ASM(const s32, "core/main", func_0013D038);
 
-INCLUDE_ASM(const s32, "core/main", func_0013D1B0);
+/* ------------------------------------------------------------------------- */
+/* func_0013D1B0 - orientation node update (0x77C bytes)                     */
+/* ------------------------------------------------------------------------- */
+
+/* The 0x54-byte transform node written by func_001246A8 / func_00120D48 and
+ * classified by func_00124260. */
+typedef struct OrientMatrix {
+    f32 m[4][4];                        /* +0x00: right / up / forward / pos */
+    f32 sx;                             /* +0x40: decomposed scale */
+    f32 sy;                             /* +0x44 */
+    f32 sz;                             /* +0x48 */
+    f32 s1;                             /* +0x4C: 1.0 */
+    u8  type;                           /* +0x50: classification tag */
+    u8  unk51[0x03];
+} OrientMatrix;                         /* 0x54 */
+
+/* *(object + 0x38): the orientation record owned by the object.  The transform
+ * node sits at +0x0C; the 3x3 rotation delta applied on every update follows it
+ * at +0x60 (rows at +0x60 / +0x6C / +0x78). */
+typedef struct OrientNode {
+    f32 angle;                          /* +0x00: spin accumulator (radians) */
+    f32 rate;                           /* +0x04: spin rate */
+    f32 unk08;                          /* +0x08 */
+    OrientMatrix mtx;                   /* +0x0C */
+    f32 rot[3][3];                      /* +0x60: rotation delta */
+} OrientNode;                           /* 0x84 */
+
+void func_00120D48(u8 *node);
+void func_001246A8(u8 *node, f32 *basis, f32 *translation);
+
+extern f32 D_0039280C;                 /* 6.28318548f, 2*pi */
+extern f32 D_00392810;                 /* 0.0001f, direction length threshold */
+extern f32 D_00392814;                 /* 0.0001f, perpendicular length */
+extern f32 D_00392818;                 /* 0.0001f, side vector length */
+
+/* Three orientation modes, selected by flags at arg1+4:
+ *   bit 0x10  master enable, without it the function does nothing
+ *   bit 0x01  spin: angle += rate * arg2, wrapped into [0, 2*pi)
+ *   bit 0x20  look-at: rebuild an orthonormal frame from the direction at
+ *             arg0+0x20, ignoring the current basis
+ *   otherwise rotate the current basis by the delta at node+0x60 and add the
+ *   scaled result to the basis itself (angular velocity integration)
+ * The object's own byte 0 bit 2 marks it as already updated this frame. */
+void func_0013D1B0(u8 *arg0, u8 *arg1, f32 arg2)
+{
+    OrientNode *node;
+    f32 *v;
+    f32 dir[3];
+    f32 perp[3];
+    f32 side[3];
+    f32 basis[3][3];
+    f32 cur[3][3];
+    f32 acc[3][3];
+    f32 zero[3];
+    f32 len;
+    u32 flags;
+    s32 r, c;
+
+    flags = *(u16 *)(arg1 + 0x04);
+    if ((flags & 0x10) == 0)
+        return;
+    if ((*(u8 *)arg0 & 0x04) != 0)
+        return;
+
+    node = *(OrientNode **)(arg0 + 0x38);
+
+    if ((flags & 0x01) != 0) {
+        /* Retail stores the un-wrapped angle first and then overwrites it with
+           the wrapped one on the same slot. */
+        f32 a = node->angle + node->rate * arg2;
+
+        node->angle = a;
+        if (D_0039280C < a)
+            node->angle = a - D_0039280C;
+        else if (a < 0.0f)
+            node->angle = a + D_0039280C;
+        return;
+    }
+
+    if ((flags & 0x20) != 0) {
+        /* Look-at: the direction lives in the object at +0x20..+0x28. */
+        v = (f32 *)(arg0 + 0x20);
+        len = sqrtf(F_LEN2(v[0], v[1], v[2]));
+        if (len < D_00392810) {
+            func_00120D48((u8 *)&node->mtx);
+            return;
+        }
+        dir[0] = v[0] / len;
+        dir[1] = v[1] / len;
+        dir[2] = v[2] / len;
+
+        /* perp = (0,0,1) x dir, the horizontal perpendicular */
+        perp[0] = -dir[1];
+        perp[1] = dir[0];
+        perp[2] = 0.0f;
+        len = sqrtf(F_LEN2(perp[0], perp[1], perp[2]));
+        if (len < D_00392814) {
+            func_00120D48((u8 *)&node->mtx);
+            return;
+        }
+        perp[0] = perp[0] / len;
+        perp[1] = perp[1] / len;
+        perp[2] = perp[2] / len;
+
+        side[0] = dir[1] * perp[2] - dir[2] * perp[1];
+        side[1] = dir[2] * perp[0] - dir[0] * perp[2];
+        side[2] = dir[0] * perp[1] - dir[1] * perp[0];
+        len = sqrtf(F_LEN2(side[0], side[1], side[2]));
+        if (len < D_00392818) {
+            func_00120D48((u8 *)&node->mtx);
+            return;
+        }
+        side[0] = side[0] / len;
+        side[1] = side[1] / len;
+        side[2] = side[2] / len;
+
+        /* Rows: side, up (the perpendicular), forward (the direction). */
+        basis[0][0] = side[0];
+        basis[0][1] = side[1];
+        basis[0][2] = side[2];
+        basis[1][0] = perp[0];
+        basis[1][1] = perp[1];
+        basis[1][2] = perp[2];
+        basis[2][0] = dir[0];
+        basis[2][1] = dir[1];
+        basis[2][2] = dir[2];
+        zero[0] = 0.0f;
+        zero[1] = 0.0f;
+        zero[2] = 0.0f;
+        func_001246A8((u8 *)&node->mtx, &basis[0][0], zero);
+        return;
+    }
+
+    /* General case: acc = cur + arg2 * (cur x rot), written back with a zero
+       translation.  The current basis is read first, so the update can use the
+       old value for every component. */
+    for (r = 0; r < 3; r++) {
+        for (c = 0; c < 3; c++)
+            cur[r][c] = node->mtx.m[r][c];
+    }
+    for (r = 0; r < 3; r++) {
+        for (c = 0; c < 3; c++) {
+            acc[r][c] = F_DOT3(cur[r][0], cur[r][1], cur[r][2],
+                               node->rot[0][c], node->rot[1][c],
+                               node->rot[2][c]);
+        }
+    }
+    for (r = 0; r < 3; r++) {
+        for (c = 0; c < 3; c++)
+            acc[r][c] = cur[r][c] + arg2 * acc[r][c];
+    }
+    func_00120D48((u8 *)&node->mtx);
+    zero[0] = 0.0f;
+    zero[1] = 0.0f;
+    zero[2] = 0.0f;
+    func_001246A8((u8 *)&node->mtx, &acc[0][0], zero);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0013D930);
 
@@ -12494,7 +13128,643 @@ INCLUDE_ASM(const s32, "core/main", func_001D5140);
 
 INCLUDE_ASM(const s32, "core/main", func_001D54F0);
 
-INCLUDE_ASM(const s32, "core/main", func_001D5568);
+/* Proposed behavioural reconstruction of func_001D5568 (5552 bytes, 0x1D5568).
+ *
+ * Not enabled in src/ yet: as C it compiles to the right size in isolation
+ * (symbol size 5552, identical to retail) but the linked image then overflows
+ * .main into .main_bss by 16 bytes, so the tree keeps the INCLUDE_ASM stub
+ * until that is reduced.  Everything below is transcribed from
+ * asm/nonmatchings/core/main/func_001D5568.s; see
+ * docs/REFERENCE-BEHAVIORMATCH.md for the field map, the kind/group dispatch
+ * and the evidence behind each call's arguments.
+ */
+/* ===== func_001D5568: one element of the D_003796D0 table =================
+ *
+ * D_003796D0 is 301 records of 0x60 bytes (28896 bytes, all zero in the image:
+ * the table is filled at run time).  arg0 selects the record.  The function
+ * advances the record's state machine and submits it for drawing; the draw
+ * handle at +0x50 is the gate (a zero handle means "idle, nothing to do").
+ *
+ * Record fields, as used by this function:
+ *   +0x00  flags   bits 0..7  kind (0..0x15)
+ *                   bits 24..27 group (selects the draw path)
+ *                   bit  24     set here: submitted this frame
+ *                   bit  27     add +0x44 to z while drawing, then undo
+ *   +0x04  bit 0    single-shot variant: one draw call, no state machine
+ *   +0x08  s32      integer parameter (count/level; kind 0x80xxxxxx uses it
+ *                   as a float, with the unsigned-conversion sequence)
+ *   +0x0C  f32      phase step
+ *   +0x10..+0x18    a direction/radius vector (x, y, z)
+ *   +0x1C..+0x24    position (x, y, z), also the vector handed to the draws
+ *   +0x28..+0x30    direction (x, y, z)
+ *   +0x34..+0x3C    up vector (x, y, z)
+ *   +0x40, +0x44    two scales (colour/alpha style parameters)
+ *   +0x48  f32      scale published to D_00393A2C (except kind 0x0C: 1.0)
+ *   +0x50  u32      draw handle (0 = idle)
+ *   +0x54  u32      handle used by kind 0x13
+ *   +0x58  f32      remaining life (kinds 6/7/8/0xB/0x13); clamped at 0
+ *
+ * Kinds 7, 8 and 0x0B move the position by a sway offset for the draw and the
+ * shared tail at 0x6A40 takes it back out, so the logical position does not
+ * change.  The shared tail runs for every kind, hence the kind test there.
+ *
+ * Callees that do not exist as C yet are declared below with the register
+ * usage observed at every call site (first six integers in $4..$9, floats in
+ * $f12/$f13 independently of the integer arguments).
+ */
+typedef struct
+{
+    u32 flags;          /* +0x00 */
+    u32 mode;           /* +0x04 */
+    s32 i08;            /* +0x08 */
+    f32 f0C;            /* +0x0C */
+    f32 f10;            /* +0x10 */
+    f32 f14;            /* +0x14 */
+    f32 f18;            /* +0x18 */
+    f32 f1C;            /* +0x1C */
+    f32 f20;            /* +0x20 */
+    f32 f24;            /* +0x24 */
+    f32 f28;            /* +0x28 */
+    f32 f2C;            /* +0x2C */
+    f32 f30;            /* +0x30 */
+    f32 f34;            /* +0x34 */
+    f32 f38;            /* +0x38 */
+    f32 f3C;            /* +0x3C */
+    f32 f40;            /* +0x40 */
+    f32 f44;            /* +0x44 */
+    f32 f48;            /* +0x48 */
+    f32 f4C;            /* +0x4C */
+    u32 h50;            /* +0x50 */
+    u32 h54;            /* +0x54 */
+    f32 f58;            /* +0x58 */
+    f32 f5C;            /* +0x5C */
+} Node60;
+
+extern u8 D_003796D0[];
+extern u8 D_00252278[];
+extern f32 D_00393A2C;
+extern f32 D_003939F4;
+extern f32 D_003939FC;
+extern s32 D_003939CC;
+extern f32 D_0039293C, D_00392940, D_00392944, D_00392948, D_0039294C;
+extern f32 D_00392950, D_00392954, D_00392958, D_0039295C, D_00392960;
+extern f32 D_00392964, D_00392968, D_0039296C, D_00392970, D_00392974;
+extern f32 D_00392978, D_0039297C, D_00392980, D_00392984, D_00392988;
+extern f32 D_0039298C, D_00392990, D_00392994, D_00392998, D_0039299C;
+extern f32 D_003929A0, D_003929A4, D_003929A8, D_003929AC, D_003929B0;
+
+f32 func_0011A788(f32 arg0);
+s32 func_002256F0(void);
+f32 func_00217AC0(f32 arg0);
+f32 func_00217CB0(f32 arg0);
+s32 func_00156A80(f32 *arg0, u32 arg1, u8 *arg2, s32 arg3, f32 arg4, f32 arg5);
+void func_00155698(f32 *arg0, f32 *arg1, u8 *arg2, f32 arg3, f32 arg4);
+s32 func_00156E48(f32 *arg0, u32 arg1, u8 *arg2, s32 arg3, f32 arg4, f32 arg5);
+void func_001567B0(f32 *arg0, f32 *arg1, f32 *arg2, f32 *arg3, u32 arg4);
+s32 func_00157140(f32 *arg0, u32 arg1, u8 *arg2, s32 arg3, f32 *arg4, f32 *arg5,
+                  f32 arg6, f32 arg7);
+void func_001DC458(f32 *arg0, f32 *arg1, f32 *arg2);
+void func_001D46A0(u32 arg0, f32 *arg1, f32 *arg2, u32 arg3, f32 arg4, f32 arg5,
+                   f32 arg6);
+
+/* Retail expands `x != 0 ? copysignf(1.0f, x) : 0.0f` inline at four places
+   (0x56EC, 0x5728, 0x5820, 0x5854, 0x5D8C, 0x5DCC, 0x5EE0, 0x5F20): it tests
+   |x|, then rebuilds 1.0 with x's sign bit.  Kept as one helper. */
+/* Retail expands both of these inline at every use (0x56EC, 0x5728, 0x5820,
+   0x5854, 0x5D8C, 0x5DCC, 0x5EE0, 0x5F20 for the sign, and the two `lui $1,
+   0x3000; mtc1` sequences for the tiny constant).  They have to be macros, not
+   helpers: a helper lands at the end of .text, past the last retail function,
+   where the per-function padding cannot absorb it and the link overflows into
+   .main_bss. */
+
+/* 0.0 for a zero input, otherwise 1.0 carrying the input's sign bit. */
+#define SIGN_ONE(x)                                                              ({                                                                               union { f32 f; u32 u; } _s;                                                  _s.f = (x);                                                                  _s.u = (_s.u & 0x7FFFFFFF) ? ((_s.u & 0x80000000) | 0x3F800000) : 0;         _s.f;                                                                    })
+
+/* The float whose bit pattern is `b` (0x30000000 = 4.656613e-10). */
+#define BITS_F32(b)                                                              ({                                                                               union { f32 f; u32 u; } _c;                                                  _c.u = (u32)(b);                                                             _c.f;                                                                    })
+
+void func_001D5568(s32 arg0)
+{
+    Node60 *e;
+    f32 *pos;
+    f32 *axis;
+    f32 *dir;
+    f32 *up;
+    s32 kind;
+    u32 group;
+    s32 i;
+    f32 f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14;
+    f32 f20, f21, f22, f23, f24, f25, f26, f27, f28, f29, f30, f31;
+    f32 zslot;                          /* +0x110($sp): 0.0, kind 8's dz later */
+    f32 pz[3];                          /* +0x70 */
+    f32 nrm[3];                         /* +0x80 */
+    f32 va[3], vb[3], vc[3], vd[3];     /* +0x90, +0xA0, +0xB0, +0xC0 */
+    f32 ve[3], vf[3], vg[3], vh[3];     /* +0xD0, +0xE0, +0xF0, +0x100 */
+
+    e = (Node60 *)(D_003796D0 + arg0 * 0x60);
+    pos = &e->f1C;
+    axis = &e->f10;
+    dir = &e->f28;
+    up = &e->f34;
+    zslot = 0.0f;
+    f31 = 0.0f;
+    f29 = 0.0f;
+
+    /* 0x001D55E0: single-shot variant (bit 0 of +0x04).  Its own draw first,
+       then the record is submitted once and nothing else happens. */
+    if ((e->mode & 1) != 0) {
+        D_00393A2C = e->f48;
+        func_0011A788((e->f58 < 255.0f) ? e->f58 : 255.0f);
+        if (func_00156A80(pos, e->h50, D_00252278, e->i08, e->f40, e->f44) != 0)
+            e->flags |= 0x01000000;
+        return;
+    }
+
+    kind = e->flags & 0xFF;
+
+    /* 0x001D5690: kinds 7 and 0x0B sway along a sine of +0x18*(T-+0x0C). */
+    if (kind == 7 || kind == 0x0B) {
+        f28 = e->f18 * (D_003939F4 - e->f0C);
+        f0 = (f32)(s32)(f28 * D_0039293C) * D_00392940;
+        f20 = f28 - f0;
+        f29 = func_00217AC0(f28);
+        f5 = (fabsf(f20) < D_00392944) ? SIGN_ONE(f20) : -SIGN_ONE(f20);
+        f2 = f29 * f29;
+        f0 = sqrtf(1.0f - f2);
+        f31 = f0 * f5;
+        f29 = f29 * e->f10;
+        f31 = f31 * e->f10;
+        f1 = e->f20 + f29;
+        f3 = e->f1C + f31;
+        f2 = e->f24 + (f31 + f29);
+        e->f20 = f1;
+        e->f1C = f3;
+        e->f24 = f2;
+    } else if (kind == 8) {
+        /* 0x001D57B0: same sway, phase offset by +0x30. */
+        f28 = e->f18 * (D_003939F4 - e->f0C) + e->f30;
+        f0 = (f32)(s32)(f28 * D_00392948) * D_0039294C;
+        f20 = f28 - f0;
+        f2 = func_00217AC0(f28);
+        f7 = (fabsf(f20) < D_00392950) ? SIGN_ONE(f20) : -SIGN_ONE(f20);
+        f3 = f2 * f2;
+        f0 = sqrtf(1.0f - f3) * f7;
+        f6 = e->f10 * f2;
+        f29 = e->f10 * f2;
+        f31 = e->f10 * f0;
+        f5 = e->f10 * f0;
+        f1 = e->f20 + f29;
+        f31 = f31 + f6;
+        f2 = e->f24 + f5;
+        zslot = f5;
+        e->f20 = f1;
+        e->f1C = e->f1C + f31;
+        e->f24 = f2;
+    }
+
+    /* 0x001D58F0: kind 0x0C publishes a fixed 1.0, everything else +0x48. */
+    D_00393A2C = (kind == 0x0C) ? 1.0f : e->f48;
+
+    /* 0x001D590C: colour/alpha clamp, then the idle gate. */
+    func_0011A788((e->f58 < 255.0f) ? e->f58 : 255.0f);
+    if (e->h50 == 0)
+        return;
+
+    switch (kind) {
+    case 0x11:
+        /* 0x001D5958 */
+        if (func_00112E38() == 0)
+            func_00155698(pos, dir, D_00252278, e->f58, 0.0f);
+        e->flags |= 0x01000000;
+        break;
+
+    case 0x15:
+        /* 0x001D598C: same call, second parameter 255.0. */
+        func_00155698(pos, dir, D_00252278, e->f58, 255.0f);
+        e->flags |= 0x01000000;
+        break;
+
+    case 0x13:
+        /* 0x001D5CAC: a chain of up to 40 segments stepping along z, one draw
+           per segment, then a ribbon on the second handle (+0x54). */
+        f25 = D_00392970;
+        /* DIV?MUL by the game's shared 0.1f constant.  Using a literal
+           /10.0f makes ee-gcc emit a private .lit4 entry, which (with the
+           linker's 16-byte lit4 alignment) overflows .main into .main_bss.
+           The reciprocal multiply is the same instruction the original
+           division compiled to, so behaviour is identical. */
+        f26 = e->f30 * D_00392918;
+        f27 = D_00392974;
+        f21 = 0.0f;
+        f22 = e->f24;
+        f24 = e->f58;
+        f23 = e->f40;
+        if (f25 < e->f28) {
+            f0 = f25;
+            do {
+                f21 = f0;
+                f22 = f22 + f26;
+                f0 = f21 + f25;
+            } while (f0 < e->f28);
+        }
+        f28 = f24 / 32.0f;
+        f0 = (f32)(s32)(f21 * D_00392978) * D_0039297C;
+        f20 = f21 - f0;
+        f3 = func_00217AC0(f21);
+        f6 = (fabsf(f20) < D_00392980) ? SIGN_ONE(f20) : -SIGN_ONE(f20);
+        f4 = f3 * f3;
+        f7 = sqrtf(1.0f - f4) * f6;
+        f5 = f23 * f3;
+        f21 = f21 - f25;
+        f1 = e->f20 + f5;
+        f2 = f22 - f27 * 0.5f;
+        f3 = e->f1C + f23 * f7;
+        vh[0] = f3;
+        vh[1] = f1;
+        vh[2] = f2;
+        i = 40;
+        while (0.0f <= f21) {
+            f0 = f21 * D_00392984;
+            f22 = f22 - f26;
+            vc[0] = vh[0];
+            vc[1] = vh[1];
+            vc[2] = vh[2];
+            f0 = (f32)(s32)f0 * D_00392988;
+            f20 = f21 - f0;
+            f3 = func_00217AC0(f21);
+            f7 = (fabsf(f20) < D_0039298C) ? SIGN_ONE(f20) : -SIGN_ONE(f20);
+            f4 = f3 * f3;
+            f7 = sqrtf(1.0f - f4) * f7;
+            f5 = f23 * f3;
+            vh[0] = vc[0];
+            vh[1] = vc[1];
+            vh[2] = vc[2] - f27;
+            f1 = e->f20 + f5;
+            f21 = f21 - f25;
+            f4 = e->f1C + f23 * f7;
+            f24 = f24 - f28;
+            va[0] = f4;
+            va[1] = f1;
+            va[2] = vc[2] - f27;
+            vh[2] = f22;
+            vh[0] = f4;
+            i--;
+            func_0011A788(f24);
+            func_001567B0(vh, vc, va, vb, e->h50);
+            if (!(0.0f <= f21))
+                break;
+            if (i == 0)
+                break;
+        }
+        /* 0x001D6008 */
+        f20 = 0.0f;
+        f12 = (f32)func_002256F0() * (e->f58 - f20);
+        f12 = f12 * BITS_F32(0x30000000);
+        f12 = f12 + f20;
+        func_0011A788(f12);
+        func_00156A80(vc, e->h54, D_00252278, 1, e->f44, e->f44);
+        vd[0] = (vc[0] - e->f1C) * 3.0f;
+        vd[1] = (vc[1] - e->f20) * 3.0f;
+        vd[2] = 2.0f;
+        func_001D46A0(0x4001, vc, vd, e->h54, 0.0f, D_00392990, D_00392990);
+        f0 = D_003939FC;
+        f21 = f0 * 3.0f;
+        f2 = f0 * 0.5f;
+        f3 = e->f2C;
+        f4 = e->f28;
+        f0 = f3 * f0;
+        f1 = e->f40;
+        f3 = f3 + f21;
+        f1 = f1 + f2;
+        f4 = f4 + f0;
+        e->f2C = f3;
+        e->f40 = f1;
+        e->f28 = f4;
+        break;
+
+    case 0x14:
+        /* 0x001D60F8: four vectors straight out of the record. */
+        func_001567B0(axis, pos, dir, up, e->h50);
+        break;
+
+    default:
+        group = e->flags & 0xF0000000;
+
+        if (group == 0x30000000) {
+            /* 0x001D59D0: normalise (-+0x2C, -+0x28); a degenerate direction
+               retires the record instead. */
+            f3 = -e->f2C;
+            f5 = e->f28;
+            f4 = -f5;
+            f0 = f4 * f4 + f3 * f3;
+            f1 = sqrtf(f0);
+            if (f1 < D_00392954) {
+                e->flags |= 0x01000000;
+                break;
+            }
+            f0 = 1.0f / f1;
+            va[0] = f3 * f0;
+            va[1] = f5 * f0;
+            va[2] = 0.0f;
+            vb[0] = f4 * f0;
+            vb[1] = f3 * f0;
+            vb[2] = 0.0f;
+            if (func_00157140(pos, e->h50, D_00252278, e->i08,
+                              va, vb, e->f40, e->f44) != 0)
+                e->flags |= 0x01000000;
+            break;
+        }
+
+        if (group == 0x80000000) {
+            /* 0x001D5A84: a helix.  +0x58 drains by 120*D_003939FC here and by
+               1/32 for every segment drawn. */
+            f21 = D_003939F4;
+            if (e->i08 >= 0) {
+                f30 = (f32)e->i08;
+            } else {
+                u32 u = ((u32)e->i08 >> 1) | ((u32)e->i08 & 1);
+                f30 = (f32)(s32)u + (f32)(s32)u;
+            }
+            f12 = f21 - e->f0C;
+            f23 = D_003939FC;
+            f5 = e->f1C;
+            f6 = e->f20;
+            f3 = e->f24;
+            f0 = f12 * D_00392958;
+            f2 = f23 * 120.0f;
+            f0 = f0 + f5;
+            f0 = f0 - f6;
+            f4 = D_0039295C;
+            f1 = e->f58 - f2;
+            f24 = 0.0f;
+            f3 = f3 * f4;
+            e->f58 = f1;
+            if (!(f1 > 0.0f)) {
+                e->f58 = 0.0f;
+                e->flags |= 0x01000000;
+            }
+            f22 = f0 + f3;
+            f21 = f12;
+            f20 = f21 + f22;
+            f0 = func_00217CB0(f20);
+            vc[0] = f30 * f0;
+            f0 = func_00217AC0(f21 - f22);
+            vc[1] = f30 * f0;
+            f0 = func_00217CB0(f21);
+            f0 = func_00217AC0(f30 * f22 + f0);
+            vc[2] = fabsf(2.0f - f0);
+            f0 = func_00217CB0(f21 * D_00392960 + f22);
+            f0 = f30 * f0;
+            f0 = f0 * D_00392964;
+            f0 = f23 * f0;
+            e->f1C = e->f1C + f0;
+            f0 = func_00217AC0(f21 * D_00392968 + f22 + D_0039296C);
+            f0 = f0 * 2.5f;
+            f0 = f23 * f0;
+            e->f20 = e->f20 + f0;
+            f8 = vc[0];
+            f9 = vc[1];
+            f7 = vc[2];
+            f0 = func_00217AC0(f30 * f20);
+            f0 = f0 * 4.5f;
+            f0 = f0 - 3.5f;
+            f0 = f23 * f0;
+            f2 = f8 * f8 + f9 * f9;
+            f6 = f7 * f7;
+            e->f24 = e->f24 + f0;
+            f2 = f2 + f6;
+            if (f2 == f24)
+                break;
+            f0 = 1.0f / sqrtf(f2);
+            va[0] = f8 * f0;
+            va[1] = f9 * f0;
+            va[2] = f7 * f0;
+            func_001DC458(va, vb, ve);
+            func_00157140(pos, e->h50, D_00252278, 1, vb, ve,
+                          e->f40, e->f44);
+            break;
+        }
+
+        if (group == 0x70000000) {
+            /* 0x001D6120: cross product of +0x28/+0x2C/+0x30 with
+               +0x10/+0x14/+0x18, normalised, then two rings of four points
+               around the position, each ring halved into a second quad. */
+            f22 = 0.75f;
+            f11 = (f32)func_002256F0() * BITS_F32(0x30000000);
+            f10 = dir[0];
+            f9 = dir[2];
+            f8 = dir[1];
+            f4 = axis[0];
+            f2 = axis[1];
+            f12 = f10 * axis[2];
+            f1 = f9 * f4;
+            f0 = f8 * axis[2];
+            f3 = f9 * f2;
+            f1 = f1 - f12;
+            f2 = f10 * f2;
+            f0 = f0 - f3;
+            f4 = f8 * f4;
+            nrm[1] = f1;
+            nrm[0] = f0;
+            nrm[2] = f2 - f4;
+            f21 = f11 - 0.5f;
+            f7 = pos[0] - f10;
+            f6 = pos[1] - f8;
+            f5 = pos[2] - f9;
+            f3 = nrm[0] * nrm[0] + nrm[1] * nrm[1];
+            f10 = f10 * f21;
+            f8 = f8 * f21;
+            f9 = f9 * f21;
+            pz[0] = f7 + f10;
+            pz[1] = f6 + f8;
+            pz[2] = f5 + f9;
+            f0 = nrm[2] * nrm[2];
+            if (!(D_00392994 < f3 + f0))
+                break;
+            f0 = 1.0f / sqrtf(f3 + f0);
+            for (i = 2; i >= 0; i--)
+                nrm[i] = nrm[i] * f0;
+            f22 = f22 * D_00392998;
+            for (i = 2; i >= 0; i--) {
+                f1 = pos[i] + dir[i] * f21;
+                f3 = axis[i] * f22;
+                f1 = f1 + D_0039299C * nrm[i];
+                va[i] = f1 - f3;
+                vb[i] = f1 + f3;
+                f0 = pz[i] + D_0039299C * nrm[i];
+                vc[i] = f0 + f3;
+                vd[i] = f0 - f3;
+            }
+            func_001567B0(vb, vc, vd, va, e->h50);
+            for (i = 2; i >= 0; i--) {
+                f0 = (vb[i] - va[i]) * 0.5f;
+                vf[i] = va[i] - f0;
+                vg[i] = vb[i] - f0;
+                f0 = (vc[i] - vd[i]) * 0.5f;
+                vh[i] = vc[i] - f0;
+                ve[i] = vd[i] - f0;
+            }
+            func_001567B0(vf, vg, vh, ve, e->h50);
+            for (i = 2; i >= 0; i--) {
+                f1 = pos[i] + dir[i] * f21;
+                f3 = axis[i] * f22;
+                f1 = f1 - D_0039299C * nrm[i];
+                va[i] = f1 - f3;
+                vb[i] = f1 + f3;
+                f0 = pz[i] - D_0039299C * nrm[i];
+                vc[i] = f0 + f3;
+                vd[i] = f0 - f3;
+            }
+            func_001567B0(vb, vc, vd, va, e->h50);
+            for (i = 2; i >= 0; i--) {
+                f0 = (vb[i] - va[i]) * 0.5f;
+                vf[i] = va[i] - f0;
+                vg[i] = vb[i] - f0;
+                f0 = (vc[i] - vd[i]) * 0.5f;
+                vh[i] = vc[i] - f0;
+                ve[i] = vd[i] - f0;
+            }
+            func_001567B0(vf, vg, vh, ve, e->h50);
+            break;
+        }
+
+        if (group == 0x40000000 || group == 0x50000000 || group == 0x60000000) {
+            /* 0x001D65F0: a quad from +0x10/+0x14/+0x18 with a normal built
+               from the two half extents.  Group 0x60 has no z extent, group
+               0x50 draws a second quad, 0x40 either a third call or a cross
+               product depending on D_003939CC. */
+            f5 = axis[0];
+            f4 = axis[1];
+            f3 = axis[2];
+            pz[0] = pos[0] - f5;
+            pz[1] = pos[1] - f4;
+            f6 = (group == 0x60000000) ? 0.0f : (pos[2] - f3);
+            pz[2] = f6;
+            f7 = pz[0];
+            f8 = pz[1];
+            f0 = f8 * 0.5f;
+            f2 = f7 * 0.5f;
+            f1 = f6 * 0.5f;
+            nrm[2] = 0.0f;
+            va[0] = f5 + f2;
+            va[1] = f4 + f0;
+            va[2] = f3 + f1;
+            nrm[0] = -f8;
+            if (group == 0x60000000) {
+                nrm[1] = f7;
+                f0 = f7 * f7;
+                f1 = f8 * f8;
+                f2 = f6 * f6;
+            } else {
+                nrm[1] = f6;
+                f0 = f8 * f8;
+                f1 = f6 * f6;
+                f2 = f7 * f7;
+            }
+            f5 = f0 + f1;
+            if (!(D_003929A0 <= f5))
+                break;
+            f4 = 1.0f / sqrtf(f5 + f2);
+            f9 = f6 * f4;
+            f6 = f7 * f4;
+            f7 = f8 * f4;
+            f5 = 1.0f / sqrtf(f5);
+            e->f40 = f2 * 0.5f;
+            nrm[1] = nrm[1] * f5;
+            nrm[0] = nrm[0] * f5;
+            pz[0] = f6;
+            pz[1] = f7;
+            pz[2] = f9;
+            if (group == 0x60000000) {
+                func_00157140(va, e->h50, D_00252278, e->i08, nrm, pz,
+                              D_003929A4, e->f40);
+                break;
+            }
+            if (group == 0x50000000) {
+                func_00157140(va, e->h50, D_00252278, e->i08, nrm, pz,
+                              D_003929A8, e->f40);
+                func_00157140(va, e->h50, D_00252278, e->i08, ve, pz,
+                              D_003929A8, e->f40);
+                break;
+            }
+            if (D_003939CC != 0) {
+                func_00157140(va, e->h50, D_00252278, e->i08, nrm, pz,
+                              D_003929AC, e->f40);
+                break;
+            }
+            /* 0x001D6858: cross product of nrm and pz, divided by its own
+               squared length. */
+            ve[0] = nrm[1] * pz[2] - nrm[2] * pz[1];
+            ve[1] = nrm[2] * pz[0] - nrm[0] * pz[2];
+            ve[2] = nrm[0] * pz[1] - nrm[1] * pz[0];
+            f1 = ve[0] * ve[0] + ve[1] * ve[1] + ve[2] * ve[2];
+            if (f1 != 0.0f) {
+                f0 = 1.0f / f1;
+                f4 = ve[0] * f0;
+                f3 = ve[1] * f0;
+                f2 = ve[2] * f0;
+                ve[0] = f4;
+                ve[1] = f3;
+                ve[2] = f2;
+            }
+            func_00157140(va, e->h50, D_00252278, e->i08, ve, pz,
+                          D_003929B0, e->f40);
+            break;
+        }
+
+        if (group == 0x20000000) {
+            /* 0x001D68E8 */
+            func_001DC458(dir, pz, nrm);
+            func_00157140(pos, e->h50, D_00252278, e->i08, pz, nrm,
+                          e->f40, e->f44);
+            break;
+        }
+
+        if (group == 0x90000000) {
+            /* 0x001D6934: up vector straight up. */
+            vb[0] = 0.0f;
+            vb[1] = 0.0f;
+            vb[2] = 1.0f;
+            func_00157140(pos, e->h50, D_00252278, e->i08, up, vb,
+                          e->f40, e->f44);
+            break;
+        }
+
+        if (group == 0x10000000) {
+            /* 0x001D6980 */
+            if (func_00156E48(pos, e->h50, D_00252278, e->i08,
+                              e->f40, e->f44) != 0)
+                e->flags |= 0x01000000;
+            break;
+        }
+
+        /* 0x001D69CC: anything else.  Bit 27 pushes the draw down by +0x44
+           and takes it back out afterwards, so the record keeps its z. */
+        if ((e->flags & 0x08000000) != 0)
+            e->f24 = e->f24 + e->f44;
+        if (func_00156A80(pos, e->h50, D_00252278, e->i08,
+                          e->f40, e->f44) != 0)
+            e->flags |= 0x01000000;
+        if ((e->flags & 0x08000000) != 0)
+            e->f24 = e->f24 - e->f44;
+        break;
+    }
+
+    /* 0x001D6A40: take the sway offsets back out, so the position the game
+       sees never moved even though the quads were drawn at the offset. */
+    kind = e->flags & 0xFF;
+    if (kind == 7 || kind == 0x0B) {
+        f3 = f29 + f31;
+        e->f1C = e->f1C - f31;
+        e->f20 = e->f20 - f29;
+        e->f24 = e->f24 - f3;
+    } else if (kind == 8) {
+        e->f1C = e->f1C - f31;
+        e->f20 = e->f20 - f29;
+        e->f24 = e->f24 - zslot;
+    }
+}
+
 
 /* Byte-matching.  arg0[0..2] += arg1[0..2] * arg2, three elements exactly. */
 void func_001D6B18(float *arg0, float *arg1, float arg2)
@@ -17011,7 +18281,715 @@ INCLUDE_ASM(const s32, "core/main", func_002283E0);
 
 INCLUDE_ASM(const s32, "core/main", func_00228498);
 
-INCLUDE_ASM(const s32, "core/main", func_00228510);
+/* Retail dispatches this function through the jump table jtbl_00391950, which
+   lives in the read-only data blob and holds the absolute addresses of retail's
+   case blocks (asm/data/main/rodata.rodata.s emits it as `.word .L00228xxx`).
+   The `.L` names are internal labels of retail's function; this C body selects
+   the same cases without a table, so they are aliased here.  The table keeps its
+   retail bytes and nothing reads it.
+
+   Keep one `.globl` + `.equ` pair per label, spelled exactly as the retail
+   listing does (`.L` plus eight hex digits): apply_asm_overrides() strips these
+   two lines when asm_overrides.txt asks for the retail assembly instead, and
+   the retail listing then defines the labels itself. */
+__asm__(".globl .L00228710\n.equ .L00228710, 0x00228710");
+__asm__(".globl .L00228728\n.equ .L00228728, 0x00228728");
+__asm__(".globl .L00228738\n.equ .L00228738, 0x00228738");
+__asm__(".globl .L00228750\n.equ .L00228750, 0x00228750");
+__asm__(".globl .L0022875C\n.equ .L0022875C, 0x0022875C");
+__asm__(".globl .L00228770\n.equ .L00228770, 0x00228770");
+__asm__(".globl .L002287FC\n.equ .L002287FC, 0x002287FC");
+__asm__(".globl .L00228808\n.equ .L00228808, 0x00228808");
+__asm__(".globl .L00228840\n.equ .L00228840, 0x00228840");
+__asm__(".globl .L00228850\n.equ .L00228850, 0x00228850");
+__asm__(".globl .L00228860\n.equ .L00228860, 0x00228860");
+__asm__(".globl .L00228894\n.equ .L00228894, 0x00228894");
+__asm__(".globl .L002288A4\n.equ .L002288A4, 0x002288A4");
+__asm__(".globl .L002288C4\n.equ .L002288C4, 0x002288C4");
+__asm__(".globl .L002288C8\n.equ .L002288C8, 0x002288C8");
+__asm__(".globl .L0022890C\n.equ .L0022890C, 0x0022890C");
+__asm__(".globl .L00228AD4\n.equ .L00228AD4, 0x00228AD4");
+__asm__(".globl .L00228B20\n.equ .L00228B20, 0x00228B20");
+__asm__(".globl .L00228B24\n.equ .L00228B24, 0x00228B24");
+__asm__(".globl .L00228B58\n.equ .L00228B58, 0x00228B58");
+__asm__(".globl .L00228B7C\n.equ .L00228B7C, 0x00228B7C");
+__asm__(".globl .L00228BD0\n.equ .L00228BD0, 0x00228BD0");
+__asm__(".globl .L00228BD4\n.equ .L00228BD4, 0x00228BD4");
+__asm__(".globl .L00228C08\n.equ .L00228C08, 0x00228C08");
+__asm__(".globl .L00228C14\n.equ .L00228C14, 0x00228C14");
+__asm__(".globl .L00228DCC\n.equ .L00228DCC, 0x00228DCC");
+/* ==========================================================================
+   func_00228510 - formatter core of the printf family
+
+   Retail 0x228510, 0x1518 bytes.  Frame 0x2D0.  The routine never writes to
+   the stream itself: it queues (text, length) pieces into an eight-slot list
+   on its own frame and hands that list to func_00228398 whenever it fills up
+   (and once per conversion).  Fields and buffers confirmed from the retail
+   listing:
+
+     sp+0x000  char[16]   exponent suffix buffer, filled by func_00229BD8
+     sp+0x010  FmtPieceList  { first = sp+0x20, count, pending total }
+     sp+0x020  FmtPiece[8]   the queue
+     sp+0x060  char[0x15C]   digits, written backwards from sp+0x1BC
+     sp+0x1C0  char[2]       two-character prefix ("0x", "0o", "d.")
+     sp+0x1D0  s8            float sign written by func_00229A28
+     sp+0x1D1  s8            sign character for the current conversion
+     sp+0x1D4  u32           wide character produced by the scan
+     sp+0x1DC  s32           decimal exponent
+     sp+0x1E0  s32           number of significant digits
+     sp+0x1E4  void *        locale (first argument, only used by 0x229A28)
+     sp+0x1E8  stream *      the stream context
+     sp+0x1EC  char *        format cursor
+     sp+0x1F0  s32           characters produced so far
+     sp+0x1F4  s32           field width
+     sp+0x1F8  char *        decimal point string of the current locale
+     sp+0x200  u64           raw bits of the floating point argument
+     sp+0x208  s32           length of the exponent suffix
+     sp+0x20C  s32           precision actually used (0 until a numeric
+                             conversion copies the parsed one)
+     sp+0x210  s32           printed body length including sign and prefix
+     sp+0x214  char *        hex digit table of the current conversion
+
+   Stream context fields read here (see FmtStream): +0x0C u16 flags,
+   +0x0E s16 limit, +0x10 pointer.  Bit 0x40 of +0x0C is the error flag: the
+   routine propagates it to the return value (see the epilogue).
+   ========================================================================== */
+
+typedef struct
+{
+    const char *text;
+    s32 length;
+} FmtPiece;
+
+typedef struct
+{
+    FmtPiece *first;
+    s32 count;
+    s32 total;
+} FmtPieceList;
+
+/* One stretch of the current conversion, in output order.  `chunk` limits how
+   many bytes go into one vector (0 = the whole stretch is one piece); pad runs
+   use 16, which is the size of the D_003918B0/D_003918C0 tables. */
+typedef struct
+{
+    const char *src;
+    s32 length;
+    s32 chunk;
+} FmtSeg;
+
+typedef struct
+{
+    u8 gap00[0x0C];
+    u16 flags;   /* +0x0C */
+    s16 limit;   /* +0x0E */
+    u8 *link10;  /* +0x10 */
+} FmtStream;
+
+#define FMT_SLOTS 8
+#define FMT_SEGS 10
+extern u8 D_003889D8[8];
+extern u8 D_0038857C[8];  /* _impure_ptr / _REENT holder        */
+extern u8 D_003918B0[];  /* sixteen spaces                 */
+extern u8 D_003918C0[];  /* sixteen zeroes                 */
+extern u8 D_003918D0[];  /* "Inf"                          */
+extern u8 D_003918D8[];  /* "NaN"                          */
+extern u8 D_003918E0[];  /* "0123456789abcdef"             */
+extern u8 D_003918F8[];  /* "(null)"                       */
+extern u8 D_00391900[];  /* "0123456789ABCDEF"             */
+extern u8 D_00391918[];  /* "bug in vfprintf: bad base"     */
+extern u8 D_00391938[];  /* "0"                            */
+extern u8 D_00391940[];  /* "."                            */
+
+s32 func_0022A980(FmtStream *stream);
+s32 func_00228398(FmtStream *stream, FmtPieceList *list);
+s32 func_002283E0(FmtStream *stream, const char *fmt, u64 *args);
+u8 *func_0022C108(void);
+s32 func_0022C190(void *locale, u32 *out, const char *text, void *left,
+                  u32 *state);
+s8 *func_00229A28(void *locale, u64 value, s32 prec, u32 flags, s8 *signOut,
+                  s32 *expOut, s32 conv, s32 *lenOut);
+s32 func_00229BD8(char *buffer, s32 exponent, s32 conv);
+u32 func_0022D250(u64 value);
+s32 func_00226B48(const char *text);
+const char *func_00224860(const char *text, s32 ch, s32 count);
+u64 func_0021D408(u64 value, u64 base);
+u64 func_0021CE38(u64 value, u64 base);
+
+
+s32 func_00228510(void *locale, FmtStream *stream, const char *fmt, u64 *args)
+{
+    s32 func_0021E340(u64 left, u64 right);
+    FmtPiece pieces[FMT_SLOTS];
+    FmtPieceList list;
+    FmtSeg segment[FMT_SEGS];
+    char digits[0x15C];
+    char exponent[16];
+    char prefix[2];
+    FmtPiece *piece;
+    const char *point;
+    const char *pace;
+    const char *start;
+    const char *text;
+    const char *table;
+    char *wall;
+    u64 value;
+    u32 wide;
+    u32 mbstate;
+    u32 flags;
+    u32 mode;
+    s32 kind;
+    s32 n;
+    s32 segCount;
+    s32 segIndex;
+    s32 span;
+    s32 litLen;
+    s32 written;
+    s32 width;
+    s32 prec;
+    s32 precUsed;
+    s32 bodyLen;
+    s32 padFlags;
+    s32 fExp;
+    s32 fLen;
+    s32 expLen;
+    s32 c;
+    s8 sign;
+    s8 fSign;
+
+/* Queue one piece; drain the list (and restart at slot 0) when it is full. */
+#define EMIT(p, l)                                                            \
+    do {                                                                      \
+        piece->text = (const char *)(p);                                       \
+        piece->length = (l);                                                   \
+        piece++;                                                               \
+        list.total += (l);                                                     \
+        if (++list.count >= FMT_SLOTS) {                                        \
+            if (func_00228398(stream, &list) != 0)                             \
+                goto done;                                                     \
+            piece = pieces;                                                    \
+        }                                                                      \
+    } while (0)
+
+/* Append one output stretch; `ch` is the per-vector step (0 = one piece). */
+#define SEG(p, l, ch)                                                         \
+    do {                                                                      \
+        segment[segCount].src = (const char *)(p);                            \
+        segment[segCount].length = (l);                                       \
+        segment[segCount].chunk = (ch);                                       \
+        segCount++;                                                           \
+    } while (0)
+
+    piece = pieces;
+    list.first = pieces;
+    list.count = 0;
+    list.total = 0;
+    segCount = 0;
+    written = 0;
+    flags = 0;
+    mbstate = 0;
+    sign = 0;
+    pace = fmt;
+    point = *(const char **)func_0022C108();
+
+    /* 0x22855C: the stream only skips func_0022A980 when it is already open;
+       the flags are re-read after that call on both paths. */
+    if ((stream->flags & 0x08) == 0 || stream->link10 == 0) {
+        if (func_0022A980(stream) != 0)
+            return -1;
+        mode = stream->flags & 0x1A;
+    } else {
+        mode = stream->flags & 0x1A;
+    }
+
+    if (mode == 0x0A && stream->limit >= 0)
+        return func_002283E0(stream, fmt, args);
+
+next:
+    segCount = 0;
+    /* Literal run: advance to the next '%' (or the end of the format). */
+    start = pace;
+    for (;;) {
+        n = func_0022C190(*(void **)D_0038857C, &wide, pace,
+                          *(void **)D_003889D8, &mbstate);
+        if (n <= 0)
+            break;
+        pace += n;
+        if (wide == '%') {
+            pace -= 1;
+            break;
+        }
+    }
+    litLen = (s32)(pace - start);
+    if (litLen != 0) {
+        EMIT(start, litLen);
+        written += litLen;
+    }
+    if (n <= 0)
+        goto end_of_format;
+
+    flags = 0;
+    prec = -1;
+    width = 0;
+    precUsed = 0;
+    sign = 0;
+    pace++;
+
+    for (;;) {
+        c = (s32)(s8)*pace++;
+
+    dispatch:
+        /* Retail dispatches this through jtbl_00391950; the chain below
+           selects the same cases.  A switch here would make gcc build a
+           second table of its own, and those bytes are not part of the
+           function's retail slot. */
+        if (c == ' ') {
+            if (sign == 0)
+                sign = ' ';
+            continue;
+        }
+        if (c == '#') {
+            flags |= 1;
+            continue;
+        }
+        if (c == '*') {
+            width = (s32)(s64)*(s32 *)args;
+            args++;
+            if (width < 0) {
+                width = -width;
+                flags |= 4;
+            }
+            continue;
+        }
+        if (c == '+') {
+            sign = '+';
+            continue;
+        }
+        if (c == '-') {
+            flags |= 4;
+            continue;
+        }
+        if (c == '.') {
+            c = (s32)(s8)*pace++;
+            if (c == '*') {
+                prec = (s32)(s64)*(s32 *)args;
+                args++;
+                if (prec <= -2)
+                    prec = -1;
+                continue;
+            }
+            {
+                s32 parsed = 0;
+
+                if ((u32)(c - '0') < 10) {
+                    do {
+                        parsed = parsed * 10 + (c - '0');
+                        c = (s32)(s8)*pace++;
+                    } while ((u32)(c - '0') < 10);
+                }
+                prec = (parsed > -2) ? parsed : -1;
+            }
+            goto dispatch;
+        }
+        if (c == '0') {
+            flags |= 0x80;
+            continue;
+        }
+        if (c >= '1' && c <= '9') {
+            s32 parsed = 0;
+
+            do {
+                parsed = parsed * 10 + (c - '0');
+                c = (s32)(s8)*pace++;
+            } while ((u32)(c - '0') < 10);
+            width = parsed;
+            goto dispatch;
+        }
+        if (c == 'L') {
+            flags |= 8;
+            continue;
+        }
+        if (c == 'h') {
+            flags |= 0x40;
+            continue;
+        }
+        if (c == 'l') {
+            if (*pace == 'l') {
+                pace++;
+                flags |= 0x20;
+            } else {
+                flags |= 0x10;
+            }
+            continue;
+        }
+        if (c == 'q') {
+            flags |= 0x20;
+            continue;
+        }
+        if (c == 'n') {
+            if ((flags & 0x10) != 0) {
+                *(u64 *)(u32)*args = (u64)written;
+            } else if ((flags & 0x40) != 0) {
+                *(u16 *)(u32)*args = (u16)written;
+            } else {
+                *(u32 *)(u32)*args = (u32)written;
+            }
+            args++;
+            goto next;
+        }
+        if (c == 'c') {
+            digits[0] = (char)*(u8 *)args;
+            args++;
+            text = digits;
+            span = 1;
+            sign = 0;
+            goto have_digits;
+        }
+        if (c == 's') {
+            /* 0x228B80 loads the slot with `lw`: the pointer is the low 32
+               bits, sign-extended, and the top half of the va slot is not
+               part of it.  Reading 8 bytes here turns a slot whose upper half
+               holds stale data into an unrelated address. */
+            text = (const char *)(u32)*(s32 *)args;
+            args++;
+            if (text == 0)
+                text = (const char *)D_003918F8;
+            if (prec < 0) {
+                span = func_00226B48(text);
+            } else {
+                const char *stop;
+
+                stop = func_00224860(text, 0, prec);
+                if (stop != 0) {
+                    span = (s32)(stop - text);
+                    if (prec < span)
+                        span = prec;
+                } else {
+                    span = prec;
+                }
+            }
+            sign = 0;
+            goto have_digits;
+        }
+        if (c == 'd' || c == 'i' || c == 'D') {
+            if (c == 'D')
+                flags |= 0x10;
+            if ((flags & 0x10) != 0)
+                value = *args;
+            else if ((flags & 0x40) != 0)
+                value = (u64)(s64)*(s16 *)args;
+            else
+                value = (u64)(s64)*(s32 *)args;
+            args++;
+            kind = 1;
+            if ((s64)value < 0) {
+                value = -value;
+                sign = '-';
+            }
+            goto numeric;
+        }
+        if (c == 'o' || c == 'O') {
+            if (c == 'O')
+                flags |= 0x10;
+            if ((flags & 0x10) != 0)
+                value = *args;
+            else if ((flags & 0x40) != 0)
+                value = (u64)*(u16 *)args;
+            else
+                value = (u64)*(u32 *)args;
+            args++;
+            sign = 0;
+            kind = 0;
+            goto numeric;
+        }
+        if (c == 'u' || c == 'U') {
+            if (c == 'U')
+                flags |= 0x10;
+            if ((flags & 0x10) != 0)
+                value = *args;
+            else if ((flags & 0x40) != 0)
+                value = (u64)*(u16 *)args;
+            else
+                value = (u64)*(u32 *)args;
+            args++;
+            sign = 0;
+            kind = 1;
+            goto numeric;
+        }
+        if (c == 'x' || c == 'X') {
+            table = (const char *)(c == 'X' ? D_00391900 : D_003918E0);
+            if ((flags & 0x10) != 0)
+                value = *args;
+            else if ((flags & 0x40) != 0)
+                value = (u64)*(u16 *)args;
+            else
+                value = (u64)*(u32 *)args;
+            args++;
+            sign = 0;
+            kind = 2;
+            if ((flags & 1) != 0 && value != 0)
+                flags |= 2;
+            goto numeric;
+        }
+        if (c == 'p') {
+            table = (const char *)D_003918E0;
+            value = (u64)(s64)*(s32 *)args;
+            args++;
+            flags |= 2;
+            c = 'x';
+            sign = 0;
+            kind = 2;
+            goto numeric;
+        }
+        if (c == 'e' || c == 'E' || c == 'f' || c == 'g' || c == 'G') {
+            if (prec == -1) {
+                prec = 6;
+            } else if ((c == 'g' || c == 'G') && prec == 0) {
+                prec = 1;
+            }
+            value = *args;
+            args++;
+            if (func_0022D250(value) != 0) {
+                /* infinity */
+                if (func_0021E340(value, 0) < 0)
+                    sign = '-';
+                span = 3;
+                text = (const char *)D_003918D0;
+                goto have_digits;
+            }
+            if (func_0022D298(value) != 0) {
+                /* not a number */
+                span = 3;
+                text = (const char *)D_003918D8;
+                goto have_digits;
+            }
+            flags |= 0x100;
+            text = func_00229A28(locale, value, prec, flags, &fSign, &fExp, c,
+                                 &fLen);
+            if (c == 'g' || c == 'G') {
+                s32 upper = (c != 'g');
+
+                if (fExp < -3 || prec < fExp)
+                    c = upper ? 'E' : 'e';
+                else
+                    c = 'g';
+            }
+            if (c < 'f') {
+                /* Scientific: one leading digit, then the remainder and the
+                   exponent suffix built by func_00229BD8. */
+                fExp -= 1;
+                expLen = func_00229BD8(exponent, fExp, c);
+                span = expLen + fLen;
+                if (fLen >= 2 || (flags & 1) != 0)
+                    span += 1;
+            } else if (c == 'f') {
+                if (fExp <= 0)
+                    span = prec + 2;
+                else if (prec != 0)
+                    span = fExp + 1 + prec;
+                else if ((flags & 1) != 0)
+                    span = fExp + 1;
+                else
+                    span = fExp;
+            } else {
+                if (fExp < fLen) {
+                    if (fExp > 0)
+                        span = fLen + 1;
+                    else
+                        span = fLen + 2 - fExp;
+                } else {
+                    span = fExp + (flags & 1);
+                }
+            }
+            if (fSign != 0)
+                sign = '-';
+            goto have_digits;
+        }
+
+        /* default: end of the format string, or the character itself. */
+        if (c == 0)
+            goto end_of_format;
+        digits[0] = (char)c;
+        text = digits;
+        span = 1;
+        sign = 0;
+        goto have_digits;
+    }
+
+numeric:
+    /* 0x228C64: `dprec = prec` sits in the delay slot of `bltz $18`, so it
+       runs unconditionally (dprec becomes -1 when no precision is given);
+       only the '0'-flag clear is guarded. */
+    precUsed = prec;
+    if (prec >= 0)
+        flags &= ~0x80u;
+    wall = digits + 0x15C;
+    if (value == 0 && precUsed == 0) {
+        text = wall;
+        span = 0;
+        goto have_digits;
+    }
+    switch (kind) {
+    case 0:
+        do {
+            *--wall = (char)((value & 7) + '0');
+            value >>= 3;
+        } while (value != 0);
+        if ((flags & 1) != 0 && wall[0] != '0')
+            *--wall = '0';
+        break;
+    case 1:
+        if (value < 10) {
+            *--wall = (char)(value + '0');
+        } else {
+            do {
+                *--wall = (char)(func_0021D408(value, 10) + '0');
+                value = func_0021CE38(value, 10);
+            } while (value >= 10);
+            *--wall = (char)(value + '0');
+        }
+        break;
+    case 2:
+        do {
+            *--wall = table[value & 0xF];
+            value >>= 4;
+        } while (value != 0);
+        break;
+    default:
+        /* Unreachable: no conversion above selects kind 3. */
+        text = (const char *)D_00391918;
+        span = func_00226B48(text);
+        goto have_digits;
+    }
+    text = wall;
+    span = (digits + 0x15C) - wall;
+
+have_digits:
+    padFlags = flags & 0x84;
+    bodyLen = span;
+    if (precUsed > span)
+        bodyLen = precUsed;
+    if (sign != 0)
+        bodyLen++;
+    else
+        bodyLen += (flags & 2);
+
+    /* Everything this conversion prints is collected here in output order and
+       handed over by the single loop at `flush`.  The sink only writes the
+       bytes in sequence, so where the vector boundaries fall cannot be
+       observed; pad runs keep retail's 16-byte step through `chunk`. */
+    segCount = 0;
+
+    /* Left padding is skipped by both '-' and a leading zero. */
+    if (padFlags == 0 && width > bodyLen)
+        SEG(D_003918B0, width - bodyLen, 16);
+
+    if (sign != 0)
+        SEG(&sign, 1, 0);
+
+    if ((flags & 2) != 0) {
+        prefix[0] = '0';
+        prefix[1] = (char)c;
+        SEG(prefix, 2, 0);
+    }
+
+    /* '0' padding goes between the sign/prefix and the digits. */
+    if (padFlags == 0x80 && width > bodyLen)
+        SEG(D_003918C0, width - bodyLen, 16);
+
+    /* Precision digits are zeroes appended in front of the value. */
+    if (precUsed > span)
+        SEG(D_003918C0, precUsed - span, 16);
+
+    if ((flags & 0x100) == 0) {
+        SEG(text, span, 0);
+    } else if (c < 'f') {
+        /* Scientific notation. */
+        if (fLen >= 2 || (flags & 1) != 0) {
+            prefix[0] = text[0];
+            prefix[1] = '.';
+            SEG(prefix, 2, 0);
+            text++;
+        } else {
+            SEG(text, 1, 0);
+        }
+        if (func_0021E340(value, 0) != 0)
+            SEG(text, fLen - 1, 0);
+        else
+            SEG(D_003918C0, fLen - 1, 16);
+        SEG(exponent, expLen, 0);
+    } else if (func_0021E340(value, 0) == 0) {
+        /* Zero: a leading '0', then the point and the requested zeroes. */
+        SEG(D_00391938, 1, 0);
+        if (fExp < fLen) {
+            SEG(point, 1, 0);
+            SEG(D_003918C0, fLen - 1, 16);
+        } else if ((flags & 1) != 0) {
+            SEG(point, 1, 0);
+        }
+    } else if (fExp > 0) {
+        if (fExp < fLen) {
+            SEG(text, fExp, 0);
+            SEG(D_00391940, 1, 0);
+            text += fExp;
+            SEG(text, fLen - fExp, 0);
+        } else {
+            SEG(text, fLen, 0);
+            SEG(D_003918C0, fExp - fLen, 16);
+            if ((flags & 1) != 0)
+                SEG(D_00391940, 1, 0);
+        }
+    } else {
+        SEG(D_00391938, 1, 0);
+        SEG(point, 1, 0);
+        SEG(D_003918C0, -fExp, 16);
+        SEG(text, fLen, 0);
+    }
+
+    if ((flags & 4) != 0 && width > bodyLen)
+        SEG(D_003918B0, width - bodyLen, 16);
+
+    written += (bodyLen > width) ? bodyLen : width;
+
+flush:
+    /* The one place that fills the vector queue. */
+    for (segIndex = 0; segIndex < segCount; segIndex++) {
+        s32 left = segment[segIndex].length;
+        const char *src = segment[segIndex].src;
+        s32 step = segment[segIndex].chunk;
+
+        while (left > 0) {
+            s32 part = (step != 0 && left > step) ? step : left;
+
+            EMIT(src, part);
+            src += part;
+            left -= part;
+        }
+    }
+    segCount = 0;
+    if (list.total != 0) {
+        if (func_00228398(stream, &list) != 0)
+            goto done;
+    }
+    list.count = 0;
+    piece = pieces;
+    if (n > 0)
+        goto next;
+    goto done;
+
+end_of_format:
+    /* The format string ended: flush what the literal run queued and return. */
+    n = 0;
+    goto flush;
+
+done:
+    /* 0x2299E4: the error flag of the stream turns the count into -1. */
+    return ((stream->flags & 0x40) == 0) ? written : -1;
+
+#undef EMIT
+#undef PAD
+}
+
 
 INCLUDE_ASM(const s32, "core/main", func_00229A28);
 

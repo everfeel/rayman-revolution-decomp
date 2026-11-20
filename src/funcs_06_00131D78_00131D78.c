@@ -46,14 +46,30 @@ s32 func_00108648(u8 *);
 s32 func_00135530();
 s32 func_0013AD90();
 s32 func_0013B258();
-s32 func_00136C08(s32 *, s32, s32, s32, s32);
-s32 func_00139708(s32, s32);
-s32 func_001396A0();
+/* Typed definition in funcs_11: (f32 *position, void *actor, s32 count,
+ * SurfaceContact *contacts, s32 indexLimit).  Declared with s32 spellings here
+ * because the call sites below keep every argument in an s32 register local;
+ * all five are integers or pointers, so the call sequence is unchanged, but the
+ * arity is now checked instead of guessed. */
+s32 func_00136C08(s32 position, s32 actor, s32 count, s32 contacts, s32 indexLimit);
+/* Surface-classification helpers, confirmed from the retail listings (see
+ * REFERENCE-BEHAVIORMATCH.md): both are `s32 helper(actor, f32 *normal)`,
+ * where `normal` points at the three floats of a SurfaceContact's +0x04 field
+ * and the result compares the normal's z component (the up axis) against
+ * `actor->+0x18`:
+ *   func_00139708: 1 when `actor->+0x18 <= normal[2]`   (floor-like surface)
+ *   func_001396A0: 1 when `|normal[2]| < actor->+0x18`  (wall-like surface)
+ * `actor` is the actor object pointer this module keeps in an s32 local. */
+s32 func_00139708(s32 actor, f32 *normal);
+s32 func_001396A0(s32 actor, f32 *normal);
 void func_001241D8();
 s32 func_0012F6F0(s32, s32, f32);
 s32 func_0013B420();
 s32 func_00135CF8(s32, s32, s32, s32, s32);
-s32 func_00137208();
+/* Definition in funcs_11 is void: (ActorSurfaceState *actor, s32 count,
+ * SurfaceContact *contacts, SurfaceContact *selected).  It returns nothing, so
+ * a value-typed declaration here would make callers read a dead $v0. */
+void func_00137208(s32 actor, s32 count, s32 contacts, s32 selected);
 s32 func_001399D8();
 s32 func_00139BA0();
 s32 func_00139CE0();
@@ -566,7 +582,7 @@ L_00132760:
     r2 ^= 0x63;
     r4 = r19;                                     /* delay slot of beqz */
     if (r2 == 0) goto L_0013279C;
-    r2 = func_001396A0(r4, r16 + 0x4);            /* 0x3277C (delay $5) */
+    r2 = func_001396A0(r4, (f32 *)(r16 + 0x4));    /* 0x3277C (delay $5) */
     r7 = M32(sp, 0x208);                          /* delay slot */
     if ((r2 & 0xFF) != 0) goto L_0013279C;
     r2 = 0x63;
@@ -749,7 +765,7 @@ L_00132A38:
     r5 = r16 + 0x4;                               /* delay slot of beqz (always) */
     if (r2 == 0) goto L_00132A60;
     r4 = r19;
-    r2 = func_00139708(r4, r5);                   /* 0x32A40 */
+    r2 = func_00139708(r4, (f32 *)r5);            /* 0x32A40 */
     r11 = M32(sp, 0x228);
     r2 &= 0xFF;
     r10 = 1;
@@ -776,7 +792,7 @@ L_00132A80:
     r17 = r16 + 0x4;                              /* delay slot of beqz */
     if (r2 == 0) goto L_00132B40;
     r4 = r19;
-    r2 = func_00139708(r4, r17);                  /* 0x32AA0 */
+    r2 = func_00139708(r4, (f32 *)r17);           /* 0x32AA0 */
     r2 &= 0xFF;
     if (r2 != 0) {
         r2 = r20 ^ r16;                           /* delay slot of beqz */
@@ -785,7 +801,7 @@ L_00132A80:
         goto L_00132B40;
     }
     r5 = r17;
-    r2 = func_001396A0(r19, r5);                  /* 0x32AC4 (delay $4=$19) */
+    r2 = func_001396A0(r19, (f32 *)r5);           /* 0x32AC4 (delay $4=$19) */
     r2 &= 0xFF;
     if (r2 != 0) {
         r2 = M32(sp, 0x22C);                      /* delay slot of beqz */
