@@ -2285,7 +2285,24 @@ INCLUDE_ASM(const s32, "core/main", func_00120768);
 
 INCLUDE_ASM(const s32, "core/main", func_001207E8);
 
-INCLUDE_ASM(const s32, "core/main", func_001208C0);
+extern s32 D_00330D78[];
+
+s32 func_001208C0(s16 arg0, s16 arg1)
+{
+    s32 *p = &D_00330D78[4 * arg0];
+
+    switch (arg1) {
+    case 0:
+        return p[0];
+    case 1:
+        return p[1];
+    case 2:
+        return p[2];
+    case 3:
+        return p[3];
+    }
+    return 0;
+}
 
 /* Sign-extends the low 16 bits of the argument. */
 s32 func_00120940(s32 value)
@@ -2426,16 +2443,6 @@ INCLUDE_ASM(const s32, "core/main", func_00121610);
     M_F(d, 0x38) = a2_; \
 } while (0)
 
-/* The jump table jtbl_00389460 in rodata.rodata.s still names the retail
- * case bodies; the C rewrite dispatches without a table, so bind the labels
- * to the retail addresses to keep the table bytes unchanged. */
-__asm__(".globl .L001218CC\n.equ .L001218CC, 0x001218CC");
-__asm__(".globl .L001218E4\n.equ .L001218E4, 0x001218E4");
-__asm__(".globl .L00121938\n.equ .L00121938, 0x00121938");
-__asm__(".globl .L00121AE0\n.equ .L00121AE0, 0x00121AE0");
-__asm__(".globl .L00121C74\n.equ .L00121C74, 0x00121C74");
-__asm__(".globl .L00121EBC\n.equ .L00121EBC, 0x00121EBC");
-__asm__(".globl .L001220C0\n.equ .L001220C0, 0x001220C0");
 
 void func_00121888(u8 *arg0, u8 *arg1)
 {
@@ -2988,8 +2995,373 @@ INCLUDE_ASM(const s32, "core/main", func_00128F88);
 INCLUDE_ASM(const s32, "core/main", func_00128FC8);
 
 INCLUDE_ASM(const s32, "core/main", func_00129038);
+/* func_001290B8 - collision-aware motion solver.
+ *
+ * Live code: func_0012A628 is the one caller (jal at 0x0012A6A0); no other jal and
+ * no function-pointer word anywhere in the image holds 0x001290B8.
+ *
+ * Behavioural reconstruction from asm/matchings/core/main/func_001290B8.s.  Four
+ * retail properties drive the control flow and are easy to get wrong:
+ *
+ *  - func_00129038 does not fill a buffer: it *searches* the first `count` entries of
+ *    its first argument for `normal` and returns 1 on a hit.  So status != 0 means
+ *    "this probe direction was already tried" and takes the contact path, while
+ *    status == 0 records the probe in candA, slides the position, and retries.
+ *  - the state block at 0x0012945C runs at most once per call (it sets bit 0 of
+ *    n[0x168], which gates it) and scales its two probe vectors by `step` divided by
+ *    their lengths.  Retail reads that factor out of $f20; the only caller
+ *    (func_0012A628, jal at 0x0012A6A0) sets $f12 = $f20 just before the call
+ *    (mov.s $f20,$f12 at 0x0012A654, mov.s $f12,$f20 at 0x0012A668), so the same
+ *    value arrives here as the seventh argument and no register is touched.
+ *  - the contact path rewrites the local target (0x00129D40: target = pos + the
+ *    remaining vector); the swept test that follows uses the rewritten value.
+ *  - the remaining vector is always taken from the caller's arg4 (0x001293F0 and
+ *    0x00129884 read the arg4 slot), never from that rewritten target.
+ *  - the fall-through of the 0x00129038 duplicate test at 0x00129B28/0x00129B30 is a
+ *    pointer comparison the compiler could never satisfy, so only the 0x00129BB0
+ *    cross product is ever written.
+ */
 
-INCLUDE_ASM(const s32, "core/main", func_001290B8);
+extern f32 D_003925F8;   /* 0.001f  */
+extern f32 D_003925FC;   /* 0.02f   */
+extern f32 D_00392600;   /* 0.02f   */
+extern f32 D_00392604;   /* -0.7f   */
+extern f32 D_00392608;   /* 0.7f    */
+extern f32 D_0039260C;   /* 0.5235988f  (pi/6) */
+extern f32 D_00392610;   /* 0.001f  */
+extern f32 D_00392614;   /* 0.02f   */
+extern f32 D_00392618;   /* 0.001f  */
+extern f32 D_0039261C;   /* 0.001f  */
+extern f32 D_00392620;   /* 2.6179938f  (5pi/6) */
+extern f32 D_00392624;   /* 0.02f   */
+extern f32 D_00392628;   /* 0.001f  */
+extern f32 D_0039262C;   /* 0.001f  */
+
+typedef struct
+{
+    f32 x;
+    f32 y;
+    f32 z;
+} SolverVec;
+
+typedef struct
+{
+    f32 m[12];      /* 0x00, filled by func_00120D48 */
+    f32 pos[3];     /* 0x30, rewritten before every swept test */
+    f32 one;        /* 0x3C */
+    f32 unk[4];     /* 0x40, never touched here */
+    u8  kind;       /* 0x50, 1 becomes 2 before a swept test */
+    u8  pad[15];
+} SolverPose;
+
+extern s32 func_00128FC8(SolverVec *pos, SolverVec *target, f32 eps);
+extern s32 func_00129038(SolverVec *list, SolverVec *normal, s32 count);
+extern s32 func_0012B1B0(f32 *out, SolverVec *a, SolverVec *b);
+extern s32 func_0012B098(SolverVec *dst, SolverVec *a, SolverVec *b, SolverVec *c);
+extern s32 func_00128C40(u8 *mover, u8 *ctx, SolverPose *a, SolverPose *b);
+
+/* Retail inlines every one of these (1044 instructions, no internal calls), so they
+ * are spelled as macros rather than functions.  Each site reads its own constant from
+ * the 0x003926xx pool; they all hold 0.001f, but the address used at each site is
+ * kept so the correspondence with the listing stays visible. */
+#define SV_TINY3(p, e)                                                      \
+    (fabsf((p)->x) < (e) && fabsf((p)->y) < (e) && fabsf((p)->z) < (e))
+#define SV_ZERO3(p) SV_TINY3(p, D_003925F8)
+#define SV_NORM(p)                                                          \
+    do {                                                                    \
+        f32 svl_ = F_SQRT(F_DOT3((p)->x, (p)->x, (p)->y, (p)->y,            \
+                                 (p)->z, (p)->z));                          \
+        if (svl_ != 0.0f) {                                                 \
+            f32 svk_ = 1.0f / svl_;                                         \
+            (p)->z = svk_ * (p)->z;                                         \
+            (p)->x = svk_ * (p)->x;                                         \
+            (p)->y = svk_ * (p)->y;                                         \
+        }                                                                   \
+    } while (0)
+
+void func_001290B8(u8 *arg0, u8 *arg1, u8 *arg2, u8 *arg3, SolverVec *arg4,
+                   SolverVec *arg5, f32 step)
+{
+    f32  scratch[4];        /* retail's sp+0: func_0012B1B0 writes out[0..3] */
+    SolverVec candA[6];     /* retail's sp+0x10, stride 0xC, indexed by countA */
+    SolverVec trace[6];     /* retail's sp+0x50, stride 0xC, indexed by countB */
+    SolverVec t90, t9C, tA8, tB4, pos, target, nrm, source, tmp, rem, crv;
+    SolverPose nodeA, nodeB;
+    SolverVec *prev;
+    u8   *n;
+    s32   countA, countB, blocked, status;
+    f32   f8, len, k;
+
+    n       = *(u8 **)(arg1 + 0x148);
+    countA  = 0;
+    countB  = 0;
+    blocked = 0;
+    status  = 0;
+
+    /* 0x00129114: start position from the node behind arg3 */
+    source = *(SolverVec *)(*(u8 **)(arg3 + 0x24) + 0x30);
+    pos    = source;
+    target = *arg4;
+    nrm    = *(SolverVec *)(n + 0xF8);
+
+    /* 0x001291A8: normalise the running displacement */
+    if (!(SV_ZERO3(&nrm)))
+        SV_NORM(&nrm);
+
+    /* 0x00129270 */
+    n[0x168] &= 0xFE;
+    *(u32 *)(n + 0x04) = 0;
+
+    /* 0x00129280: "already resolved" flag */
+    if ((*(u16 *)(arg1 + 0x256) & 0x40) != 0) {
+        pos = *arg4;
+        goto epilogue;
+    }
+
+    /* 0x00129368 */
+    func_00120D48(&nodeA);
+    func_00120D48(&nodeB);
+    if (func_00128FC8(&pos, &target, D_00392600) != 0) {
+        if ((*(u16 *)(arg1 + 0x256) & 0x100) != 0)
+            goto epilogue;
+    }
+    goto swept;
+
+/* ---------------- main iteration loop ---------------- */
+loop:
+    /* 0x001293C0 */
+    *(SolverVec *)(n + 0x0C) = *(SolverVec *)(arg0 + 0x04);
+    t90 = *(SolverVec *)(arg0 + 0x04);
+
+    /* 0x001293F0: the remaining distance comes from the caller's vector, not
+       from the running `target`, which the contact path rewrites */
+    rem.x = arg4->x - source.x;
+    rem.y = arg4->y - source.y;
+    rem.z = arg4->z - source.z;
+    len   = F_SQRT(F_DOT3(rem.x, rem.x, rem.y, rem.y, rem.z, rem.z));
+
+    /* 0x00129438: the once-per-call state block */
+    if ((n[0x168] & 1) == 0 && len != 0.0f) {
+        f32 ratio;
+        f32 len2;
+        f32 dot;
+
+        n[0x168] &= 0xFD;
+        ratio = F_DOT3(rem.x, t90.x, rem.y, t90.y, rem.z, t90.z) / len;
+        /* 0x001294A0 is a bc1fl on `ratio < -0.7`: the block runs only while the
+           movement opposes the probe direction */
+        if (ratio < D_00392604) {
+            tB4.x = *(f32 *)(arg1 + 0x258) - source.x;
+            tB4.y = *(f32 *)(arg1 + 0x25C) - source.y;
+            tB4.z = *(f32 *)(arg1 + 0x260) - source.z;
+            k = step / len;
+            rem.x *= k;
+            rem.y *= k;
+            rem.z *= k;
+            len2 = F_SQRT(F_DOT3(tB4.x, tB4.x, tB4.y, tB4.y, tB4.z, tB4.z));
+            if (len2 != 0.0f) {
+                k = step / len2;
+                tB4.z *= k;
+                tB4.x *= k;
+                tB4.y *= k;
+            }
+            dot = F_DOT3(rem.x, tB4.x, rem.y, tB4.y, rem.z, tB4.z);
+            if (dot > D_00392608)
+                n[0x168] |= 2;
+        }
+    }
+    /* 0x001295A4 */
+    n[0x168] |= 1;
+    *(u32 *)(n + 0x04) = 4;
+
+    /* 0x001295B8: a negative speed pushes the object off the wall instead of
+       stepping towards the target */
+    if (*(f32 *)arg0 < 0.0f) {
+        SolverVec v = *(SolverVec *)(arg0 + 0x30);
+        f32 d = F_SQRT(F_DOT3(v.x, v.x, v.y, v.y, v.z, v.z));
+        f32 s = 1.0f / d;
+        f32 e = d + D_003925FC;
+
+        n[0x168] |= 1;
+        pos.x = target.x + (s * v.x) * e;
+        pos.y = target.y + (s * v.y) * e;
+        pos.z = target.z + (s * v.z) * e;
+        goto epilogue;
+    }
+
+    /* 0x001295D0: tmp = pos + (target - pos) * arg0->t */
+    tmp.x = target.x - pos.x;
+    tmp.y = target.y - pos.y;
+    tmp.z = target.z - pos.z;
+    tmp.x = *(f32 *)arg0 * tmp.x;
+    tmp.y = *(f32 *)arg0 * tmp.y;
+    tmp.z = *(f32 *)arg0 * tmp.z;
+    tmp.x += pos.x;
+    tmp.y += pos.y;
+    tmp.z += pos.z;
+
+    status = func_00129038(&candA[0], &t90, countA);
+    if (status != 0)
+        goto dispatch;
+
+    /* 0x00129658: the probe is free - record it and slide */
+    if (countA == 5) {
+        pos = source;                   /* 0x00129348 */
+        goto epilogue;
+    }
+    candA[countA] = t90;
+    countA++;
+
+    t9C.x = tmp.x - *(f32 *)(arg0 + 0x10);
+    t9C.y = tmp.y - *(f32 *)(arg0 + 0x14);
+    t9C.z = tmp.z - *(f32 *)(arg0 + 0x18);
+    SV_NORM(&t9C);
+    func_0012B1B0(scratch, &t9C, &t90);
+    if (scratch[0] < D_0039260C)
+        t9C = t90;
+
+    /* 0x00129750: shorten the step by the skin width */
+    tA8.x = tmp.x - pos.x;
+    tA8.y = tmp.y - pos.y;
+    tA8.z = tmp.z - pos.z;
+    if (!(SV_TINY3(&tA8, D_00392610))) {
+        len = F_SQRT(F_DOT3(tA8.x, tA8.x, tA8.y, tA8.y, tA8.z, tA8.z));
+        if (len - D_00392614 < 0.0f) {
+            tA8.x = 0.0f;
+            tA8.y = 0.0f;
+            tA8.z = 0.0f;
+        } else {
+            k = (len - D_00392614) / len;
+            tA8.z *= k;
+            tA8.x *= k;
+            tA8.y *= k;
+        }
+        pos.x += tA8.x;
+        pos.y += tA8.y;
+        pos.z += tA8.z;
+    }
+
+    /* 0x00129884: what is left, with the contact normal projected out */
+    tA8.x = arg4->x - pos.x;
+    tA8.y = arg4->y - pos.y;
+    tA8.z = arg4->z - pos.z;
+    func_0012B098(&tA8, &tA8, &t9C, &t9C);
+
+    if (!(SV_TINY3(&nrm, D_00392618)) && !(SV_TINY3(&tA8, D_0039261C))) {
+        len = F_SQRT(F_DOT3(tA8.x, tA8.x, tA8.y, tA8.y, tA8.z, tA8.z));
+        if (len != 0.0f) {
+            k = 1.0f / len;
+            tA8.x = k * tA8.x;
+            tA8.y = k * tA8.y;
+            tA8.z = k * tA8.z;
+        }
+        func_0012B1B0(scratch, &tA8, &nrm);
+        if (scratch[0] > D_00392620)
+            blocked = 1;
+    }
+
+dispatch:
+    /* 0x00129A30 */
+    if (blocked == 0 && status == 0)
+        goto nrm_decision;
+
+contact:
+    /* 0x00129A48 */
+    if (countA < 2)
+        goto duplicate;
+    prev = &candA[countA - 1];
+    if (t90.x == prev->x && t90.y == prev->y && t90.z == prev->z)
+        goto duplicate;
+    if (countB == 5)
+        goto duplicate;
+
+    /* 0x00129ACC */
+    tA8.x = arg4->x - pos.x;
+    tA8.y = arg4->y - pos.y;
+    tA8.z = arg4->z - pos.z;
+    crv.x = prev->y * t90.z - prev->z * t90.y;
+    crv.y = prev->z * t90.x - prev->x * t90.z;
+    crv.z = prev->x * t90.y - prev->y * t90.x;
+    SV_NORM(&crv);
+    if (func_00129038(&trace[0], &crv, countB) != 0)
+        goto epilogue;
+    trace[countB] = crv;
+    countB++;
+    func_0012B098(&tB4, &tA8, &crv, &crv);
+    tA8.x -= tB4.x;
+    tA8.y -= tB4.y;
+    tA8.z -= tB4.z;
+
+nrm_decision:
+    /* 0x00129CF0 */
+    if (tA8.x == 0.0f && tA8.y == 0.0f && tA8.z == 0.0f) {
+        nrm.x = 0.0f;
+        nrm.y = 0.0f;
+        nrm.z = 0.0f;
+    } else {
+        target.x = pos.x + tA8.x;
+        target.y = pos.y + tA8.y;
+        target.z = pos.z + tA8.z;
+        SV_NORM(&tA8);
+        nrm = tA8;
+    }
+
+    /* 0x00129DE0 */
+    if (func_00128FC8(&pos, &target, D_00392624) != 0)
+        goto epilogue;
+
+swept:
+    /* 0x00129DF8: build the two poses and ask for one more swept test */
+    if (nodeA.kind == 1)
+        nodeA.kind = 2;
+    nodeA.pos[0] = pos.x;
+    nodeA.pos[1] = pos.y;
+    nodeA.pos[2] = pos.z;
+    nodeA.one     = 1.0f;
+    if (nodeB.kind == 1)
+        nodeB.kind = 2;
+    nodeB.pos[0] = target.x;
+    nodeB.pos[1] = target.y;
+    nodeB.pos[2] = target.z;
+    nodeB.one     = 1.0f;
+    if (func_00128C40(arg0, arg3, &nodeA, &nodeB) > 0)
+        goto loop;
+
+    pos = target;
+
+epilogue:
+    /* 0x00129EA0: displacement written back into the node */
+    ((SolverVec *)(n + 0xF8))->x = pos.x - source.x;
+    ((SolverVec *)(n + 0xF8))->y = pos.y - source.y;
+    ((SolverVec *)(n + 0xF8))->z = pos.z - source.z;
+
+    /* 0x00129EF8: second half.  $f8 is seeded with 0.0f here and only replaced when
+       both vectors are non-degenerate, so a degenerate fixup reports 0.0. */
+    f8 = 0.0f;
+    tA8.x = *(f32 *)(arg1 + 0x258) - source.x;
+    tA8.y = *(f32 *)(arg1 + 0x25C) - source.y;
+    tA8.z = *(f32 *)(arg1 + 0x260) - source.z;
+    if (!(SV_TINY3(&tA8, D_00392628))) {
+        SV_NORM(&tA8);
+        tB4.x = *(f32 *)(arg1 + 0x258) - pos.x;
+        tB4.y = *(f32 *)(arg1 + 0x25C) - pos.y;
+        tB4.z = *(f32 *)(arg1 + 0x260) - pos.z;
+        if (!(SV_TINY3(&tB4, D_0039262C))) {
+            SV_NORM(&tB4);
+            func_0012B1B0(scratch, &tA8, &tB4);
+            f8 = scratch[0];
+        }
+    }
+    *(f32 *)(arg2 + 0x0C) = f8;
+    *arg5 = pos;
+    return;
+
+duplicate:
+    /* 0x00129AC0 */
+    n[0x168] |= 2;
+    goto epilogue;
+}
+
 
 INCLUDE_ASM(const s32, "core/main", func_0012A108);
 

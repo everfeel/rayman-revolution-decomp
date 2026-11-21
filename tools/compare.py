@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RETAIL = ROOT / "baserom" / "SLES_500.44"
 PT_LOAD = 1
 SHT_SYMTAB = 2
+SHN_UNDEF = 0
 SHF_EXECINSTR = 0x4
 
 
@@ -128,12 +129,17 @@ class Elf32LE:
             count = section["size"] // entry_size
             base = section["offset"]
             for position in range(count):
-                name_offset, value, size, info, _, _ = struct.unpack_from(
+                name_offset, value, size, info, _, shndx = struct.unpack_from(
                     "<IIIBBH", self.data, base + position * entry_size
                 )
                 name = self._string_at(strings, name_offset)
                 if name and name not in index:
-                    index[name] = {"value": value, "size": size, "type": info & 0xF}
+                    index[name] = {
+                        "value": value,
+                        "size": size,
+                        "type": info & 0xF,
+                        "shndx": shndx,
+                    }
         self._symbols = index
         return index
 
@@ -143,6 +149,14 @@ class Elf32LE:
             return index[name]
         except KeyError:
             raise ValueError(f"{self.path}: symbol {name!r} not found in a symbol table")
+
+    def symbol_names(self):
+        """Names of the symbols this file defines, in any section."""
+        return {
+            name
+            for name, symbol in self._symbol_index().items()
+            if symbol.get("shndx", 1) != SHN_UNDEF
+        }
 
 
 def parse_int(value):

@@ -2102,7 +2102,12 @@ f32 func_00147718(u8 *arg0)
     return *(f32 *)(arg0 + 4);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00147748);
+f32 func_00147748(u8 *arg0)
+{
+    if (func_00147688(arg0) == 0)
+        return 0.0f;
+    return *(f32 *)(arg0 + 8);
+}
 
 u32 func_00147778(u8 *arg0)
 {
@@ -2129,12 +2134,18 @@ s32 func_00147810(const s32 *p) { return (p[0] >> 9) & 1; }
 
 void func_00147820(u32 arg0)
 {
-    D_00355298[0] = (arg0 < 0x14) ? arg0 : 0x14;
+    if (arg0 < 0x14)
+        D_00355298[0] = arg0;
+    else
+        D_00355298[0] = 0x14;
 }
 
 void func_00147848(u32 arg0)
 {
-    D_003552F0[0] = (arg0 < 0x14) ? arg0 : 0x14;
+    if (arg0 < 0x14)
+        D_003552F0[0] = arg0;
+    else
+        D_003552F0[0] = 0x14;
 }
 
 INCLUDE_ASM(const s32, "core/main", func_00147870);
@@ -3398,7 +3409,14 @@ s32 func_00157D88(s32 arg1)
     return func_0014C9A0(D_00393484, arg1);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00157DB0);
+extern s32 D_0039347C;
+s32 func_00157DB0(u8 *arg0)
+{
+    s32 v = D_0039347C;
+    if (v != 0)
+        return func_0014CE30(v, arg0);
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00157DE8);
 
@@ -3764,7 +3782,7 @@ extern s32 D_00393550;
 
 void func_0015FC50(void *arg0);
 
-void func_0015FC78(void);
+void func_0015FC78(void *arg0);
 
 void func_0015BAC8(s32 arg1)
 {
@@ -3773,7 +3791,7 @@ void func_0015BAC8(s32 arg1)
     } else {
         D_00393550 = 1;
     }
-    func_0015FC78();
+    func_0015FC78((void *)arg1);
 }
 
 void func_0015BAE8(void *arg0) { func_0015FC50(arg0); }
@@ -3806,13 +3824,35 @@ INCLUDE_ASM(const s32, "core/main", func_0015C488);
 
 INCLUDE_ASM(const s32, "core/main", func_0015C520);
 
-INCLUDE_ASM(const s32, "core/main", func_0015C578);
+extern s32 D_0038A498[];
+void func_0015C578(void)
+{
+    void func_0015F748();
+    void func_0015F770();
+    void func_0015F768();
+    func_0015F748();
+    func_0015F770(D_0038A498, 0xA2A);
+    func_0015F768();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0015C5A8);
 
 INCLUDE_ASM(const s32, "core/main", func_0015C5F0);
 
-INCLUDE_ASM(const s32, "core/main", func_0015C660);
+extern s32 D_0038A498[];
+
+void func_0015C660(void *arg0)
+{
+    void func_0015F748();
+    void func_0015F770();
+    void func_0015AA30();
+    void func_0015F768();
+
+    func_0015F748(arg0);
+    func_0015F770(D_0038A498, 0xA67);
+    func_0015AA30(arg0);
+    func_0015F768();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0015C6A0);
 
@@ -3832,11 +3872,19 @@ INCLUDE_ASM(const s32, "core/main", func_0015CCB8);
 
 INCLUDE_ASM(const s32, "core/main", func_0015CDD8);
 
-INCLUDE_ASM(const s32, "core/main", func_0015CE58);
+void func_0015CE58(s32 arg0, s32 arg1)
+{
+    if (arg0 >= 0 && arg0 < D_00393544)
+        *(u32 *)(D_00393C68 + arg0 * 0x74 + 0x58) = arg1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0015CE88);
 
-INCLUDE_ASM(const s32, "core/main", func_0015CEE0);
+void func_0015CEE0(s32 arg0, s32 arg1)
+{
+    if (arg0 >= 0 && arg0 < D_00393544)
+        *(u32 *)(D_00393C68 + arg0 * 0x74 + 0x5C) = arg1;
+}
 
 s32 func_0015CF10(s32 *p)
 {
@@ -4063,7 +4111,13 @@ s32 func_0015DEB0(void) { return 0; }
 
 ASM_FUNC(const s32, func_0015DEB8);
 
-INCLUDE_ASM(const s32, "core/main", func_0015DED8);
+s32 func_0015DED8(u8 *arg0)
+{
+    s32 func_00160E28();
+    s32 v = func_002256F0();
+    v = func_00160E28(v, 0x7FFFFFFF);
+    return func_00160CE0(v, (s32)arg0);
+}
 
 /* Byte-matching.  Clears the four flag bits of the first word, zeroes the two
    words at +8 and +0xC and reports success.  The -0xC store comes first in
@@ -4169,7 +4223,13 @@ void func_0015E870(u32 value)
 
 s32 func_0015E880(void) { return D_003702D8[0]; }
 
-INCLUDE_ASM(const s32, "core/main", func_0015E890);
+s32 func_0015E890(u8 *arg0)
+{
+    u8 *p = (u8 *)func_0015E510(arg0);
+    if (p != 0)
+        return *(s32 *)(*(s32 *)(p + 0x1C) + 0xC);
+    return 0;
+}
 
 void func_0015E8C0(void)
 {
@@ -4255,7 +4315,18 @@ s32 func_0015F6C8(void) { return 1; }
 
 INCLUDE_ASM(const s32, "core/main", func_0015F6D0);
 
-INCLUDE_ASM(const s32, "core/main", func_0015F718);
+extern s32 D_003935AC;
+
+void func_0015F718(void)
+{
+    s32 func_001C0C30();
+    s32 v = D_003935AC;
+
+    if (v >= 0) {
+        func_001C0C30(v);
+        D_003935AC = -1;
+    }
+}
 
 void func_0015F748(void) { func_001C0C60(D_003935AC); }
 
@@ -4320,7 +4391,18 @@ INCLUDE_ASM(const s32, "core/main", func_0015FAC8);
 
 INCLUDE_ASM(const s32, "core/main", func_0015FB60);
 
-INCLUDE_ASM(const s32, "core/main", func_0015FBC0);
+extern u8 D_003D7E48[];
+
+void func_0015FBC0(void)
+{
+    u8 *p = D_003D7E48;
+    u8 *end = p + 0x480;
+
+    do {
+        *(u32 *)(p + 8) |= 1;
+        p += 0x18;
+    } while ((s32)p < (s32)end);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0015FBF8);
 
@@ -4334,7 +4416,14 @@ void func_0015FC50(void *arg0)
     func_00164978(arg0);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0015FC78);
+void func_0015FC78(void *arg0)
+{
+    void func_00162438(void *arg0);
+    void func_00163F10();
+
+    func_00162438(arg0);
+    func_00163F10(arg0);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0015FCA0);
 
@@ -4408,7 +4497,17 @@ s32 func_00160350(void)
     return func_00163EC0();
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00160370);
+extern s32 D_00393C74;
+void func_00160370(void)
+{
+    void func_00159808();
+    void func_00161738();
+    void func_00163EE0();
+    func_00159808();
+    func_00161738();
+    if (D_00393C74 == 3)
+        func_00163EE0();
+}
 
 s32 func_001603A8(void) { return 3; }
 
@@ -4445,9 +4544,33 @@ INCLUDE_ASM(const s32, "core/main", func_00160630);
 
 INCLUDE_ASM(const s32, "core/main", func_00160680);
 
-INCLUDE_ASM(const s32, "core/main", func_001606E8);
+void func_00169AC0();
+void func_00164878(s32);
 
-INCLUDE_ASM(const s32, "core/main", func_00160718);
+extern s32 D_003935B8[];
+
+void func_001606E8(void *arg0)
+{
+    s32 *p = *(s32 **)((u8 *)arg0 + 4);
+    if (p[1] == 1)
+        func_00164878(*(s32 *)arg0);
+    else
+        func_00169AC0(0x15, &D_003935B8);
+}
+
+void func_00169AC0();
+void func_00164838(s32);
+
+extern s32 D_003935B8[];
+
+void func_00160718(void *arg0)
+{
+    s32 *p = *(s32 **)((u8 *)arg0 + 4);
+    if (p[1] == 1)
+        func_00164838(*(s32 *)arg0);
+    else
+        func_00169AC0(0x15, &D_003935B8);
+}
 
 void func_00160748(void) { func_001648B8(); }
 
@@ -4524,7 +4647,12 @@ void func_001609F0(void)
     func_00164938();
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00160A10);
+s32 func_00160A10(u8 *arg0)
+{
+    if (*(s32 *)(arg0 + 4) == 1)
+        return func_00163D20(arg0);
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00160A48);
 
@@ -4650,9 +4778,19 @@ void func_00161300(s32 *arg1)
 void func_00161320(void) {
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00161328);
+s32 func_00161328(u8 *arg0)
+{
+    if (*(s32 *)(arg0 + 0x4) != 0)
+        return func_00160768(*(s32 *)arg0);
+    return -1;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00161358);
+s32 func_00161358(u8 *arg0)
+{
+    if (*(s32 *)(arg0 + 0x4) != 0)
+        return func_001607B8(*(s32 *)arg0);
+    return -1;
+}
 
 void func_00161388(u8 *a0, u8 *a1)
 {
@@ -4764,9 +4902,25 @@ INCLUDE_ASM(const s32, "core/main", func_001622A8);
 
 INCLUDE_ASM(const s32, "core/main", func_00162358);
 
-INCLUDE_ASM(const s32, "core/main", func_00162438);
+extern s32 D_003935D8;
+void func_00162438(s32 arg0)
+{
+    s32 func_00160E28();
+    if (arg0 != 0)
+        D_003935D8 = func_00160E28(0x12C0000, arg0) >> 16;
+    else
+        D_003935D8 = 0;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00162470);
+extern s32 D_003935D8;
+s32 func_00162470(void)
+{
+    s32 func_00160E28();
+    s32 v = D_003935D8;
+    if (v != 0)
+        return func_00160E28(0x12C0000, v << 16);
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001624A8);
 
@@ -4807,9 +4961,19 @@ void func_00162B98(s32 *p) { p[4] = 0; }
 void func_00162BA0(void) {
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00162BA8);
+s32 func_00162BA8(u8 *arg0)
+{
+    if (*(s32 *)(arg0 + 0x18) != 0)
+        return func_00160768(*(s32 *)arg0);
+    return -1;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00162BD8);
+s32 func_00162BD8(u8 *arg0)
+{
+    if (*(s32 *)(arg0 + 0x18) != 0)
+        return func_001607B8(*(s32 *)arg0);
+    return -1;
+}
 
 /* Byte-matching.  Descriptor copy that merges one flag bit into the target. */
 void func_00162C08(u8 *src, u8 *dst)
@@ -4864,7 +5028,23 @@ INCLUDE_ASM(const s32, "core/main", func_001636D0);
 
 INCLUDE_ASM(const s32, "core/main", func_00163758);
 
-INCLUDE_ASM(const s32, "core/main", func_00163838);
+void func_00163838(u8 *arg0)
+{
+    void func_001650C0();
+    void func_00167428();
+    void func_00169AC0();
+    s32 v = *(s32 *)(arg0 + 8);
+    switch (v) {
+    case 1:
+        func_001650C0(*(s32 *)(arg0 + 4));
+        return;
+    case 4:
+        func_00167428(*(s32 *)(arg0 + 4));
+        return;
+    default:
+        func_00169AC0(0x1B, &D_003935F8);
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00163878);
 
@@ -4872,15 +5052,56 @@ INCLUDE_ASM(const s32, "core/main", func_00163900);
 
 INCLUDE_ASM(const s32, "core/main", func_00163988);
 
-INCLUDE_ASM(const s32, "core/main", func_001639F0);
+void func_001639F0(u8 *arg0)
+{
+    void func_00165128();
+    void func_00167490();
+    void func_00169AC0();
+    s32 v = *(s32 *)(arg0 + 8);
+    switch (v) {
+    case 1: func_00165128(*(s32 *)(arg0 + 4)); return;
+    case 4: func_00167490(*(s32 *)(arg0 + 4)); return;
+    default: func_00169AC0(0x1B, &D_003935F8);
+    }
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00163A30);
+void func_00163A30(u8 *arg0)
+{
+    void func_00165130();
+    void func_00167498();
+    void func_00169AC0();
+    s32 v = *(s32 *)(arg0 + 8);
+    switch (v) {
+    case 1: func_00165130(*(s32 *)(arg0 + 4)); return;
+    case 4: func_00167498(*(s32 *)(arg0 + 4)); return;
+    default: func_00169AC0(0x1B, &D_003935F8);
+    }
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00163A70);
+void func_00163A70(u8 *arg0)
+{
+    void func_001651C0();
+    void func_00169AC0();
+    if (*(s32 *)(arg0 + 0x1C) == 1)
+        func_001651C0();
+    else
+        func_00169AC0(0x1B, &D_003935F8);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00163A98);
 
-INCLUDE_ASM(const s32, "core/main", func_00163B88);
+void func_001651C8();
+void func_00167748();
+void func_00169AC0();
+void func_00163B88(u8 *arg0)
+{
+    s32 v = *(s32 *)(arg0 + 0x18);
+    switch (v) {
+    case 1: func_001651C8(); return;
+    case 4: func_00167748(); return;
+    default: func_00169AC0(0x1B, &D_003935F8);
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00163BC8);
 
@@ -4948,13 +5169,61 @@ INCLUDE_ASM(const s32, "core/main", func_00164130);
 
 INCLUDE_ASM(const s32, "core/main", func_001641F0);
 
-INCLUDE_ASM(const s32, "core/main", func_001642B8);
+void func_00164E08();
+void func_00165288();
 
-INCLUDE_ASM(const s32, "core/main", func_001642E8);
+void func_001642B8(s32 *arg0)
+{
+    if ((s32)arg0 == -1)
+        return;
+    if (*arg0 == 2) {
+        func_00164E08(arg0[1]);
+        return;
+    }
+    func_00165288(arg0[1]);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00164318);
+void func_00164E10();
+void func_001652D0();
 
-INCLUDE_ASM(const s32, "core/main", func_00164348);
+void func_001642E8(s32 *arg0)
+{
+    if ((s32)arg0 == -1)
+        return;
+    if (*arg0 == 2) {
+        func_00164E10(arg0[1]);
+        return;
+    }
+    func_001652D0(arg0[1]);
+}
+
+void func_00164EE0();
+void func_00165310();
+
+void func_00164318(s32 *arg0)
+{
+    if ((s32)arg0 == -1)
+        return;
+    if (*arg0 == 2) {
+        func_00164EE0(arg0[1]);
+        return;
+    }
+    func_00165310(arg0[1]);
+}
+
+void func_00164EE8();
+void func_00165318();
+
+void func_00164348(s32 *arg0)
+{
+    if ((s32)arg0 == -1)
+        return;
+    if (*arg0 == 2) {
+        func_00164EE8(arg0[1]);
+        return;
+    }
+    func_00165318(arg0[1]);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00164378);
 
@@ -4970,19 +5239,87 @@ s32 func_00164540(void) { return -1; }
 
 INCLUDE_ASM(const s32, "core/main", func_00164548);
 
-INCLUDE_ASM(const s32, "core/main", func_00164648);
+s32 func_00164648(u8 *arg0, s32 arg1)
+{
+    s32 func_00166DE0();
+    s32 func_001677E8();
+    void func_00169AC0();
+    s32 v = *(s32 *)arg0;
+    switch (v) {
+    case 1: return func_00166DE0(*(s32 *)(arg0 + 4), arg1);
+    case 4: return func_001677E8(*(s32 *)(arg0 + 4), arg1);
+    default: func_00169AC0(0x1B, &D_003935F8); return 0;
+    }
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001646A8);
+s32 func_001646A8(u8 *arg0, s32 arg1)
+{
+    s32 func_00166E70();
+    s32 func_00167820();
+    void func_00169AC0();
+    s32 v = *(s32 *)arg0;
+    switch (v) {
+    case 1: return func_00166E70(*(s32 *)(arg0 + 4), arg1);
+    case 4: return func_00167820(*(s32 *)(arg0 + 4), arg1);
+    default: func_00169AC0(0x1B, &D_003935F8); return 0;
+    }
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00164708);
+s32 func_00164708(u8 *arg0, s32 arg1)
+{
+    s32 func_00166FA8();
+    s32 func_00167840();
+    void func_00169AC0();
+    s32 v = *(s32 *)arg0;
+    switch (v) {
+    case 1: return func_00166FA8(*(s32 *)(arg0 + 4), arg1);
+    case 4: return func_00167840(*(s32 *)(arg0 + 4), arg1);
+    default: func_00169AC0(0x1B, &D_003935F8); return 0;
+    }
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00164768);
+s32 func_00164768(u8 *arg0, s32 arg1)
+{
+    s32 func_00166ED8();
+    s32 func_00167860();
+    void func_00169AC0();
+    s32 v = *(s32 *)arg0;
+    switch (v) {
+    case 1: return func_00166ED8(*(s32 *)(arg0 + 4), arg1);
+    case 4: return func_00167860(*(s32 *)(arg0 + 4), arg1);
+    default: func_00169AC0(0x1B, &D_003935F8); return 0;
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001647C8);
 
-INCLUDE_ASM(const s32, "core/main", func_00164838);
+void func_00164838(s32 arg0)
+{
+    void func_00167018();
+    void func_00167888();
+    void func_00169AC0();
+    u8 *p = (u8 *)arg0;
+    s32 v = *(s32 *)p;
+    switch (v) {
+    case 1: func_00167018(*(s32 *)(p + 4)); return;
+    case 4: func_00167888(*(s32 *)(p + 4)); return;
+    default: func_00169AC0(0x1B, &D_003935F8);
+    }
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00164878);
+void func_00164878(s32 arg0)
+{
+    void func_00167058();
+    void func_00167890();
+    void func_00169AC0();
+    u8 *p = (u8 *)arg0;
+    s32 v = *(s32 *)p;
+    switch (v) {
+    case 1: func_00167058(*(s32 *)(p + 4)); return;
+    case 4: func_00167890(*(s32 *)(p + 4)); return;
+    default: func_00169AC0(0x1B, &D_003935F8);
+    }
+}
 
 void func_001648B8(void)
 {
@@ -5062,7 +5399,12 @@ s32 func_00164EF8(void)
     return func_001679B8() ? 4 : 1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00164F28);
+void func_00164F28(void *arg0, void *arg1)
+{
+    if ((s32)arg0 == 1 || (s32)arg0 == 4)
+        return;
+    func_00169AC0(0x1B, &D_003935F8);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00164F50);
 
@@ -5160,7 +5502,20 @@ INCLUDE_ASM(const s32, "core/main", func_001651F0);
 
 INCLUDE_ASM(const s32, "core/main", func_00165288);
 
-INCLUDE_ASM(const s32, "core/main", func_001652D0);
+extern s32 D_0038A800[];
+
+void func_001652D0(void *arg0)
+{
+    void func_0015F748();
+    void func_0015F770();
+    void func_00167168();
+    void func_0015F768();
+
+    func_0015F748(arg0);
+    func_0015F770(D_0038A800, 0xDD);
+    func_00167168(arg0);
+    func_0015F768();
+}
 
 void func_00165310(void) { func_00167170(); }
 
@@ -5379,7 +5734,18 @@ s32 func_00165E58(s32 arg0, s32 arg1, u32 *arg2, s32 arg3)
     return r;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00165E88);
+extern u32 D_00393C88;
+
+s32 func_00165E88(u8 *out)
+{
+    u32 *p = &D_00393C88;
+    D_00393C88 = (u32)func_00165E58;
+    *(u32 *)(out + 0x0) = 0x6B636162u;
+    *(u32 *)(out + 0x4) = 3;
+    *(u32 *)(out + 0x8) = 1;
+    *(u32 *)(out + 0xC) = (u32)p;
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00165EC0);
 
@@ -5473,9 +5839,35 @@ s32 func_00166FA8(s32 arg1, s32 arg2)
 
 INCLUDE_ASM(const s32, "core/main", func_00166FC8);
 
-INCLUDE_ASM(const s32, "core/main", func_00167018);
+extern s32 D_0038ABA0[];
 
-INCLUDE_ASM(const s32, "core/main", func_00167058);
+void func_00167018(void *arg0)
+{
+    void func_0015F748();
+    void func_0015F770();
+    void func_00164318();
+    void func_0015F768();
+
+    func_0015F748(arg0);
+    func_0015F770(D_0038ABA0, 0x21C);
+    func_00164318(*(s32 *)arg0);
+    func_0015F768();
+}
+
+extern s32 D_0038ABA0[];
+
+void func_00167058(void *arg0)
+{
+    void func_0015F748();
+    void func_0015F770();
+    void func_00164348();
+    void func_0015F768();
+
+    func_0015F748(arg0);
+    func_0015F770(D_0038ABA0, 0x229);
+    func_00164348(*(s32 *)arg0);
+    func_0015F768();
+}
 
 s32 func_00167098(void) { return 3; }
 
@@ -5584,7 +5976,14 @@ void func_001672F8(void) {
 void func_00167300(void) {
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00167308);
+typedef struct { u32 v; s8 b; } __attribute__((packed)) S5;
+extern u8 D_00393620[];
+
+void func_00167308(u8 *dst, s32 idx)
+{
+    if (idx < 5)
+        *(S5 *)dst = *(S5 *)D_00393620;
+}
 
 void func_00167338(void) {
 }
@@ -6435,9 +6834,15 @@ void func_00169B08(s32 unused, s32 value)
     func_00169C20((s32)D_003E1AF0, value);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00169B18);
+s32 func_00169B18(s32 arg0)
+{
+    return func_00169CB0(D_003E1AF0, 2, arg0);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00169B40);
+s32 func_00169B40(s32 arg0, s32 arg1)
+{
+    return func_00169CB0(D_003E1AF0, 2, arg1);
+}
 
 void func_00169B68(s32 arg)
 {
@@ -6449,7 +6854,10 @@ void func_00169B78(s32 unused, s32 value)
     func_00169EB8((s32)D_003E1AF0, value);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00169B88);
+s32 func_00169B88(s32 a, s32 b)
+{
+    return func_00169DD0(D_003E1AF0, a, b);
+}
 
 s32 func_00169BB0(void)
 {
@@ -6490,18 +6898,24 @@ INCLUDE_ASM(const s32, "core/main", func_00169EB8);
 
 INCLUDE_ASM(const s32, "core/main", func_00169F18);
 
-/* Behavior-faithful, not byte-matching: retail tests arg0 == 0 then arg0 == 2
-   with fall-through tail calls (beqz/beq); this form compiles to the same 0x28
-   bytes with the first test inverted (bne).  Same callees, same argument. */
+/* Byte-matching: a switch with cases 0 and 2 emits retail's beqz (with the
+   second comparison constant in its delay slot) and beq, each branching to a
+   void tail call that passes arg1 in the delay slot.  An if/else-if chain
+   compiles to the same 0x28 bytes with the tests inverted (bne), so use the
+   switch form here. */
 void func_00169F50(s32 arg0, s32 arg1)
 {
     void func_001C46B0(s32 arg0);
     void func_00223E80(s32 arg0);
 
-    if (arg0 == 0)
+    switch (arg0) {
+    case 0:
         func_001C46B0(arg1);
-    else if (arg0 == 2)
+        break;
+    case 2:
         func_00223E80(arg1);
+        break;
+    }
 }
 
 void func_00169F78(void) { func_0016BF68(); }
@@ -7084,7 +7498,10 @@ u8 *func_0016F028(s32 arg0, f32 unused)
     return p;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0016F058);
+s32 func_0016F058(s32 arg0)
+{
+    return func_0019A3A8(D_003724C0, arg0) + 48;
+}
 
 s32 func_0019A490();
 
@@ -7145,8 +7562,7 @@ u8 *func_0016F950(u8 *p) { return p + 4; }
 
 u8 *func_0016F958(u8 *arg0, u8 *arg1)
 {
-    *(UnalignedU64 *)(arg0 + 0xC) = *(UnalignedU64 *)arg1;
-    *(u32 *)(arg0 + 0x14) = *(u32 *)(arg1 + 8);
+    *(S12 *)(arg0 + 0xC) = *(S12 *)arg1;
     return arg0;
 }
 
@@ -7330,8 +7746,7 @@ u8 *func_001757E8(u8 *p) { return p + 60; }
 
 u8 *func_001757F0(u8 *arg0, u8 *arg1)
 {
-    *(UnalignedU64 *)(arg0 + 0x60) = *(UnalignedU64 *)arg1;
-    *(u32 *)(arg0 + 0x68) = *(u32 *)(arg1 + 8);
+    *(S12 *)(arg0 + 0x60) = *(S12 *)arg1;
     return arg0;
 }
 
@@ -7560,11 +7975,39 @@ s32 func_00178920(void)
 
 INCLUDE_ASM(const s32, "core/main", func_00178938);
 
-INCLUDE_ASM(const s32, "core/main", func_00178988);
+u8 *func_00178988(u8 *p, u8 *out)
+{
+    s32 func_0018DA08();
+    s32 func_0018DAD0();
+    s32 stack[2];
+    if (p == 0) goto fallback;
+    *(s32 *)out = *(s32 *)(p + 0x70);
+    return p;
+fallback:
+    stack[0] = 2;
+    stack[1] = func_0018DA08(0x80000016);
+    __asm__ volatile("" ::: "memory");
+    func_0018DAD0(stack);
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001789D8);
 
-INCLUDE_ASM(const s32, "core/main", func_00178A28);
+u8 *func_00178A28(u8 *p, u8 *out)
+{
+    s32 func_0018DA08();
+    s32 func_0018DAD0();
+    s32 stack[2];
+    if (p == 0) goto fallback;
+    *(s32 *)out = *(s32 *)(p + 0x54);
+    return p;
+fallback:
+    stack[0] = 2;
+    stack[1] = func_0018DA08(0x80000016);
+    __asm__ volatile("" ::: "memory");
+    func_0018DAD0(stack);
+    return 0;
+}
 
 s32 func_00178A78(void)
 {
@@ -7586,7 +8029,21 @@ INCLUDE_ASM(const s32, "core/main", func_00178AA8);
 
 INCLUDE_ASM(const s32, "core/main", func_00178AE0);
 
-INCLUDE_ASM(const s32, "core/main", func_00178B30);
+u8 *func_00178B30(u8 *p, u8 *out)
+{
+    s32 func_0018DA08();
+    s32 func_0018DAD0();
+    s32 stack[2];
+    if (p == 0) goto fallback;
+    *(s32 *)out = *(s32 *)(p + 0x6C);
+    return p;
+fallback:
+    stack[0] = 2;
+    stack[1] = func_0018DA08(0x80000016);
+    __asm__ volatile("" ::: "memory");
+    func_0018DAD0(stack);
+    return 0;
+}
 
 s32 func_00178B80(void)
 {
@@ -7608,7 +8065,21 @@ s32 func_00178BD0(void)
 
 INCLUDE_ASM(const s32, "core/main", func_00178BE8);
 
-INCLUDE_ASM(const s32, "core/main", func_00178C40);
+u8 *func_00178C40(u8 *p, u8 *out)
+{
+    s32 func_0018DA08();
+    s32 func_0018DAD0();
+    s32 stack[2];
+    if (p == 0) goto fallback;
+    *(s32 *)out = *(s32 *)(p + 0x8);
+    return p;
+fallback:
+    stack[0] = 2;
+    stack[1] = func_0018DA08(0x80000016);
+    __asm__ volatile("" ::: "memory");
+    func_0018DAD0(stack);
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00178C90);
 
@@ -7734,7 +8205,15 @@ INCLUDE_ASM(const s32, "core/main", func_0017E4C8);
 
 INCLUDE_ASM(const s32, "core/main", func_0017E500);
 
-INCLUDE_ASM(const s32, "core/main", func_0017E530);
+s32 func_0017E530(u8 *arg0)
+{
+    s32 func_00224B88();
+    u8 *p = *(u8 **)(arg0 + 0x14);
+    func_00224B88((s32)p, 0, 8);
+    *(s32 *)(p + 4) = 0;
+    *(s32 *)p = 0x1E1;
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0017E570);
 
@@ -8082,7 +8561,12 @@ u16 func_00188D18(const u16 *p) { return p[46]; }
 
 u16 func_00188D20(const u16 *p) { return p[45]; }
 
-INCLUDE_ASM(const s32, "core/main", func_00188D28);
+extern u8 D_003731BC[];
+
+s32 func_00188D28(void)
+{
+    return ((s32 (*)(void))*(u32 *)(*(u32 *)D_003731BC + 0x6C))();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00188D50);
 
@@ -8172,7 +8656,14 @@ INCLUDE_ASM(const s32, "core/main", func_00189F88);
 
 INCLUDE_ASM(const s32, "core/main", func_0018A060);
 
-INCLUDE_ASM(const s32, "core/main", func_0018A0A0);
+extern s32 D_003732E8[];
+s32 func_0018A0A0(s32 *arg0)
+{
+    u8 *p = (u8 *)arg0;
+    if (*(s32 *)(p + 4) != 0)
+        ((void (*)(u8 *)) D_003732E8[0])(*(u8 **)p);
+    return (s32)arg0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0018A0E0);
 
@@ -8188,7 +8679,13 @@ INCLUDE_ASM(const s32, "core/main", func_0018A850);
 
 INCLUDE_ASM(const s32, "core/main", func_0018A998);
 
-INCLUDE_ASM(const s32, "core/main", func_0018AC20);
+extern s32 D_003732E8[];
+
+s32 func_0018AC20(void)
+{
+    ((s32 (*)(void)) D_003732E8[0])();
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0018AC48);
 
@@ -8520,7 +9017,11 @@ s32 func_0018C470(u8 *p)
 
 s32 func_0018C490(void) { return D_003731B8[0]; }
 
-INCLUDE_ASM(const s32, "core/main", func_0018C4A0);
+extern s32 D_00373254[];
+u8 *func_0018C4A0(u8 *arg0)
+{
+    return ((s32 (*)(void)) D_00373254[0])() ? arg0 : 0;
+}
 
 /* Byte-matching.  Releases the resource at +0x60 and reports the object, or
    NULL when the release reported an error. */
@@ -8621,7 +9122,10 @@ s32 func_0018D1C8(void) { return 772; }
 
 INCLUDE_ASM(const s32, "core/main", func_0018D1D0);
 
-INCLUDE_ASM(const s32, "core/main", func_0018D2E8);
+s32 func_0018D2E8(s32 a1, s32 a2, s32 a3, s32 a4)
+{
+    return func_0019A490(D_00373078, a1, a2, a3, a4, 0);
+}
 
 s32 func_0018D328(s32 arg)
 {
@@ -8667,11 +9171,26 @@ s32 func_0018D9A8(s32 p)
     return ((s32 (*)(s32)) *(s32 *)D_003732E4)(*(s32 *)(p + 0x10));
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0018D9D0);
+extern s32 D_003732E8[];
+u8 *func_0018D9D0(u8 *arg0, u8 *arg1)
+{
+    ((void (*)(u8 *)) D_003732E8[0])(arg1);
+    return arg0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0018DA08);
 
-INCLUDE_ASM(const s32, "core/main", func_0018DA48);
+extern s32 D_00393CF0;
+
+u8 *func_0018DA48(u8 *arg0, u32 idx)
+{
+    u32 *p = (u32 *)(idx + (u32)D_003731B8);
+    D_00393CF4++;
+    p[1] = 0x80000000u;
+    D_00393CF0 = (s32)idx;
+    p[0] = 0;
+    return arg0;
+}
 
 u8 *func_0018DA78(u8 *p)
 {
@@ -8679,7 +9198,17 @@ u8 *func_0018DA78(u8 *p)
     return p;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0018DA90);
+extern s32 D_00393CF0;
+
+u8 *func_0018DA90(u8 *dst)
+{
+    u32 *p = (u32 *)(D_00393CF0 + (u32)D_003731B8);
+    *(UnalignedU64 *)dst = *(UnalignedU64 *)p;
+    p = (u32 *)(D_00393CF0 + (u32)D_003731B8);
+    p[1] = 0x80000000u;
+    p[0] = 0;
+    return dst;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0018DAD0);
 
@@ -8743,7 +9272,20 @@ s32 func_0018E8A0(s32 arg)
 
 s32 func_0018E8C8(void) { return 1; }
 
-INCLUDE_ASM(const s32, "core/main", func_0018E8D0);
+u8 *func_0018E8D0(u8 *arg0)
+{
+    u8 *func_0018DB30(u8 *, s32);
+    void func_0018E670(u8 *);
+    u8 *p = (u8 *)func_0018DB30(arg0, 0);
+    u8 *r = p;
+
+    if (p != 0) {
+        *(u8 *)(p + 3) = 0;
+        func_0018E670(p);
+        r = p;
+    }
+    return r;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0018E910);
 
@@ -8837,9 +9379,22 @@ s32 func_00190CA8(const s32 *p) { return *(const s32 *)((const u8 *)p + (20)); }
 
 s32 func_00190CB0(const s32 *p) { return *(const s32 *)((const u8 *)p + (24)); }
 
-INCLUDE_ASM(const s32, "core/main", func_00190CB8);
+extern s32 D_00373208[];
+s32 func_00190CB8(s32 arg0, s32 arg1)
+{
+    s32 stack;
+    ((s32 (*)(s32 *, s32, s32)) D_00373208[0])(&stack, arg0, arg1);
+    return stack;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00190CE8);
+extern s32 D_0037320C[];
+u8 *func_00190CE8(u8 *arg0, s32 arg1)
+{
+    s32 stack;
+    stack = arg1;
+    ((s32 (*)(u8 *, s32 *)) D_0037320C[0])(arg0, &stack);
+    return arg0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00190D20);
 
@@ -8971,7 +9526,14 @@ INCLUDE_ASM(const s32, "core/main", func_00194638);
 
 INCLUDE_ASM(const s32, "core/main", func_001947F0);
 
-INCLUDE_ASM(const s32, "core/main", func_00194AC8);
+extern s32 D_00393D08;
+s32 func_00194AC8(u8 *arg0)
+{
+    s32 *p = (s32 *)(D_00393D08 + (u32)D_003731B8);
+    s32 (*handler)(s32, u8 *, s32) = (s32 (*)(s32, u8 *, s32))D_003731B8[80];
+    handler(p[0], arg0, (s32)p);
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00194B00);
 
@@ -9017,7 +9579,20 @@ s32 func_001950F8(s32 arg0)
     return 1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00195118);
+extern s32 D_00393D08;
+extern s32 D_003731B8[];
+extern s32 func_00193130();
+
+s32 func_00195118(u32 arg0)
+{
+    u32 v;
+    s32 *p;
+    v = arg0;
+    if (v == 0) v = (u32)func_00193130;
+    p = (s32 *)((s8 *)D_003731B8 + D_00393D08);
+    p[2] = (s32)v;
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00195148);
 
@@ -9086,11 +9661,32 @@ INCLUDE_ASM(const s32, "core/main", func_00195E20);
 
 s32 func_00195EC0(const s32 *p) { return *(const s32 *)((const u8 *)p + (0)); }
 
-INCLUDE_ASM(const s32, "core/main", func_00195EC8);
+extern s32 D_0037324C[];
+u8 *func_00195EC8(u8 *arg0, s32 arg1, s32 arg2)
+{
+    s32 stack[2];
+    stack[0] = arg1;
+    stack[1] = arg2;
+    ((s32 (*)(u8 *, s32 *, s32)) D_0037324C[0])(arg0, stack, 0);
+    return arg0;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00195F08);
+extern s32 D_00373244[];
+u8 *func_00195F08(u8 *arg0, s32 arg1, s32 arg2)
+{
+    s32 stack[2];
+    stack[0] = arg1;
+    stack[1] = arg2;
+    ((s32 (*)(u8 *, s32 *, s32)) D_00373244[0])(arg0, stack, 0);
+    return arg0;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00195F48);
+extern s32 D_00373248[];
+u8 *func_00195F48(u8 *arg0, u8 *arg1)
+{
+    ((s32 (*)(u8 *, u8 *, s32)) D_00373248[0])(arg0, arg1, 0);
+    return arg0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00195F80);
 
@@ -9106,13 +9702,30 @@ s32 func_00196060(void)
 
 INCLUDE_ASM(const s32, "core/main", func_00196088);
 
-INCLUDE_ASM(const s32, "core/main", func_001960F8);
+extern s32 D_00373234[];
+s32 func_001960F8(u8 *arg0, u8 *arg1)
+{
+    ((s32 (*)(s32, u8 *, u8 *)) D_00373234[0])(0, arg0, arg1);
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00196128);
 
-INCLUDE_ASM(const s32, "core/main", func_00196190);
+extern s32 D_0037323C[];
+s32 func_00196190(u8 *arg0, s32 arg1, s32 arg2)
+{
+    s32 stack;
+    if (((s32 (*)(s32 *, u8 *, s32))D_0037323C[0])(&stack, arg0, arg2 + ((arg1 & 0xFF) << 8)) != 0)
+        return stack;
+    return 0;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001961D0);
+extern s32 D_00373240[];
+u8 *func_001961D0(u8 *arg0)
+{
+    ((s32 (*)(s32, u8 *, s32)) D_00373240[0])(0, arg0, 0);
+    return arg0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00196210);
 
@@ -9291,7 +9904,15 @@ s32 func_00199628(void)
 
 INCLUDE_ASM(const s32, "core/main", func_00199640);
 
-INCLUDE_ASM(const s32, "core/main", func_00199688);
+extern s32 D_00393D30;
+
+s32 func_00199688(void)
+{
+    s32 *p = (s32 *)(D_00393D30 + (u32)D_003731B8);
+    s32 (*handler)(void) = (s32 (*)(void))p[10];
+
+    return handler() != 0;
+}
 
 s32 func_001996C0(s32 arg)
 {
@@ -9432,7 +10053,14 @@ INCLUDE_ASM(const s32, "core/main", func_0019A308);
 
 INCLUDE_ASM(const s32, "core/main", func_0019A3A8);
 
-INCLUDE_ASM(const s32, "core/main", func_0019A420);
+extern s32 D_00393D38;
+s32 func_0019A420(void)
+{
+    s32 func_00195578();
+    s32 v = func_00195578(0x34, 0x14, 0);
+    D_00393D38 = v;
+    return v != 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0019A450);
 
@@ -9481,9 +10109,25 @@ ASM_FUNC(const s32, func_0019ACA8);
 
 INCLUDE_ASM(const s32, "core/main", func_0019ACC8);
 
-INCLUDE_ASM(const s32, "core/main", func_0019AD80);
+extern s32 D_00393D40;
 
-INCLUDE_ASM(const s32, "core/main", func_0019ADB0);
+void func_0019AD80(void)
+{
+    s32 *p = (s32 *)(D_00393D40 + (u32)D_003731B8);
+    s32 (*handler)(void) = (s32 (*)(void))p[2];
+
+    handler();
+}
+
+extern s32 D_00393D40;
+
+void func_0019ADB0(void)
+{
+    s32 *p = (s32 *)(D_00393D40 + (u32)D_003731B8);
+    s32 (*handler)(void) = (s32 (*)(void))p[3];
+
+    handler();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0019ADE0);
 
@@ -9512,7 +10156,19 @@ INCLUDE_ASM(const s32, "core/main", func_0019B320);
 
 INCLUDE_ASM(const s32, "core/main", func_0019B368);
 
-INCLUDE_ASM(const s32, "core/main", func_0019B3B0);
+s8 *func_0019B3B0(s8 *s, s8 c)
+{
+    s8 *r = 0;
+
+    for (;;)
+    {
+        s8 ch = *s;
+        if (ch == c) { r = s; break; }
+        if (ch == 0) break;
+        s++;
+    }
+    return r;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0019B3E8);
 
@@ -9725,7 +10381,17 @@ INCLUDE_ASM(const s32, "core/main", func_001A38C0);
 
 INCLUDE_ASM(const s32, "core/main", func_001A3A88);
 
-INCLUDE_ASM(const s32, "core/main", func_001A3AF0);
+extern s32 D_00393820;
+extern s32 D_00393824;
+
+s32 func_001A3AF0(void)
+{
+    if (D_00393820 != 0) {
+        func_001A8B78(D_00393824);
+        D_00393820 = 0;
+    }
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001A3B20);
 
@@ -10098,7 +10764,22 @@ INCLUDE_ASM(const s32, "core/main", func_001B1288);
 
 INCLUDE_ASM(const s32, "core/main", func_001B12D0);
 
-INCLUDE_ASM(const s32, "core/main", func_001B1328);
+extern s32 D_00393990;
+
+s32 func_001B1328(void *arg0)
+{
+    if (arg0 != 0)
+    {
+        u32 q = *(u32 *)arg0;
+        if (q != 0)
+        {
+            u8 *p = (u8 *)(q + D_00393990);
+            u16 v = *(u16 *)(p + 0x14);
+            return (v & 0x3000) >> 12;
+        }
+    }
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001B1358);
 
@@ -10172,7 +10853,19 @@ INCLUDE_ASM(const s32, "core/main", func_001B3AF0);
 
 INCLUDE_ASM(const s32, "core/main", func_001B3F20);
 
-INCLUDE_ASM(const s32, "core/main", func_001B3F98);
+extern s32 D_00393DA0;
+extern s32 D_00393DA4;
+void func_001B3F98(void)
+{
+    if (D_00393DA0 != 0) {
+        func_00195CE0(D_00393DA0);
+        D_00393DA0 = 0;
+    }
+    if (D_00393DA4 != 0) {
+        func_00195CE0(D_00393DA4);
+        D_00393DA4 = 0;
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001B3FD8);
 
@@ -10212,7 +10905,20 @@ INCLUDE_ASM(const s32, "core/main", func_001B6F50);
 
 INCLUDE_ASM(const s32, "core/main", func_001B7AB0);
 
-INCLUDE_ASM(const s32, "core/main", func_001B7DD0);
+extern s32 func_001B7FF0();
+extern s32 func_001B8048();
+extern s32 func_001B80A8();
+extern s32 func_001B80F8();
+extern s32 func_001B7AB0();
+
+void func_001B7DD0(void)
+{
+    D_003731B8[10] = (s32)func_001B7FF0;
+    D_003731B8[11] = (s32)func_001B8048;
+    D_003731B8[12] = (s32)func_001B80A8;
+    D_003731B8[13] = (s32)func_001B80F8;
+    func_001B7AB0();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001B7E10);
 
@@ -10282,7 +10988,15 @@ s32 func_001BA560(s32 off, s32 a, s32 b)
     return off;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001BA580);
+s32 func_001BA580(s32 off, s32 *a, s32 *b)
+{
+    s32 *p = (s32 *)(off + D_00393990);
+    if (p != 0) {
+        *a = p[3];
+        *b = p[2];
+    }
+    return off;
+}
 
 s32 func_001BA5A8(s32 off, s32 a, s32 b)
 {
@@ -10294,7 +11008,15 @@ s32 func_001BA5A8(s32 off, s32 a, s32 b)
     return off;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001BA5C8);
+s32 func_001BA5C8(s32 off, s32 *a, s32 *b)
+{
+    s32 *p = (s32 *)(off + D_00393990);
+    if (p != 0) {
+        *a = p[7];
+        *b = p[6];
+    }
+    return off;
+}
 
 s32 func_001BA5F0(void) { return D_003939C0; }
 
@@ -10322,9 +11044,35 @@ s32 func_001BA618(s32 arg0, s32 arg1, s32 arg2)
     return 1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001BA650);
+extern s32 D_003939C4;
+extern s32 D_00393990;
 
-INCLUDE_ASM(const s32, "core/main", func_001BA680);
+s32 func_001BA650(s32 off, u32 arg1)
+{
+    if (D_003939C4 == 0)
+    {
+        u8 *p = (u8 *)(off + D_00393990);
+        if (p != 0)
+        {
+            *(u32 *)(p + 0x58) = (arg1 != 0);
+            return off;
+        }
+    }
+    return 0;
+}
+
+extern u8 D_003E3500[];
+
+s32 func_001BA680(s32 arg0)
+{
+    u8 *p = (u8 *)D_003E3500;
+    if (*(u32 *)(p + 0x90) == 0 && arg0 != 0)
+    {
+        *(u32 *)(p + 0x94) = arg0;
+        return 1;
+    }
+    return 0;
+}
 
 void func_001BA6B0(void) {
 }
@@ -11662,7 +12410,11 @@ INCLUDE_ASM(const s32, "core/main", func_001C1EE8);
 
 INCLUDE_ASM(const s32, "core/main", func_001C1F20);
 
-INCLUDE_ASM(const s32, "core/main", func_001C1FD0);
+void func_001C1FD0(s32 arg0)
+{
+    if (arg0 == 10) { func_001C1EE8(13); func_001C1EE8(10); return; }
+    func_001C1EE8(arg0);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C2008);
 
@@ -11767,7 +12519,15 @@ INCLUDE_ASM(const s32, "core/main", func_001C3910);
 
 INCLUDE_ASM(const s32, "core/main", func_001C3A58);
 
-INCLUDE_ASM(const s32, "core/main", func_001C3AC0);
+extern s32 D_00378A74[];
+extern u8 D_003E68B8[];
+s32 func_001C3AC0(void)
+{
+    s32 func_00224B88();
+    D_00378A74[0] = 0;
+    func_00224B88((s32)&D_003E68B8, 0, 4);
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C3AF8);
 
@@ -11795,7 +12555,15 @@ INCLUDE_ASM(const s32, "core/main", func_001C4818);
 
 INCLUDE_ASM(const s32, "core/main", func_001C4918);
 
-INCLUDE_ASM(const s32, "core/main", func_001C4980);
+extern s32 D_00378A84[];
+extern u8 D_003E6D28[];
+s32 func_001C4980(void)
+{
+    s32 func_00224B88();
+    D_00378A84[0] = -1;
+    func_00224B88((s32)&D_003E6D28, 0, 4);
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C49B8);
 
@@ -11817,7 +12585,12 @@ s32 func_001C4ED0(s32 arg1, s32 arg2, s32 arg3)
     return func_001C4DC8(arg1, arg2, arg3, 1);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C4EF0);
+extern s32 D_0038D9F8[];
+
+s32 func_001C4EF0(s32 arg0, s32 arg1)
+{
+    return func_001C4DC8(arg0, (s32)D_0038D9F8, arg1, 1);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C4F18);
 
@@ -12316,7 +13089,14 @@ void func_001C72D0(u8 *arg0, s32 arg1)
         *arg0++ = 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C7308);
+extern s32 D_00378A98[10];
+
+s32 func_001C7308(s32 arg0)
+{
+    if ((u32)arg0 < 10)
+        return D_00378A98[arg0];
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C7330);
 
@@ -12324,7 +13104,19 @@ s32 func_001C7410(s32 value) { s32 old = D_00378AC0[0]; D_00378AC0[0] = value; r
 
 INCLUDE_ASM(const s32, "core/main", func_001C7420);
 
-INCLUDE_ASM(const s32, "core/main", func_001C75F8);
+typedef struct
+{
+    UnalignedU64 a, b;
+    u32 c;
+} S20;
+
+extern u8 D_00378B30[];
+
+u8 *func_001C75F8(u8 *dst)
+{
+    *(S20 *)dst = *(S20 *)D_00378B30;
+    return dst;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C7630);
 
@@ -12412,7 +13204,21 @@ INCLUDE_ASM(const s32, "core/main", func_001C8320);
 
 INCLUDE_ASM(const s32, "core/main", func_001C8368);
 
-INCLUDE_ASM(const s32, "core/main", func_001C83A8);
+extern u8 D_0038DC48[];
+extern s32 D_00378B60[];
+extern void func_00226A34(u8 *, s32);
+
+void func_001C83A8(u32 idx, u8 *out)
+{
+    if (idx < 8)
+    {
+        func_00226A34(out, D_00378B60[idx]);
+    }
+    else
+    {
+        *out = D_0038DC48[0];
+    }
+}
 
 /* Byte-matching.  Stores the third argument into the byte at +0x71 of the
    object func_001C82A0 returns and reports success. */
@@ -12432,7 +13238,21 @@ u32 func_001C8410(void)
     return *(u8 *)(func_001C82A0() + 0x71);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C8430);
+extern u8 D_0038DC48[];
+extern s32 D_00378B80[];
+extern void func_00226A34(u8 *, s32);
+
+void func_001C8430(u32 idx, u8 *out)
+{
+    if (idx < 4)
+    {
+        func_00226A34(out, D_00378B80[idx]);
+    }
+    else
+    {
+        *out = D_0038DC48[0];
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C8468);
 
@@ -12548,7 +13368,15 @@ INCLUDE_ASM(const s32, "core/main", func_001C9040);
 
 INCLUDE_ASM(const s32, "core/main", func_001C90C8);
 
-INCLUDE_ASM(const s32, "core/main", func_001C91B0);
+extern u8 D_00378BB0[];
+s32 func_001C91B0(s32 a, s32 b, s32 c)
+{
+    s32 func_001C90C8();
+    s32 v = func_001C90C8(a, b, c, 0x40);
+    if (v == 0)
+        *(s32 *)D_00378BB0 = 0xB;
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C91E8);
 
@@ -12659,7 +13487,17 @@ INCLUDE_ASM(const s32, "core/main", func_001CB350);
 
 INCLUDE_ASM(const s32, "core/main", func_001CB4C0);
 
-INCLUDE_ASM(const s32, "core/main", func_001CB558);
+extern s32 D_00378C40[];
+extern u8 D_003E9640[];
+
+s32 func_001CB558(void)
+{
+    s32 one = 1;
+
+    if (D_00378C40[0] == one)
+        return *(s32 *)((u32)D_003E9640 | 0x20000000u);
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001CB588);
 
@@ -12707,15 +13545,45 @@ INCLUDE_ASM(const s32, "core/main", func_001CCE90);
 
 INCLUDE_ASM(const s32, "core/main", func_001CCF88);
 
-INCLUDE_ASM(const s32, "core/main", func_001CD070);
+extern s32 D_00378C38[];
+extern u8 D_00378C48[];
+s32 func_001CD070(s32 a, s32 b, s32 c)
+{
+    s32 func_001CD3D0();
+    D_00378C38[0] = 0;
+    return func_001CD3D0(a, b, c, 5, (s32)&D_00378C48);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001CD0A0);
+extern s32 D_00378C38[];
+s32 func_001CD0A0(s32 arg0, s32 arg1)
+{
+    s32 func_001CD3D0();
+    D_00378C38[0] = 1;
+    return func_001CD3D0(arg0, 0, 0, 1, arg1);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001CD0D8);
+extern u8 D_00378C48[];
+s32 func_001CD0D8(s32 a)
+{
+    s32 func_001CD3D0();
+    return func_001CD3D0(a, 0, 0, 9, (s32)&D_00378C48);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001CD108);
+extern u8 D_00378C48[];
+s32 func_001CD108(s32 a)
+{
+    s32 func_001CD3D0();
+    return func_001CD3D0(a, 0, 0, 4, (s32)&D_00378C48);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001CD138);
+extern s32 D_00378C38[];
+extern u8 D_00378C48[];
+s32 func_001CD138(void)
+{
+    s32 func_001CD3D0();
+    D_00378C38[0] = 0;
+    return func_001CD3D0(0, 0, 0, 3, (s32)&D_00378C48);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001CD170);
 
@@ -12844,7 +13712,15 @@ INCLUDE_ASM(const s32, "core/main", func_001CDC38);
 
 INCLUDE_ASM(const s32, "core/main", func_001CDDA8);
 
-INCLUDE_ASM(const s32, "core/main", func_001CDED0);
+extern s32 D_00378E2C[];
+s32 func_001CDED0(s32 a, s32 b, s32 c)
+{
+    s32 func_001CDDA8();
+    s32 func_001CDF10();
+    if (D_00378E2C[0] != 3)
+        return func_001CDF10(a, b, c);
+    return func_001CDDA8(a, b, c);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001CDF10);
 
@@ -13024,7 +13900,16 @@ INCLUDE_ASM(const s32, "core/main", func_001D1A08);
 
 INCLUDE_ASM(const s32, "core/main", func_001D1B88);
 
-INCLUDE_ASM(const s32, "core/main", func_001D1CC8);
+extern u8 D_00379588[];
+extern s32 D_00378CA4[];
+
+void func_001D1CC8(u32 arg0)
+{
+    u32 base;
+    *(volatile u32 *)0x10002000 = arg0;
+    base = (u32)D_00379588;
+    D_00378CA4[0] = *(u32 *)((((arg0 >> 28) << 2)) + base);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001D1CF8);
 
@@ -13114,7 +13999,20 @@ INCLUDE_ASM(const s32, "core/main", func_001D4C70);
 
 INCLUDE_ASM(const s32, "core/main", func_001D4D58);
 
-INCLUDE_ASM(const s32, "core/main", func_001D4DC0);
+extern u8 D_00380800[];
+
+void func_001D4DC0(void)
+{
+    u32 base = (u32)D_00380800;
+    s32 *p = (s32 *)(base + 0x344);
+    s32 i = 0x22;
+
+    do
+    {
+        *p = 0;
+        p = (s32 *)((u8 *)p - 0x18);
+    } while (--i >= 0);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001D4DF8);
 
@@ -13224,8 +14122,8 @@ void func_001567B0(f32 *arg0, f32 *arg1, f32 *arg2, f32 *arg3, u32 arg4);
 s32 func_00157140(f32 *arg0, u32 arg1, u8 *arg2, s32 arg3, f32 *arg4, f32 *arg5,
                   f32 arg6, f32 arg7);
 void func_001DC458(f32 *arg0, f32 *arg1, f32 *arg2);
-void func_001D46A0(u32 arg0, f32 *arg1, f32 *arg2, u32 arg3, f32 arg4, f32 arg5,
-                   f32 arg6);
+u8 *func_001D46A0(u32 arg0, f32 *arg1, f32 *arg2, u32 arg3, f32 arg4, f32 arg5,
+                  f32 arg6);
 
 /* Retail expands `x != 0 ? copysignf(1.0f, x) : 0.0f` inline at four places
    (0x56EC, 0x5728, 0x5820, 0x5854, 0x5D8C, 0x5DCC, 0x5EE0, 0x5F20): it tests
@@ -13822,7 +14720,511 @@ INCLUDE_ASM(const s32, "core/main", func_001DA138);
 
 INCLUDE_ASM(const s32, "core/main", func_001DA360);
 
-INCLUDE_ASM(const s32, "core/main", func_001DA3F0);
+
+void func_001DA360(f32 *pos, f32 *dir);
+void func_001DB8E0(s32 id, f32 *a, f32 *b, u32 owner, f32 scale);
+/* The ten specialised spawners all take (a, b, owner, scale): every call site
+   loads $4 = a, $5 = b, $6 = owner and $f12 = scale, in that order. */
+void func_001D7B38(f32 *a, f32 *b, u32 owner, f32 scale);
+void func_001D7DB8(f32 *a, f32 *b, u32 owner, f32 scale);
+void func_001D7FD0(f32 *a, f32 *b, u32 owner, f32 scale);
+void func_001D81B0(f32 *a, f32 *b, u32 owner, f32 scale);
+void func_001D8318(f32 *a, f32 *b, u32 owner, f32 scale);
+void func_001D84B0(f32 *a, f32 *b, u32 owner, f32 scale);
+void func_001D8770(f32 *a, f32 *b, u32 owner, f32 scale);
+void func_001D8AD8(f32 *a, f32 *b, u32 owner, f32 scale);
+void func_001D8EE8(f32 *a, f32 *b, u32 owner, f32 scale);
+void func_001DA138(f32 *a, f32 *b, u32 owner, f32 scale);
+
+extern f32 D_00392B9C, D_00392BA0, D_00392BA4, D_00392BA8, D_00392BAC, D_00392BB0;
+extern f32 D_00392BB4, D_00392BB8, D_00392BBC, D_00392BC0, D_00392BC4, D_00392BC8;
+extern f32 D_00392BCC, D_00392BD0, D_00392BD4, D_00392BD8, D_00392BDC, D_00392BE0;
+extern f32 D_00392BE4, D_00392BE8, D_00392BEC, D_00392BF0, D_00392BF4, D_00392BF8;
+extern f32 D_00392BFC, D_00392C00, D_00392C04, D_00392C08, D_00392C0C, D_00392C10;
+extern f32 D_00392C14, D_00392C18, D_00392C1C, D_00392C20, D_00392C24, D_00392C28;
+extern f32 D_00392C2C, D_00392C30, D_00392C34, D_00392C38, D_00392C3C, D_00392C40;
+extern f32 D_00392C44, D_00392C48, D_00392C4C, D_00392C50, D_00392C54, D_00392C58;
+extern f32 D_00392C5C, D_00392C60, D_00392C64, D_00392C68;
+extern u32 D_003939D4;          /* owner remembered by id 7  */
+extern u32 D_003939D8;          /* owner remembered by id 50 */
+extern s8  D_003939E9;          /* spawn-id selector, id 7   */
+extern f32 D_00393A04, D_00393A1C, D_00393A20, D_00393A24;
+extern u32 D_00393A18;          /* 5-slot divider for id 175  */
+extern f32 D_003807E0[3];
+extern f32 D_003807F0[3];
+
+void func_001DA3F0(s32 id, f32 *a, f32 *b, u32 owner, f32 scale)
+{
+    f32 pos[3];                 /* +0x00 */
+    f32 dir[3];                 /* +0x10 */
+    f32 tan1[3];                /* +0x20 */
+    f32 tan2[3];                /* +0x30 */
+    f32 rnd[3];                 /* +0x40 */
+    f32 org[3];                 /* +0x50 */
+    u8 *e;
+    f32 now, s, d, span, base, sum, inv, sn, cs, ang, r1, r2;
+    f32 tiny;                   /* 2^-31, the RNG scale */
+    f32 half, two;
+    s32 i, n, cnt, k;
+
+    tiny = BITS_F32(0x30000000);
+    half = 0.5f;
+    two = 2.0f;
+    D_00393A2C = 1.0f;
+    pos[0] = a[0];
+    pos[1] = a[1];
+    pos[2] = a[2];
+    dir[0] = b[0];
+    dir[1] = b[1];
+    dir[2] = b[2];
+
+    /* ---- 175: rate-limited radial burst around *b ----------------------
+       Counter D_00393A18 increments and returns while < 4, so the burst
+       fires on the 5th call of every 5. */
+    if (id == 175) {
+        if (D_00393A18 < 4) {
+            D_00393A18 = D_00393A18 + 1;
+            return;
+        }
+        D_00393A18 = 0;
+        if (scale == 0.0f)
+            return;
+        scale = scale * half;
+
+        /* org = *b; dir = *b - *a (then normalised) */
+        sum = 0.0f;
+        for (i = 2; i >= 0; i--) {
+            org[i] = dir[i];
+            d = dir[i] - pos[i];
+            dir[i] = d;
+            sum = sum + d * d;
+        }
+        if (sum == 0.0f)
+            return;
+        inv = 1.0f / sqrtf(sum);
+        for (i = 2; i >= 0; i--)
+            dir[i] = dir[i] * inv;
+
+        /* two tangents of that direction */
+        func_001DC458(dir, tan1, tan2);
+
+        for (n = 0; n < 12; n++) {
+            sum = 0.0f;
+            for (i = 2; i >= 0; i--) {
+                r1 = (f32)func_002256F0() * 16.0f * tiny + (-8.0f);
+                r2 = (f32)func_002256F0() * 16.0f * tiny + (-8.0f);
+                d = tan1[i] * r1 + tan2[i] * r2;
+                rnd[i] = d;
+                sum = sum + d * d;
+            }
+            if (sum != 0.0f) {
+                f32 f = (1.0f / sqrtf(sum)) * scale;
+
+                for (i = 2; i >= 0; i--)
+                    rnd[i] = org[i] + rnd[i] * f;
+            }
+            s = (f32)func_002256F0() * D_00392B9C * tiny + D_00392BA0;
+            /* position is the computed point, direction is the caller's *a */
+            e = func_001D46A0(0x12, rnd, pos, owner, two, s, s);
+            if (e != 0)
+                *(s32 *)(e + 0x04) = 1;
+        }
+        return;
+    }
+
+    /* ---- 1: one spawn, both small scales are scale + 1 ------------------ */
+    if (id == 1) {
+        s = scale + 1.0f;
+        func_001D46A0(0x10000, pos, 0, owner, two, s, s);
+        return;
+    }
+
+    /* ---- delegated to the specialised spawners ------------------------- */
+    if (id == 5) {
+        func_001D7B38(a, b, owner, scale);
+        return;
+    }
+    if (id == 8) {
+        func_001D7DB8(a, b, owner, scale);
+        return;
+    }
+    if (id == 15) {
+        func_001D8770(a, b, owner, scale);
+        return;
+    }
+    if (id == 21) {
+        func_001D8AD8(a, b, owner, scale);
+        return;
+    }
+    if (id == 28) {
+        func_001D8EE8(a, b, owner, scale);
+        return;
+    }
+    if (id == 35) {
+        func_001D84B0(a, b, owner, scale);
+        return;
+    }
+    if (id == 52) {
+        func_001D7FD0(a, b, owner, scale);
+        return;
+    }
+    if (id == 60) {
+        func_001D81B0(a, b, owner, scale);
+        return;
+    }
+    if (id == 62) {
+        func_001D8318(a, b, owner, scale);
+        return;
+    }
+    if (id == 67) {
+        func_001DA138(a, b, owner, scale);
+        return;
+    }
+
+    /* ---- 7: 0.2 s timer, one 0x10003x00 spawn --------------------------- */
+    if (id == 7) {
+        D_003939D4 = owner;
+        now = func_0014B8E0();
+        /* the sample store sits in the branch delay slot: always executed */
+        D_003939F4 = now;
+        if (D_00393A04 == 0.0f)
+            D_00393A04 = now;
+        if (now < D_00393A04)
+            return;
+        D_00393A04 = now + D_00392BA4;
+        /* 300.0, not 150.0: `lui $1, 0x43960000` at 0x001DA7A0 */
+        if (300.0f < dir[0])
+            dir[0] = 250.0f;
+        if (D_003939E9 != 0)
+            func_001D46A0(0x10003100, pos, dir, owner, dir[0], dir[2], dir[2]);
+        else
+            func_001D46A0(0x10003300, pos, dir, owner, dir[0], dir[2], dir[2]);
+        return;
+    }
+
+    /* ---- 9: one 0x4500 then eight 0xB001 ------------------------------- */
+    if (id == 9) {
+        s = (f32)func_002256F0() * D_00392BA8 * tiny + D_00392BA8;
+        e = func_001D46A0(0x4500, pos, 0, owner, scale, s, s);
+        if (e != 0)
+            *(s32 *)(e + 0x04) = 1;
+
+        for (n = 0; n < 8; n++) {
+            dir[0] = (f32)func_002256F0() * 4.0f * tiny + (-two);
+            dir[1] = (f32)func_002256F0() * 4.0f * tiny + (-two);
+            dir[2] = (f32)func_002256F0() * D_00392BAC * tiny + D_00392BB0;
+            s = (f32)func_002256F0() * D_00392BB4 * tiny + D_00392BB4;
+            e = func_001D46A0(0xB001, pos, dir, owner, scale, s, s);
+            if (e != 0)
+                *(s32 *)(e + 0x04) = 1;
+        }
+        return;
+    }
+
+    /* ---- 10: 0.3 s timer, one 0xB501 with a zero direction -------------- */
+    if (id == 10) {
+        now = func_0014B8E0();
+        D_003939F4 = now;
+        if (D_00393A1C == 0.0f)
+            D_00393A1C = now;
+        if (now < D_00393A1C)
+            return;
+        D_00393A1C = now + D_00392BB8;
+        dir[0] = 0.0f;
+        dir[1] = 0.0f;
+        dir[2] = 0.0f;
+        func_001D46A0(0xB501, pos, dir, owner, scale, D_00392BBC, D_00392BBC);
+        return;
+    }
+
+    /* ---- 11: "circle" emitter, count = (s32)b[1] ------------------------
+       The angle step is an **integer** division (i / cnt), so every
+       component lands on the same angle; kept exactly as retail encodes it.
+       pos[] is rebuilt from *a on each iteration, not accumulated. */
+    if (id == 11) {
+        cnt = (s32)b[1];
+        if (cnt <= 0)
+            return;
+        for (i = 0; i < cnt; i++) {
+            d = (f32)(i / cnt) * D_00392BC0;
+            k = (s32)(d * D_00392BC4);
+            ang = d - (f32)k * D_00392BC8;
+
+            sn = func_00217AC0(d);
+            cs = sqrtf(1.0f - sn * sn);
+            cs = cs * ((fabsf(ang) < D_00392BCC) ? SIGN_ONE(ang) : -SIGN_ONE(ang));
+
+            r1 = (f32)func_002256F0() * D_00392BD4 * tiny;
+
+            pos[0] = a[0] + b[0] * sn;
+            pos[1] = a[1] + b[0] * cs;
+            pos[2] = a[2];
+            dir[0] = b[0] * sn;
+            dir[1] = b[0] * cs;
+            dir[2] = D_00392BD8;            /* 1.53, a constant */
+            D_00393A2C = r1 + D_00392BD0;
+
+            s = (f32)func_002256F0() * tiny + D_00392BD0;
+            func_001D46A0(0x3303, pos, dir, owner, scale, s, s);
+        }
+        return;
+    }
+
+    /* ---- 19 / 20: normalise *b in place, then one spawn ----------------- */
+    if (id == 19) {
+        sum = b[0] * b[0] + b[1] * b[1] + b[2] * b[2];
+        if (sum <= D_00392BDC)
+            return;
+        inv = 1.0f / sqrtf(sum);
+        d = b[2] * inv;
+        b[2] = d;
+        d = b[0] * inv;
+        b[0] = d;
+        d = b[1] * inv;
+        b[1] = d;
+        dir[0] = b[0];
+        dir[1] = b[1];
+        dir[2] = b[2];
+        e = func_001D46A0(0x20004200, pos, dir, owner, scale,
+                          D_00392BE0, D_00392BE0);
+        if (e != 0)
+            *(f32 *)(e + 0x58) = 170.0f;
+        return;
+    }
+
+    if (id == 20) {
+        sum = b[0] * b[0] + b[1] * b[1] + b[2] * b[2];
+        if (sum <= D_00392BE4)
+            return;
+        inv = 1.0f / sqrtf(sum);
+        d = b[2] * inv;
+        b[2] = d;
+        d = b[0] * inv;
+        b[0] = d;
+        d = b[1] * inv;
+        b[1] = d;
+        dir[0] = b[0];
+        dir[1] = b[1];
+        dir[2] = b[2];
+        func_001D46A0(0x20005400, pos, dir, owner, scale, half, half);
+        return;
+    }
+
+    /* ---- 23: rotate, jitter, one 0x0E ---------------------------------- */
+    if (id == 23) {
+        func_001DA360(pos, dir);
+        dir[0] = a[0];
+        dir[1] = a[1];
+        dir[2] = a[2];
+        s = (f32)func_002256F0() * D_00392BE8 * tiny + D_00392BEC;
+        for (i = 2; i >= 0; i--) {
+            d = (f32)func_002256F0();
+            pos[i] = dir[i] + (d + d) * tiny + (-1.0f);
+        }
+        func_001D46A0(0x0E, pos, dir, owner, scale, s, s);
+        return;
+    }
+
+    /* ---- 26: 0.5 s timer, up to three 0x40807 ---------------------------
+       The gate and the ladder both run on the **position** copy (sp+0x08 is
+       pos[2], not dir[2]), and dir[2] is 2r*2^-15 + 2.0. */
+    if (id == 26) {
+        now = func_0014B8E0();
+        D_003939F4 = now;
+        if (D_00393A20 == 0.0f)
+            D_00393A20 = now;
+        if (now < D_00393A20)
+            return;
+        D_00393A20 = D_003939F4 + (f32)func_002256F0() * half * tiny;
+        if (scale < pos[2])
+            return;
+
+        s = (f32)func_002256F0() * D_00392BF0 * tiny + D_00392BF4;
+        dir[0] = (f32)func_002256F0() * two * tiny + (-1.0f);
+        dir[1] = (f32)func_002256F0() * two * tiny + (-1.0f);
+        dir[2] = (f32)func_002256F0() * two * tiny + two;
+        func_001D46A0(0x40807, pos, dir, owner, scale, s, s);
+
+        pos[2] = pos[2] + D_00392BF8;
+        pos[1] = pos[1] + D_00392BF8;
+        if (pos[2] < scale)
+            func_001D46A0(0x40807, pos, dir, owner, scale, s, s);
+
+        pos[2] = pos[2] + D_00392BFC;
+        pos[1] = pos[1] - half;
+        if (pos[2] < scale)
+            func_001D46A0(0x40807, pos, dir, owner, scale, s, s);
+        return;
+    }
+
+    /* ---- 27: 0.5 s timer, scale clamped to 7.0, three 0x10807 ----------- */
+    if (id == 27) {
+        now = func_0014B8E0();
+        D_003939F4 = now;
+        if (D_00393A24 == 0.0f)
+            D_00393A24 = now;
+        if (now < D_00393A24)
+            return;
+        D_00393A24 = D_003939F4 + (f32)func_002256F0() * half * tiny;
+        if (7.0f < scale)
+            scale = 7.0f;
+
+        s = (f32)func_002256F0() * D_00392C00 * tiny + D_00392C04;
+        dir[0] = (f32)func_002256F0() * two * tiny + (-1.0f);
+        dir[1] = (f32)func_002256F0() * two * tiny + (-1.0f);
+        dir[2] = (f32)func_002256F0() * two * tiny + two;
+        func_001D46A0(0x10807, pos, dir, owner, scale, s, s);
+
+        pos[2] = pos[2] + D_00392C08;
+        pos[1] = pos[1] + D_00392C08;
+        func_001D46A0(0x10807, pos, dir, owner, scale, s, s);
+
+        pos[1] = pos[1] - half;
+        pos[2] = pos[2] + D_00392C0C;
+        func_001D46A0(0x10807, pos, dir, owner, scale, s, s);
+        return;
+    }
+
+    /* ---- 30: one 0x4500 then (s32)scale x 0x3001 ------------------------ */
+    if (id == 30) {
+        n = (s32)scale;
+        s = (f32)func_002256F0() * D_00392C10 * tiny + half;
+        func_001D46A0(0x4500, pos, 0, owner, scale, s, s);
+        if (n == 0)
+            return;
+        do {
+            dir[0] = (f32)func_002256F0() * 4.0f * tiny + (-two);
+            dir[1] = (f32)func_002256F0() * 4.0f * tiny + (-two);
+            dir[2] = (f32)func_002256F0() * D_00392C14 * tiny + D_00392C18;
+            s = (f32)func_002256F0() * D_00392C1C * tiny + D_00392C20;
+            func_001D46A0(0x3001, pos, dir, owner, scale, s, s);
+            n--;
+        } while (n != 0);
+        return;
+    }
+
+    /* ---- 33: one 0x3000, offset rotated by *b around z ------------------ */
+    if (id == 33) {
+        d = (f32)func_002256F0() * (scale + scale) * tiny - scale;
+        pos[1] = pos[1] + b[0] * d;
+        pos[0] = pos[0] - b[1] * d;
+        func_001D46A0(0x3000, pos, 0, owner, two, two, two);
+        return;
+    }
+
+    /* ---- 39: one 0x08001100 -------------------------------------------- */
+    if (id == 39) {
+        s = b[1] * half;
+        func_001D46A0(0x08001100, pos, 0, owner, D_00392C24, s, s);
+        return;
+    }
+
+    /* ---- 42: one 0x103 with a randomised D_00393A2C --------------------- */
+    if (id == 42) {
+        D_00393A2C = (f32)func_002256F0() * D_00392C28 * tiny + D_00392C2C;
+        s = (f32)func_002256F0() * D_00392C38 * tiny + D_00392C3C;
+        pos[0] = pos[0] + ((f32)func_002256F0() * two * tiny + (-1.0f));
+        pos[1] = pos[1] + ((f32)func_002256F0() * two * tiny + (-1.0f));
+        dir[0] = (f32)func_002256F0() * D_00392C30 * tiny + D_00392C34;
+        dir[1] = (f32)func_002256F0() * D_00392C30 * tiny + D_00392C34;
+        dir[2] = (f32)func_002256F0() * tiny + 1.0f;
+        func_001D46A0(0x103, pos, dir, owner, D_00392C40, s, s);
+        return;
+    }
+
+    /* ---- 45: six 0x2501, every span scaled by `scale` ------------------- */
+    if (id == 45) {
+        base = scale * (-two);
+        span = (scale + scale) - base;
+        for (n = 0; n < 6; n++) {
+            dir[0] = (f32)func_002256F0() * span * tiny + base;
+            dir[1] = (f32)func_002256F0() * span * tiny + base;
+            d = scale * D_00392C44;
+            span = (scale * 6.0f) - d;
+            dir[2] = (f32)func_002256F0() * span * tiny + d;
+            d = scale * D_00392C4C;
+            span = (scale * D_00392C48) - d;
+            s = (f32)func_002256F0() * span * tiny + d;
+            func_001D46A0(0x2501, pos, dir, owner, scale, s, s);
+        }
+        return;
+    }
+
+    /* ---- 46: two 0x100 with D_00393A2C 0.7 then 1.25 -------------------- */
+    if (id == 46) {
+        s = scale * half;
+        D_00393A2C = D_00392C54;
+        func_001D46A0(0x100, pos, 0, owner, D_00392C50, s, s);
+
+        base = scale * (-two);
+        span = (scale + scale) - base;
+        pos[0] = pos[0] + ((f32)func_002256F0() * span * tiny + base);
+        D_00393A2C = 1.25f;
+        pos[1] = pos[1] + ((f32)func_002256F0() * span * tiny + base);
+        func_001D46A0(0x100, pos, 0, owner, D_00392C50, s, s);
+        return;
+    }
+
+    /* ---- 47 / 49: handled, but nothing to do --------------------------- */
+    if (id == 47 || id == 49) {
+        return;
+    }
+
+    /* ---- 48: one of two spawn ids around scale 11.0 --------------------- */
+    if (id == 48) {
+        if (11.0f <= scale) {
+            s = scale * D_00392C58;
+            func_001D46A0(0x10002400, pos, 0, owner, D_00392C5C, s, s);
+        } else {
+            s = scale * D_00392C60;
+            func_001D46A0(0x10003400, pos, 0, owner, D_00392C64, s, s);
+        }
+        return;
+    }
+
+    /* ---- 50: remember this frame, spawn nothing ------------------------ */
+    if (id == 50) {
+        D_003807E0[0] = pos[0];
+        D_003807E0[1] = pos[1];
+        D_003807E0[2] = pos[2];
+        D_003939D8 = owner;
+        D_003807F0[0] = dir[0];
+        D_003807F0[1] = dir[1];
+        D_003807F0[2] = dir[2];
+        return;
+    }
+
+    /* ---- 51: one 0x50005000 carrying *b at +0x10 ----------------------- */
+    if (id == 51) {
+        e = func_001D46A0(0x50005000, pos, 0, owner, D_00392C68, 1.0f, 1.0f);
+        if (e != 0) {
+            for (i = 2; i >= 0; i--)
+                *(f32 *)(e + 0x10 + i * 4) = dir[i];
+        }
+        return;
+    }
+
+    /* ---- 55: (s32)b[1] + 1 random directions, f13/f14 = b[0] ----------- */
+    if (id == 55) {
+        cnt = (s32)b[1] + 1;
+        s = dir[0];
+        if (cnt == 0)
+            return;
+        do {
+            for (i = 2; i >= 0; i--)
+                dir[i] = (f32)func_002256F0() * (scale + scale) * tiny - scale;
+            e = func_001D46A0(0x3003, pos, dir, owner, 1.0f, s, s);
+            if (e != 0)
+                *(s32 *)(e + 0x04) = 1;
+            cnt--;
+        } while (cnt != 0);
+        return;
+    }
+
+    /* ---- everything else ---------------------------------------------- */
+    func_001DB8E0(id, a, b, owner, scale);
+    return;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001DB8E0);
 
@@ -13863,9 +15265,37 @@ INCLUDE_ASM(const s32, "core/main", func_001DC6E8);
 
 INCLUDE_ASM(const s32, "core/main", func_001DC728);
 
-INCLUDE_ASM(const s32, "core/main", func_001DC760);
+extern s32 D_00380CD8[];
 
-INCLUDE_ASM(const s32, "core/main", func_001DC7A0);
+void func_001DC760(void)
+{
+    u32 base = (u32)D_00380CD8;
+    s32 one = 1;
+    s32 i = 0x13;
+    u8 *p = (u8 *)(base + 0x380);
+
+    do {
+        *p = one;
+        i--;
+        p += 0x2C;
+    } while (i >= 0);
+}
+
+extern s32 D_00380CD8[];
+
+void func_001DC7A0(void)
+{
+    u32 base = (u32)D_00380CD8;
+    s32 one = 0xFF;
+    s32 i = 0x13;
+    u8 *p = (u8 *)(base + 0x380);
+
+    do {
+        *p = one;
+        i--;
+        p += 0x2C;
+    } while (i >= 0);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001DC7E0);
 
@@ -13873,7 +15303,17 @@ INCLUDE_ASM(const s32, "core/main", func_001DC850);
 
 INCLUDE_ASM(const s32, "core/main", func_001DC8C8);
 
-INCLUDE_ASM(const s32, "core/main", func_001DCA40);
+extern s32 D_00380CD8[];
+
+void func_001DCA40(s32 idx, u8 *p, s32 val)
+{
+    if (idx < 0x28)
+    {
+        s32 v = D_00380CD8[idx * 11];
+        if (v != 0)
+            *(u8 *)(v + (u32)p) = val;
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001DCA78);
 
@@ -13891,7 +15331,19 @@ INCLUDE_ASM(const s32, "core/main", func_001DD048);
 
 INCLUDE_ASM(const s32, "core/main", func_001DD6A0);
 
-INCLUDE_ASM(const s32, "core/main", func_001DD710);
+extern s32 D_0039347C;
+
+u8 *func_001DD710(void)
+{
+    u8 *p = (u8 *)func_00157DE8(D_0039347C, 0x14);
+
+    *(s32 *)(p + 0x0) = 0;
+    *(s32 *)(p + 0x4) = 0;
+    *(s32 *)(p + 0x8) = 0;
+    *(s32 *)(p + 0xC) = 0;
+    *(u8 *)(p + 0x10) = 0;
+    return p;
+}
 
 void func_001DD748(s32 arg1)
 {
@@ -13926,7 +15378,13 @@ void func_001DE020(void) { func_001DDF80(); }
 
 INCLUDE_ASM(const s32, "core/main", func_001DE028);
 
-INCLUDE_ASM(const s32, "core/main", func_001DE080);
+s32 func_001DE080(s32 *a1, s32 a2)
+{
+    s32 v = *a1;
+    *a1 = v + a2;
+    func_00224B88(v, 0, a2);
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001DE0C8);
 
@@ -13946,7 +15404,21 @@ void func_001DE550(float *src, u8 *unused, u8 *dst)
     dst[0xC] = 8;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001DE568);
+void func_001DE568(u8 *arg0, u8 *unused, u8 *out)
+{
+    s32 *p = *(s32 **)arg0;
+    s32 v;
+
+    if (p != 0) {
+        v = 0;
+        if (*p == 2)
+            v = p[1];
+    } else {
+        v = 0;
+    }
+    *(s32 *)out = v;
+    out[0xC] = 0xB;
+}
 
 void func_001DE5A0(u8 *src, u8 *unused, u8 *out)
 {
@@ -14205,7 +15677,13 @@ void func_001DEAF0(u32 *arg0, s32 arg1, u32 *arg2)
     *arg0 = *arg2;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001DEB30);
+void func_001DEB30(u32 *arg0, s32 arg1, u32 *arg2)
+{
+    void func_001E0F78(s32 arg0);
+
+    func_001E0F78((s32)arg2);
+    *arg0 = *arg2;
+}
 
 s32 func_001DEB70(s32 *dst, s32 arg2, s32 *src) { s32 value = *src; *dst = value; return value; }
 
@@ -14306,7 +15784,13 @@ u8 *func_001DF030(u8 *unused, u8 *src, u8 *out)
 
 INCLUDE_ASM(const s32, "core/main", func_001DF048);
 
-INCLUDE_ASM(const s32, "core/main", func_001DF128);
+u8 *func_001DF128(u8 *unused, u8 *src, u8 *out)
+{
+    u32 *p = *(u32 **)src;
+    *(S12 *)out = *(S12 *)p;
+    out[0xC] = 0x15;
+    return src + 8;
+}
 
 u8 *func_001DF158(u8 *unused, u8 *src, u8 *out)
 {
@@ -14436,13 +15920,37 @@ u8 *func_001DF2F0(u8 *unused, u8 *src, u8 *out)
 
 s32 func_001DF308(s32 unused, s32 value) { return value + 8; }
 
-INCLUDE_ASM(const s32, "core/main", func_001DF310);
+extern s32 D_00382E48[];
+
+u8 *func_001DF310(u8 *arg0, u16 *arg1)
+{
+    s32 (*handler)(u8 *, u8 *);
+
+    handler = (s32 (*)(u8 *, u8 *))D_00382E48[*arg1];
+    return (u8 *)handler(arg0, (u8 *)arg1 + 8);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001DF348);
 
-INCLUDE_ASM(const s32, "core/main", func_001DF3A8);
+extern s32 D_003828F8[];
 
-INCLUDE_ASM(const s32, "core/main", func_001DF3E0);
+u8 *func_001DF3A8(u8 *arg0, u16 *arg1)
+{
+    s32 (*handler)(u8 *, u8 *);
+
+    handler = (s32 (*)(u8 *, u8 *))D_003828F8[*arg1];
+    return (u8 *)handler(arg0, (u8 *)arg1 + 8);
+}
+
+extern s32 D_00382EC0[];
+
+u8 *func_001DF3E0(u8 *arg0, u16 *arg1)
+{
+    s32 (*handler)(u8 *, u8 *);
+
+    handler = (s32 (*)(u8 *, u8 *))D_00382EC0[*arg1];
+    return (u8 *)handler(arg0, (u8 *)arg1 + 8);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001DF418);
 
@@ -14458,7 +15966,16 @@ INCLUDE_ASM(const s32, "core/main", func_001DF598);
 
 INCLUDE_ASM(const s32, "core/main", func_001DF618);
 
-INCLUDE_ASM(const s32, "core/main", func_001DF760);
+extern u32 D_003813B8[];
+
+s32 func_001DF760(a, b)
+s32 a, b;
+{
+    u8 *p = (u8 *)b;
+    s32 (*handler)(void) = (s32 (*)(void))D_003813B8[p[7]];
+
+    return handler();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001DF798);
 
@@ -14485,7 +16002,16 @@ INCLUDE_ASM(const s32, "core/main", func_001DFC30);
 
 INCLUDE_ASM(const s32, "core/main", func_001DFC78);
 
-INCLUDE_ASM(const s32, "core/main", func_001DFCD8);
+void func_001DFCD8(void)
+{
+    s32 *p = (s32 *)func_00157DE8(D_0039347C, 0xC);
+
+    if (p != 0) {
+        p[1] = 0;
+        p[2] = 0;
+        p[0] = 0;
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001DFD08);
 
@@ -14558,13 +16084,53 @@ s32 func_001E0BE0(u8 *p)
     return p ? *(s32 *)(p + 0x18) : 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001E0BF8);
+s32 func_001E0BF8(s32 a1, s32 a2, s32 a3, s32 a4)
+{
+    s32 result;
 
-INCLUDE_ASM(const s32, "core/main", func_001E0C30);
+    if (a1 == 0)
+        return -1;
+    result = -1;
+    if (a2 != 0)
+        return func_00202180(*(s32 *)(a1 + 0x18), a2, a3, a4);
+    return result;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001E0C68);
+s32 func_001E0C30(s32 a1, s32 a2, s32 a3, s32 a4)
+{
+    s32 result;
 
-INCLUDE_ASM(const s32, "core/main", func_001E0CA0);
+    if (a1 == 0)
+        return -1;
+    result = -1;
+    if (a2 != 0)
+        return func_00202218(*(s32 *)(a1 + 0x18), a2, a3, a4);
+    return result;
+}
+
+s32 func_001E0C68(s32 a1, s32 a2, s32 a3, s32 a4)
+{
+    s32 result;
+
+    if (a1 == 0)
+        return -1;
+    result = -1;
+    if (a2 != 0)
+        return func_00202258(*(s32 *)(a1 + 0x18), a2, a3, a4);
+    return result;
+}
+
+s32 func_001E0CA0(s32 a1, s32 a2, s32 a3, s32 a4)
+{
+    s32 result;
+
+    if (a1 == 0)
+        return -1;
+    result = -1;
+    if (a2 != 0)
+        return func_00202298(*(s32 *)(a1 + 0x18), a2, a3, a4);
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001E0CD8);
 
@@ -14603,7 +16169,13 @@ INCLUDE_ASM(const s32, "core/main", func_001E0F78);
 
 INCLUDE_ASM(const s32, "core/main", func_001E0FB8);
 
-INCLUDE_ASM(const s32, "core/main", func_001E1010);
+s32 func_001E1010(u8 *arg0)
+{
+    s32 *p = *(s32 **)(arg0 + 4);
+    s32 *q = *(s32 **)((u8 *)p + 8);
+    if (q != 0) { func_0012DC18(*(s32 *)((u8 *)q + 0x1C)); return 1; }
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001E1040);
 
@@ -14869,9 +16441,18 @@ INCLUDE_ASM(const s32, "core/main", func_001E7028);
 
 INCLUDE_ASM(const s32, "core/main", func_001E7078);
 
-INCLUDE_ASM(const s32, "core/main", func_001E70C0);
+extern u8 D_00383950[];
 
-INCLUDE_ASM(const s32, "core/main", func_001E70F0);
+void func_001E70C0(u32 arg0, S12 *arg1)
+{
+    *arg1 = *(S12 *)D_00383950;
+    *(u8 *)((u8 *)arg1 + 0xC) = 0x15;
+}
+
+void func_001E70F0(u32 arg0, S12 *arg1)
+{
+    *(S12 *)D_00383950 = *arg1;
+}
 
 void func_001E7118(u8 *unused, u8 *out)
 {
@@ -14979,7 +16560,14 @@ INCLUDE_ASM(const s32, "core/main", func_001EBA28);
 
 INCLUDE_ASM(const s32, "core/main", func_001EBBF8);
 
-INCLUDE_ASM(const s32, "core/main", func_001EBC60);
+u8 *func_001EBC60(u8 *arg0, u8 *arg1, u8 *arg2)
+{
+    s32 func_001DF760();
+    s32 v = func_001DF760(arg0, arg1);
+    *(s32 *)arg2 = 1 << *arg2;
+    *(u8 *)(arg2 + 0xC) = 0x2C;
+    return (u8 *)v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001EBCA0);
 
@@ -14989,7 +16577,13 @@ INCLUDE_ASM(const s32, "core/main", func_001EBD60);
 
 INCLUDE_ASM(const s32, "core/main", func_001EBEF8);
 
-INCLUDE_ASM(const s32, "core/main", func_001EBF88);
+u8 *func_001EBF88(u8 *arg0, u8 *arg1, u8 *arg2)
+{
+    s32 func_001012A0();
+    *(s32 *)arg2 = func_001012A0(arg0);
+    *(u8 *)(arg2 + 0xC) = 6;
+    return arg1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001EBFC8);
 
@@ -15052,7 +16646,15 @@ INCLUDE_ASM(const s32, "core/main", func_001EE880);
 
 INCLUDE_ASM(const s32, "core/main", func_001EEB00);
 
-INCLUDE_ASM(const s32, "core/main", func_001EECE0);
+u8 *func_001EECE0(u8 *arg0, u8 *arg1, u8 *arg2)
+{
+    s32 func_001DF760();
+    s32 func_00120708();
+    s32 v = func_001DF760(arg0, arg1);
+    *(s32 *)arg2 = func_00120708(*(s32 *)arg2);
+    *(u8 *)(arg2 + 0xC) = 9;
+    return (u8 *)v;
+}
 
 s32 func_001EED28(s32 a, s32 b, u8 *p)
 {
@@ -15102,7 +16704,15 @@ s32 func_001EEEA8(void)
     return func_001DF760();
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001EEEC8);
+extern u8 D_003EAE50[];
+u8 *func_001EEEC8(u8 *arg0, u8 *arg1, u8 *arg2)
+{
+    s32 func_001DF760();
+    s32 v = func_001DF760(arg0, arg1);
+    *(u8 *)(arg2 + 0xC) = 9;
+    *(s32 *)arg2 = (s32)&D_003EAE50;
+    return (u8 *)v;
+}
 
 s32 func_001EEF00(s32 unused, s32 value) { return value; }
 
@@ -15213,11 +16823,35 @@ s32 func_001F1420(s32 arg0, s32 arg1, u8 *arg2)
     return result;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001F1450);
+s32 func_001F1450(s32 arg0, s32 arg1, u8 *arg2)
+{
+    s32 func_001F1388(s32 arg0, s32 arg1, u8 *arg2);
+    u8 local;
+    s32 result = func_001F1388(arg0, arg1, &local);
 
-INCLUDE_ASM(const s32, "core/main", func_001F1480);
+    arg2[1] = local;
+    return result;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001F14B0);
+s32 func_001F1480(s32 arg0, s32 arg1, u8 *arg2)
+{
+    s32 func_001F1388(s32 arg0, s32 arg1, u8 *arg2);
+    u8 local;
+    s32 result = func_001F1388(arg0, arg1, &local);
+
+    arg2[2] = local;
+    return result;
+}
+
+s32 func_001F14B0(s32 arg0, s32 arg1, u8 *arg2)
+{
+    s32 func_001F1388(s32 arg0, s32 arg1, u8 *arg2);
+    u8 local;
+    s32 result = func_001F1388(arg0, arg1, &local);
+
+    arg2[3] = local;
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001F14E0);
 
@@ -15229,7 +16863,14 @@ INCLUDE_ASM(const s32, "core/main", func_001F1670);
 
 INCLUDE_ASM(const s32, "core/main", func_001F1988);
 
-INCLUDE_ASM(const s32, "core/main", func_001F1A18);
+u8 *func_001F1A18(u8 *arg0, u8 *arg1, u8 *arg2)
+{
+    f32 func_0014B910();
+    f32 v = func_0014B910(arg0);
+    *(f32 *)arg2 = v;
+    *(u8 *)(arg2 + 0xC) = 8;
+    return arg1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001F1A58);
 
@@ -15254,7 +16895,20 @@ s32 func_001F1BE8(u32 *arg0, s32 arg1, u8 *arg2)
     return arg1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001F1C10);
+extern u32 D_00252398[];
+
+s32 func_001F1C10(s32 arg0, s32 arg1, u8 *arg2)
+{
+    s32 two = 2;
+    u32 *p = (u32 *)D_00252398[0];
+    s32 v = 0;
+
+    if (p[0] == two)
+        v = p[1];
+    *(s32 *)arg2 = v;
+    *(u8 *)(arg2 + 0xC) = 0xB;
+    return arg1;
+}
 
 u8 *func_001F1C40(u8 *unused, u8 *base, u8 *out)
 {
@@ -15707,16 +17361,20 @@ INCLUDE_ASM(const s32, "core/main", func_001FE4E8);
 
 s32 func_001FE680(s32 *a, s32 *b)
 {
-    s32 vb = *(s32 *)b;
-    s32 va = *(s32 *)a;
-    return (vb < va) ? 1 : -1;
+    s32 vb = *b;
+    s32 va = *a;
+    if (vb >= va)
+        return vb != va;
+    return -1;
 }
 
 s32 func_001FE6A8(s32 *a, s32 *b)
 {
-    s32 va = *(s32 *)a;
-    s32 vb = *(s32 *)b;
-    return (va < vb) ? 1 : -1;
+    s32 vb = *b;
+    s32 va = *a;
+    if (va >= vb)
+        return vb != va;
+    return -1;
 }
 
 /* Byte-matching.  -1, 0 or 1 comparing the floats at offset 0.  The second
@@ -15948,10 +17606,8 @@ INCLUDE_ASM(const s32, "core/main", func_00200FA0);
 
 void func_00201048(u8 *arg0, s32 arg1)
 {
-    s32 offset = *arg0 * 4;
-
-    (*arg0)++;
-    *(s32 *)(arg0 + offset + 4) = arg1;
+    u32 offset = 4 * (u8)(*arg0)++;
+    *(s32 *)(((u32)arg0 + offset) + 4) = arg1;
 }
 
 INCLUDE_ASM(const s32, "core/main", func_00201068);
@@ -15994,7 +17650,16 @@ INCLUDE_ASM(const s32, "core/main", func_00201BB0);
 
 INCLUDE_ASM(const s32, "core/main", func_00201C88);
 
-INCLUDE_ASM(const s32, "core/main", func_00201F50);
+void func_00201F50(void)
+{
+    s32 *p = (s32 *)func_00157DE8(D_0039347C, 0xC);
+
+    if (p != 0) {
+        p[1] = 0;
+        p[2] = 0;
+        p[0] = 0;
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00201F80);
 
@@ -16296,7 +17961,14 @@ INCLUDE_ASM(const s32, "core/main", func_00209D90);
 
 INCLUDE_ASM(const s32, "core/main", func_00209E20);
 
-INCLUDE_ASM(const s32, "core/main", func_00209EB0);
+extern u8 D_00383F28[];
+s32 func_00209EB0(s32 arg0)
+{
+    void func_002098E8();
+    s32 func_0020B530();
+    func_002098E8((s32)&D_00383F28);
+    return func_0020B530(0, arg0);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00209EE8);
 
@@ -16666,9 +18338,19 @@ INCLUDE_ASM(const s32, "core/main", func_00212B60);
 
 INCLUDE_ASM(const s32, "core/main", func_00212BC0);
 
-INCLUDE_ASM(const s32, "core/main", func_00212C18);
+extern s32 D_00386D18[];
 
-INCLUDE_ASM(const s32, "core/main", func_00212C48);
+s32 func_00212C18(s32 arg0)
+{
+    return func_00216AC8(D_00386D18[4 * arg0]);
+}
+
+extern s32 D_00386D18[];
+
+s32 func_00212C48(s32 arg0)
+{
+    return func_00216AE0(D_00386D18[4 * arg0]);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00212C78);
 
@@ -17171,15 +18853,34 @@ void func_0021B600(void) {
 
 INCLUDE_ASM(const s32, "core/main", func_0021B608);
 
-INCLUDE_ASM(const s32, "core/main", func_0021B660);
+extern s32 D_00386F40[];
 
-INCLUDE_ASM(const s32, "core/main", func_0021B688);
+s32 func_0021B660(void)
+{
+    return ((s32 (*)(void)) D_00386F40[0])();
+}
 
-INCLUDE_ASM(const s32, "core/main", func_0021B6B0);
+u8 *func_0021B688(void)
+{
+    return (u8 *)((s32 (*)(void)) D_00386F40[0])() + 8;
+}
+
+extern s32 func_0021B6D8();
+
+extern s32 func_0021B6D8();
+
+s32 func_0021B6B0(void)
+{
+    D_00386F40[0] = (s32)func_0021B6D8;
+    return ((s32 (*)(void)) D_00386F40[0])();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0021B6D8);
 
-INCLUDE_ASM(const s32, "core/main", func_0021B740);
+s32 func_0021B740(void)
+{
+    return ((s32 (*)(void)) D_00386F40[0])() + 4;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0021B768);
 
@@ -17345,7 +19046,15 @@ s32 func_0021EC50(u8 *arg0)
     return *(s32 *)fn(arg0);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0021EC78);
+s32 func_0021EC78(s32 *arg0, s32 arg1)
+{
+    s32 *p = D_003910E8;
+
+    *arg0 = (s32)p;
+    if (arg1 & 1)
+        return func_00220A58();
+    return (s32)p;
+}
 
 u8 *func_0021ECA8(u8 *p)
 {
@@ -17367,7 +19076,15 @@ s32 *func_0021ECC0(void)
     return base;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0021ED10);
+s32 func_0021ED10(s32 *arg0, s32 arg1)
+{
+    s32 *p = D_003910E8;
+
+    *arg0 = (s32)p;
+    if (arg1 & 1)
+        return func_00220A58();
+    return (s32)p;
+}
 
 u8 *func_0021ED40(u8 *p)
 {
@@ -17491,7 +19208,21 @@ INCLUDE_ASM(const s32, "core/main", func_00220070);
 
 INCLUDE_ASM(const s32, "core/main", func_00220178);
 
-INCLUDE_ASM(const s32, "core/main", func_00220510);
+extern s32 D_00410D10[];
+
+void func_00220510(u8 *arg0, u8 *arg1)
+{
+    s32 *p = (s32 *)arg1;
+    s32 v = D_00410D10[0];
+
+    p[2] = (s32)arg0;
+    p[5] = v;
+    D_00410D10[0] = (s32)p;
+    p[0] = 0;
+    p[3] = 0;
+    p[4] = 0;
+    p[1] = 0;
+}
 
 /* Byte-matching.  Allocates 0x18 bytes and hands them, with arg0, to
    func_00220510 as a tail call. */
@@ -17503,7 +19234,19 @@ void func_00220538(u8 *arg0)
     func_00220510(arg0, func_00223E58(0x18));
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00220568);
+void func_00220568(u8 *arg0, u8 *arg1)
+{
+    s32 *p = (s32 *)arg1;
+    s32 v = D_00410D10[0];
+
+    p[3] = (s32)arg0;
+    p[5] = v;
+    D_00410D10[0] = (s32)p;
+    p[2] = (s32)arg0;
+    p[0] = 0;
+    p[4] = 0;
+    p[1] = 0;
+}
 
 /* Byte-matching.  Same as func_00220538 but hands the block to
    func_00220568. */
@@ -17550,7 +19293,15 @@ s32 *func_002209D8(void)
     return base;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00220A28);
+s32 func_00220A28(s32 *arg0, s32 arg1)
+{
+    s32 *p = D_003910E8;
+
+    *arg0 = (s32)p;
+    if (arg1 & 1)
+        return func_00220A58();
+    return (s32)p;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00220A58);
 
@@ -17686,7 +19437,15 @@ s32 func_002210F8(void)
     return func_00220BF8();
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00221118);
+s32 func_00221118(s32 *arg0, s32 arg1)
+{
+    s32 *p = D_003910E8;
+
+    *arg0 = (s32)p;
+    if (arg1 & 1)
+        return func_00220A58();
+    return (s32)p;
+}
 
 u8 *func_00221148(u8 *p)
 {
@@ -17708,7 +19467,15 @@ s32 *func_00221160(void)
     return base;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_002211B0);
+s32 func_002211B0(s32 *arg0, s32 arg1)
+{
+    s32 *p = D_003910E8;
+
+    *arg0 = (s32)p;
+    if (arg1 & 1)
+        return func_00220A58();
+    return (s32)p;
+}
 
 u8 *func_002211E0(u8 *p)
 {
@@ -17987,7 +19754,13 @@ void func_00222048(void)
     }
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00222068);
+extern s32 D_00391510[];
+void func_00222068(s32 a1, s32 a2, s32 a3)
+{
+    void func_002226C0();
+    func_002226C0(*(s32 *)(*(s32 *)D_0038857C + 0xC), D_00391510, a3, a1, a2);
+    func_00222048();
+}
 
 /* Byte-matching.  Forwards arg0 to func_002275C0 with a zero and a 0xA, and
    narrows its 64-bit return to 32 bits (the dsll32/dsra32 pair). */
@@ -18003,7 +19776,10 @@ s32 func_002220C8(s32 a)
     return func_002275C0(a, 0, 0xA);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_002220E8);
+s32 func_002220E8(void)
+{
+    return func_0022AA90(func_00223810());
+}
 
 s32 func_00222110(void) { return *(s32 *)D_0038857C; }
 
@@ -18080,7 +19856,10 @@ INCLUDE_ASM(const s32, "core/main", func_002226C0);
 
 INCLUDE_ASM(const s32, "core/main", func_002226F8);
 
-INCLUDE_ASM(const s32, "core/main", func_002227D8);
+s32 func_002227D8(s32 arg0, s32 arg1)
+{
+    return func_002226F8(*(s32 *)D_0038857C, arg0, arg1);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00222808);
 
@@ -18107,17 +19886,26 @@ s32 func_002237F0(void)
     return func_00226760();
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00223810);
+s32 func_00223810(s32 arg0)
+{
+    return func_00223838(arg0, *(u32 *)D_0038857C + 0x7C);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00223838);
 
 INCLUDE_ASM(const s32, "core/main", func_00223B08);
 
-INCLUDE_ASM(const s32, "core/main", func_00223C58);
+s32 func_00223C58(s32 arg0, s32 arg1)
+{
+    return func_00223C88(*(s32 *)D_0038857C, arg0, arg1);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00223C88);
 
-INCLUDE_ASM(const s32, "core/main", func_00223E58);
+s32 func_00223E58(s32 arg0)
+{
+    return func_002240E8(*(s32 *)D_0038857C, arg0);
+}
 
 s32 func_00223E80(s32 arg)
 {
@@ -18152,7 +19940,10 @@ void func_002256E0(s32 value) { ((s32 *)*(u8 **)D_0038857C)[0x58 / 4] = value; }
 
 INCLUDE_ASM(const s32, "core/main", func_002256F0);
 
-INCLUDE_ASM(const s32, "core/main", func_00225720);
+s32 func_00225720(s32 arg0, s32 arg1)
+{
+    return func_00225750(*(s32 *)D_0038857C, arg0, arg1);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00225750);
 
@@ -18182,13 +19973,25 @@ INCLUDE_ASM(const s32, "core/main", func_00225FD8);
 
 INCLUDE_ASM(const s32, "core/main", func_002260C8);
 
-INCLUDE_ASM(const s32, "core/main", func_00226180);
+s32 func_00226180(s32 arg0)
+{
+    return func_00225FD8(*(s32 *)D_0038857C, arg0);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_002261A8);
+s32 func_002261A8(s32 arg0, s32 arg1)
+{
+    return func_00225F48(*(s32 *)D_0038857C, arg0, arg1);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_002261D8);
+s32 func_002261D8(void)
+{
+    return func_00225ED8(*(s32 *)D_0038857C);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00226200);
+s32 func_00226200(s32 arg0)
+{
+    return func_002260C8(*(s32 *)D_0038857C, arg0);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00226228);
 
@@ -18257,13 +20060,19 @@ s32 func_00227200(s8 *s, int c)
 
 INCLUDE_ASM(const s32, "core/main", func_00227250);
 
-INCLUDE_ASM(const s32, "core/main", func_002272C0);
+s32 func_002272C0(s32 arg0, s32 arg1)
+{
+    return func_002272E8(arg0, arg1, *(u32 *)D_0038857C + 0x5C);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_002272E8);
 
 INCLUDE_ASM(const s32, "core/main", func_00227388);
 
-INCLUDE_ASM(const s32, "core/main", func_002275C0);
+s32 func_002275C0(s32 arg0, s32 arg1, s32 arg2)
+{
+    return func_00227388(*(s32 *)D_0038857C, arg0, arg1, arg2);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_002275F8);
 
@@ -18281,43 +20090,6 @@ INCLUDE_ASM(const s32, "core/main", func_002283E0);
 
 INCLUDE_ASM(const s32, "core/main", func_00228498);
 
-/* Retail dispatches this function through the jump table jtbl_00391950, which
-   lives in the read-only data blob and holds the absolute addresses of retail's
-   case blocks (asm/data/main/rodata.rodata.s emits it as `.word .L00228xxx`).
-   The `.L` names are internal labels of retail's function; this C body selects
-   the same cases without a table, so they are aliased here.  The table keeps its
-   retail bytes and nothing reads it.
-
-   Keep one `.globl` + `.equ` pair per label, spelled exactly as the retail
-   listing does (`.L` plus eight hex digits): apply_asm_overrides() strips these
-   two lines when asm_overrides.txt asks for the retail assembly instead, and
-   the retail listing then defines the labels itself. */
-__asm__(".globl .L00228710\n.equ .L00228710, 0x00228710");
-__asm__(".globl .L00228728\n.equ .L00228728, 0x00228728");
-__asm__(".globl .L00228738\n.equ .L00228738, 0x00228738");
-__asm__(".globl .L00228750\n.equ .L00228750, 0x00228750");
-__asm__(".globl .L0022875C\n.equ .L0022875C, 0x0022875C");
-__asm__(".globl .L00228770\n.equ .L00228770, 0x00228770");
-__asm__(".globl .L002287FC\n.equ .L002287FC, 0x002287FC");
-__asm__(".globl .L00228808\n.equ .L00228808, 0x00228808");
-__asm__(".globl .L00228840\n.equ .L00228840, 0x00228840");
-__asm__(".globl .L00228850\n.equ .L00228850, 0x00228850");
-__asm__(".globl .L00228860\n.equ .L00228860, 0x00228860");
-__asm__(".globl .L00228894\n.equ .L00228894, 0x00228894");
-__asm__(".globl .L002288A4\n.equ .L002288A4, 0x002288A4");
-__asm__(".globl .L002288C4\n.equ .L002288C4, 0x002288C4");
-__asm__(".globl .L002288C8\n.equ .L002288C8, 0x002288C8");
-__asm__(".globl .L0022890C\n.equ .L0022890C, 0x0022890C");
-__asm__(".globl .L00228AD4\n.equ .L00228AD4, 0x00228AD4");
-__asm__(".globl .L00228B20\n.equ .L00228B20, 0x00228B20");
-__asm__(".globl .L00228B24\n.equ .L00228B24, 0x00228B24");
-__asm__(".globl .L00228B58\n.equ .L00228B58, 0x00228B58");
-__asm__(".globl .L00228B7C\n.equ .L00228B7C, 0x00228B7C");
-__asm__(".globl .L00228BD0\n.equ .L00228BD0, 0x00228BD0");
-__asm__(".globl .L00228BD4\n.equ .L00228BD4, 0x00228BD4");
-__asm__(".globl .L00228C08\n.equ .L00228C08, 0x00228C08");
-__asm__(".globl .L00228C14\n.equ .L00228C14, 0x00228C14");
-__asm__(".globl .L00228DCC\n.equ .L00228DCC, 0x00228DCC");
 /* ==========================================================================
    func_00228510 - formatter core of the printf family
 
@@ -19005,7 +20777,10 @@ INCLUDE_ASM(const s32, "core/main", func_0022A920);
 
 INCLUDE_ASM(const s32, "core/main", func_0022A980);
 
-INCLUDE_ASM(const s32, "core/main", func_0022AA90);
+s32 func_0022AA90(s32 arg0)
+{
+    return func_0022AAB8(arg0, *(u32 *)D_0038857C + 0x60);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0022AAB8);
 
@@ -19020,7 +20795,596 @@ INCLUDE_ASM(const s32, "core/main", func_0022AB58);
 
 INCLUDE_ASM(const s32, "core/main", func_0022ABB0);
 
-INCLUDE_ASM(const s32, "core/main", func_0022ADC8);
+/* ---------------------------------------------------------------------
+ * func_0022ADC8 - newlib _dtoa_r(): double -> decimal digits (4556 bytes).
+ *
+ * Behavioural reconstruction from asm/matchings/core/main/func_0022ADC8.s.
+ * The EE core has no double-precision FPU, so a double travels in one
+ * 64-bit GPR and every arithmetic step is a soft-float helper call:
+ *   func_0021DDB0 = a - b     func_0021DD58 = a + b
+ *   func_0021DE18 = a * b     func_0021E0C0 = a / b
+ *   func_0021E340 = compare   func_0021E390 = (double)(s32)
+ *   func_0021E448 = (s32)double
+ * The body is newlib's dtoa.c block for block, including the shared
+ * one_digit / no_digits / bump_up / round_9_up tails that the fast path
+ * jumps into.
+ *
+ * Confirmed from the listing: bs+0x40 = block handed back by the previous
+ * call (freed at entry after its _k/_maxwds are repaired from bs+0x44),
+ * bs+0x44 = Balloc size class, bs+0x4C = freelist.  A Bigint is
+ * {next, k, maxwds, sign, wds, w[1]}: w at +0x14, wds at +0x10.
+ *
+ * Deliberate deviation, behaviourally irrelevant for printf: retail's
+ * register allocator keeps the fast path's saved d2 in the register it
+ * also uses for the hoisted `k + 1`, so its `d = d2` at fast_failed
+ * (0x22B678) reloads k+1 whenever the Steele & White loop leaves through
+ * its digit budget instead of a margin test.  (Retail also leaves
+ * `spec_case` at sp+0x40 unwritten for modes >= 2, where dtoa.c wants 0.)
+ * Both read back as zero for every mode printf uses (0..3); this code
+ * keeps the dtoa.c form, i.e. restores the real d2 and initialises
+ * spec_case.
+ * --------------------------------------------------------------------- */
+
+#define DTOA_HI(x) ((u32)((x) >> 32))
+#define DTOA_DBL(hi) ((u64)(u32)(hi) << 32)
+
+extern u64 D_00391FC0;    /* 0.289529654602168   */
+extern u64 D_00391FC8;    /* 0.1760912590558     */
+extern u64 D_00391FD0;    /* 0.301029995663981   */
+extern u64 D_00392050[];  /* tens[]:    1e0 .. 1e22  */
+extern u64 D_00392118[];  /* bigtens[]: 1e16 .. 1e128 */
+extern u64 D_00392138;    /* 1e256, a private copy of bigtens[4] */
+extern u8 D_00391FA0[];   /* "Infinity" */
+extern u8 D_00391FB0[];   /* "NaN"      */
+extern u8 D_00391FB8[];   /* "0"        */
+
+
+u8 *func_0022ADC8(u8 *bs, u64 d, s32 mode, s32 ndigits, s32 *decpt,
+                  s32 *sign, u8 **rve)
+{
+    u8 *func_0022C1D0(u8 *arg0, s32 arg1);
+    void func_0022C278(u8 *arg0, u32 *arg1);
+    u8 *func_0022C650(u8 *arg0, s32 arg1);
+    u8 *func_0022C2A8(u8 *arg0, u8 *arg1, s32 arg2, s32 arg3);
+    u8 *func_0022C8B8(u8 *arg0, u8 *arg1, s32 arg2);
+    u8 *func_0022C9B8(u8 *arg0, u8 *arg1, s32 arg2);
+    u8 *func_0022C688(u8 *arg0, u8 *arg1, u8 *arg2);
+    s32 func_0022CB30(u8 *arg0, u8 *arg1);
+    u8 *func_0022CB98(u8 *arg0, u8 *arg1, u8 *arg2);
+    s32 func_0022ABB0(u8 *arg0, u8 *arg1);
+    s32 func_0022C508(u32 arg0);
+    void func_002249D4(void *arg0, void *arg1, s32 arg2);
+    u8 *func_0022CF40(u8 *arg0, u64 arg1, s32 *arg2, s32 *arg3);
+    s32 func_0021E340(u64 arg0, u64 arg1);
+    u64 func_0021DDB0(u64 arg0, u64 arg1);
+    u64 func_0021DD58(u64 arg0, u64 arg1);
+    u64 func_0021DE18(u64 arg0, u64 arg1);
+    u64 func_0021E0C0(u64 arg0, u64 arg1);
+    u64 func_0021E390(s32 arg0);
+    s32 func_0021E448(u64 arg0);
+
+    s32 bbits, b2, b5, be, dig, i, ilim, ilim0, ilim1, j, j1, k, k0;
+    s32 k_check, leftright, m2, m5, s2, s5, spec_case, try_quick, denorm;
+    u64 d2, eps, ds;
+    u32 x;
+    u8 *b, *S, *mlo, *mhi, *delta, *s, *s0;
+
+    /* 0x22ADE8: the string of the previous call was written over the
+       header of the block handed back, so repair k/maxwds before Bfree. */
+    if (*(u8 **)(bs + 0x40) != 0) {
+        u8 *old = *(u8 **)(bs + 0x40);
+
+        *(s32 *)(old + 0x04) = *(s32 *)(bs + 0x44);
+        *(s32 *)(old + 0x08) = 1 << *(s32 *)(bs + 0x44);
+        func_0022C278(bs, (u32 *)old);
+        *(u32 *)(bs + 0x40) = 0;
+    }
+
+    /* 0x22AE3C: sign, cleared from d before anything else is looked at. */
+    if ((s32)DTOA_HI(d) < 0) {
+        *sign = 1;
+        d = (d & 0xFFFFFFFF) | DTOA_DBL(DTOA_HI(d) & 0x7FFFFFFF);
+    } else {
+        *sign = 0;
+    }
+
+    /* 0x22AE7C: Infinity / NaN, returned as pointers to rodata. */
+    if ((DTOA_HI(d) & 0x7FF00000) == 0x7FF00000) {
+        *decpt = 9999;
+        s = D_00391FA0;
+        if ((d & (((u64)0xFFFFF << 32) | 0xFFFFFFFF)) != 0)
+            s = D_00391FB0;
+        if (rve != 0)
+            *rve = (s[3] != 0) ? s + 8 : s + 3;
+        return s;
+    }
+
+    /* 0x22AEE8: zero. */
+    if (func_0021E340(d, 0) == 0) {
+        *decpt = 1;
+        s = D_00391FB8;
+        if (rve != 0)
+            *rve = s + 1;
+        return s;
+    }
+
+    /* 0x22AF28: split d into a normalised mantissa and a binary exponent. */
+    b = func_0022CF40(bs, d, &be, &bbits);
+    i = (DTOA_HI(d) >> 20) & 0x7FF;
+    if (i != 0) {
+        /* normalised: force the exponent to 1 so d2 lands in [1,2) */
+        d2 = (d & 0xFFFFFFFF) | DTOA_DBL((DTOA_HI(d) & 0xFFFFF) | 0x3FF00000);
+        i -= 0x3FF;
+        denorm = 0;
+    } else {
+        /* 0x22AF98: denormalised, assemble the integer mantissa */
+        i = bbits + be + 0x432;
+        if (i > 32)
+            x = (DTOA_HI(d) << (64 - i)) | ((u32)d >> (i - 32));
+        else
+            x = (u32)d << (32 - i);
+        d2 = func_0021E390((s32)x);
+        if ((s32)x < 0)
+            d2 = func_0021DD58(d2, DTOA_DBL(0x41F00000));  /* + 2^32 */
+        d2 -= DTOA_DBL(0x01F00000);                        /* exp -= 31 */
+        i -= 0x433;
+        denorm = 1;
+    }
+
+    /* 0x22B030: k = floor(log10(d)) from the Taylor estimate */
+    d2 = func_0021DDB0(d2, DTOA_DBL(0x3FF80000));          /* d2 - 1.5   */
+    d2 = func_0021DE18(d2, D_00391FC0);                    /* * 1/(1.5ln10) */
+    ds = func_0021DD58(d2, D_00391FC8);                    /* + log10 1.5 */
+    ds = func_0021DD58(ds, func_0021DE18(func_0021E390(i), D_00391FD0));
+    k = func_0021E448(ds);                                 /* (int)ds     */
+    if (func_0021E340(ds, 0) < 0 &&
+        func_0021E340(ds, func_0021E390(k)) != 0)
+        --k;                                               /* want floor  */
+
+    /* 0x22B0D0: correct k against the table */
+    k_check = 1;
+    if ((u32)k < 0x17) {
+        k_check = 0;
+        if (func_0021E340(d, D_00392050[k]) < 0)
+            --k;
+    }
+
+    /* 0x22B108: powers of 2 and 5 to apply to b and S */
+    j = bbits - i - 1;
+    if (j >= 0) {
+        b2 = 0;
+        s2 = j;
+    } else {
+        b2 = -j;
+        s2 = 0;
+    }
+    if (k >= 0) {
+        b5 = 0;
+        s5 = k;
+        s2 += k;
+    } else {
+        b2 -= k;
+        b5 = -k;
+        s5 = 0;
+    }
+
+    if (mode < 0 || mode > 9)
+        mode = 0;
+    try_quick = 1;
+    if (mode > 5) {
+        mode -= 4;
+        try_quick = 0;
+    }
+    leftright = 1;
+    ilim = ilim1 = -1;
+    if (mode < 2) {
+        /* mode 0, 1: shortest string */
+        i = 18;
+        ndigits = 0;
+    } else if (mode == 2 || mode == 4) {
+        /* ecvt style: max(1, ndigits) significant digits */
+        if (mode == 2)
+            leftright = 0;
+        if (ndigits <= 0)
+            ndigits = 1;
+        ilim = ilim1 = i = ndigits;
+    } else {
+        /* mode 3, 5: fcvt style, ndigits past the point */
+        if (mode == 3)
+            leftright = 0;
+        i = ndigits + k + 1;
+        ilim = i;
+        ilim1 = i - 1;
+        if (i <= 0)
+            i = 1;
+    }
+
+    /* 0x22B21C: Balloc size class for the output block.  Retail only
+       resets bs->k inside the >= 24 arm, so `i < 24` keeps the previous
+       class; the entry repair uses the same field, so the two agree. */
+    if (i >= 24) {
+        *(s32 *)(bs + 0x44) = 0;
+        for (j = 4; i >= j + 0x14; j <<= 1)
+            ++*(s32 *)(bs + 0x44);
+    }
+    b = func_0022C1D0(bs, *(s32 *)(bs + 0x44));
+    s = s0 = b;
+    *(u8 **)(bs + 0x40) = b;
+
+    if (ilim >= 0 && ilim <= 14 && try_quick) {
+        /* ---- fast path: digits straight out of the double ---------- */
+        i = 0;
+        d2 = d;
+        k0 = k;
+        ilim0 = ilim;
+        m5 = 2;                                  /* ieps, conservative  */
+        if (k > 0) {
+            ds = D_00392050[k & 0xF];
+            j = k >> 4;
+            if (j & 0x10) {                      /* Bletch: avoid overflow */
+                j &= 0xF;
+                d = func_0021E0C0(d, D_00392138);
+                ++m5;
+            }
+            for (; j != 0; j >>= 1, ++i)
+                if (j & 1) {
+                    ++m5;
+                    ds = func_0021DE18(ds, D_00392118[i]);
+                }
+            d = func_0021E0C0(d, ds);
+        } else if ((j1 = -k) != 0) {
+            d = func_0021DE18(d, D_00392050[j1 & 0xF]);
+            for (j = j1 >> 4; j != 0; j >>= 1, ++i)
+                if (j & 1) {
+                    ++m5;
+                    d = func_0021DE18(d, D_00392118[i]);
+                }
+        }
+        if (k_check && func_0021E340(d, DTOA_DBL(0x3FF00000)) < 0 && ilim > 0) {
+            if (ilim1 <= 0)
+                goto fast_failed;
+            ilim = ilim1;
+            --k;
+            d = func_0021DE18(DTOA_DBL(0x40240000), d);   /* d *= 10. */
+            ++m5;
+        }
+        /* eps = (m5 * d + 7) * 2^-52 */
+        eps = func_0021DD58(
+            func_0021DE18(func_0021E390(m5), d), DTOA_DBL(0x401C0000));
+        eps -= DTOA_DBL(0x03400000);
+
+        if (ilim == 0) {
+            /* no digits wanted, only a rounding decision */
+            S = 0;
+            mhi = 0;
+            ds = func_0021DDB0(d, DTOA_DBL(0x40140000));  /* d - 5. */
+            if (func_0021E340(ds, eps) > 0)
+                goto one_digit;
+            if (func_0021E340(ds, func_0021DDB0(0, eps)) < 0)
+                goto no_digits;
+            goto fast_failed;
+        }
+
+        if (leftright) {
+            /* 0x22B494: Steele & White */
+            eps = func_0021DDB0(
+                func_0021E0C0(DTOA_DBL(0x3FE00000), D_00392050[ilim - 1]),
+                eps);
+            for (i = 0;;) {
+                dig = func_0021E448(d);
+                d = func_0021DDB0(d, func_0021E390(dig));
+                *s++ = (u8)(0x30 + dig);
+                if (func_0021E340(d, eps) < 0)
+                    goto ret1;
+                if (func_0021E340(func_0021DDB0(DTOA_DBL(0x3FF00000), d),
+                                  eps) < 0)
+                    goto bump_up;
+                if (++i >= ilim)
+                    break;
+                eps = func_0021DE18(DTOA_DBL(0x40240000), eps);
+                d = func_0021DE18(DTOA_DBL(0x40240000), d);
+            }
+        } else {
+            /* 0x22B580: ilim digits, then fix them up */
+            eps = func_0021DE18(D_00392050[ilim - 1], eps);
+            for (i = 1;; ++i, d = func_0021DE18(DTOA_DBL(0x40240000), d)) {
+                dig = func_0021E448(d);
+                d = func_0021DDB0(d, func_0021E390(dig));
+                *s++ = (u8)(0x30 + dig);
+                if (i == ilim) {
+                    if (func_0021E340(
+                            d, func_0021DD58(DTOA_DBL(0x3FE00000), eps)) > 0)
+                        goto bump_up;
+                    if (func_0021E340(
+                            d, func_0021DDB0(DTOA_DBL(0x3FE00000), eps)) < 0) {
+                        while (*--s == 0x30)
+                            ;
+                        ++s;
+                        goto ret1;
+                    }
+                    break;
+                }
+            }
+        }
+
+    fast_failed:
+        s = s0;
+        d = d2;
+        k = k0;
+        ilim = ilim0;
+    }
+
+    /* 0x22B688: do we have a "small" integer? */
+    if (be >= 0 && k <= 14) {
+        ds = D_00392050[k];
+        if (ndigits < 0 && ilim <= 0) {
+            S = 0;
+            mhi = 0;
+            if (ilim < 0 ||
+                func_0021E340(d, func_0021DE18(DTOA_DBL(0x40140000), ds)) <= 0)
+                goto no_digits;
+            goto one_digit;
+        }
+        for (i = 1;; ++i) {
+            u64 t = func_0021E0C0(d, ds);
+
+            dig = func_0021E448(t);
+            d = func_0021DDB0(d, func_0021DE18(func_0021E390(dig), ds));
+            *s++ = (u8)(0x30 + dig);
+            if (i == ilim) {
+                d = func_0021DD58(d, d);
+                if (func_0021E340(d, ds) > 0 ||
+                    (func_0021E340(d, ds) == 0 && (dig & 1))) {
+                bump_up:
+                    while (*--s == 0x39) {
+                        if (s == s0) {
+                            ++k;
+                            *s = 0x30;
+                            break;
+                        }
+                    }
+                    ++*s;
+                    ++s;
+                }
+                break;
+            }
+            d = func_0021DE18(DTOA_DBL(0x40240000), d);
+            if (func_0021E340(d, 0) == 0)
+                break;
+        }
+        goto ret1;
+    }
+
+    /* ---- 0x22B808: Bigint path ----------------------------------- */
+    m2 = b2;
+    m5 = b5;
+    mhi = 0;
+    mlo = 0;
+    if (leftright) {
+        if (mode < 2) {
+            if (denorm)
+                i = be + 0x433;          /* Bias + P - 1 - 1 + 1 */
+            else
+                i = 0x36 - bbits;        /* 1 + P - bbits */
+        } else {
+            j = ilim - 1;
+            if (m5 >= j) {
+                m5 -= j;
+            } else {
+                j -= m5;
+                s5 += j;
+                b5 += j;
+                m5 = 0;
+            }
+            if ((i = ilim) < 0) {
+                m2 -= i;
+                i = 0;
+            }
+        }
+        b2 += i;
+        s2 += i;
+        mhi = func_0022C650(bs, 1);       /* i2b(1) */
+    }
+
+    /* 0x22B8D0: spend the common powers of 2 on both sides */
+    if (m2 > 0 && s2 > 0) {
+        i = (m2 < s2) ? m2 : s2;
+        b2 -= i;
+        m2 -= i;
+        s2 -= i;
+    }
+
+    /* 0x22B900: 5^b5 */
+    if (b5 > 0) {
+        if (leftright) {
+            if (m5 > 0) {
+                u8 *b1;
+
+                mhi = func_0022C8B8(bs, mhi, m5);       /* pow5mult */
+                b1 = func_0022C688(bs, mhi, b);         /* mult     */
+                func_0022C278(bs, (u32 *)b);
+                b = b1;
+            }
+            if ((j = b5 - m5) != 0)
+                b = func_0022C8B8(bs, b, j);
+        } else {
+            b = func_0022C8B8(bs, b, b5);
+        }
+    }
+
+    /* 0x22B980: S = 2^s2 * 5^s5 */
+    S = func_0022C650(bs, 1);
+    if (s5 > 0)
+        S = func_0022C8B8(bs, S, s5);
+
+    /* 0x22B9AC: d is an exact power of 2 -> upper margin is doubled */
+    spec_case = 0;
+    if (mode < 2) {
+        if ((d & (((u64)0xFFFFF << 32) | 0xFFFFFFFF)) == 0 &&
+            (DTOA_HI(d) & 0x7FF00000) != 0) {
+            b2 += 1;                     /* Log2P == 1 */
+            s2 += 1;
+            spec_case = 1;
+        }
+    }
+
+    /* 0x22BA04: align the divisor so it has 4 leading zero bits */
+    if (s5 != 0)
+        i = s2 - func_0022C508(
+                      *(u32 *)(S + 0x14 + (*(s32 *)(S + 0x10) - 1) * 4));
+    else
+        i = s2 + 1;
+    i &= 0x1F;
+    if (i != 0)
+        i = 0x20 - i;
+    if (i > 4) {
+        i -= 4;
+        b2 += i;
+        m2 += i;
+        s2 += i;
+    } else if (i < 4) {
+        i += 0x1C;
+        b2 += i;
+        m2 += i;
+        s2 += i;
+    }
+
+    if (b2 > 0)
+        b = func_0022C9B8(bs, b, b2);     /* lshift */
+    if (s2 > 0)
+        S = func_0022C9B8(bs, S, s2);
+
+    /* 0x22BAD4: the k estimate was one too large */
+    if (k_check) {
+        if (func_0022CB30(b, S) < 0) {
+            --k;
+            b = func_0022C2A8(bs, b, 10, 0);
+            if (leftright)
+                mhi = func_0022C2A8(bs, mhi, 10, 0);
+            ilim = ilim1;
+        }
+    }
+
+    if (ilim <= 0 && mode > 2) {
+        if (ilim < 0 ||
+            func_0022CB30(b, S = func_0022C2A8(bs, S, 5, 0)) <= 0) {
+        no_digits:
+            k = -1 - ndigits;
+            goto ret;
+        }
+    one_digit:
+        *s++ = 0x31;
+        ++k;
+        goto ret;
+    }
+
+    /* 0x22BBA4: digit generation */
+    if (leftright) {
+        if (m2 > 0)
+            mhi = func_0022C9B8(bs, mhi, m2);
+        mlo = mhi;
+        if (spec_case) {
+            mhi = func_0022C1D0(bs, *(s32 *)(mlo + 0x04));   /* Balloc(mlo->k) */
+            func_002249D4(mhi + 0x0C, mlo + 0x0C,
+                          *(s32 *)(mlo + 0x10) * 4 + 8);     /* Bcopy */
+            mhi = func_0022C9B8(bs, mhi, 1);
+        }
+        for (i = 1;; ++i) {
+            dig = func_0022ABB0(b, S) + 0x30;    /* quorem */
+            j = func_0022CB30(b, mlo);
+            delta = func_0022CB98(bs, S, mhi);
+            j1 = *(s32 *)(delta + 0x0C) ? 1 : func_0022CB30(b, delta);
+            func_0022C278(bs, (u32 *)delta);
+            if (j1 == 0 && mode == 0 && ((u32)d & 1) == 0) {
+                /* shortest string that rounds to d */
+                if (dig == 0x39)
+                    goto round_9_up;
+                if (j > 0)
+                    ++dig;
+                *s++ = (u8)dig;
+                goto ret;
+            }
+            if (j < 0 || (j == 0 && mode == 0 && ((u32)d & 1) == 0)) {
+                if (j1 > 0) {
+                    b = func_0022C9B8(bs, b, 1);
+                    j1 = func_0022CB30(b, S);
+                    if (j1 > 0 || (j1 == 0 && (dig & 1))) {
+                        if (dig++ == 0x39)
+                            goto round_9_up;
+                    }
+                }
+                *s++ = (u8)dig;
+                goto ret;
+            }
+            if (j1 > 0) {
+                if (dig == 0x39) {
+                round_9_up:
+                    *s++ = 0x39;
+                    goto roundoff;
+                }
+                *s++ = (u8)(dig + 1);
+                goto ret;
+            }
+            *s++ = (u8)dig;
+            if (i == ilim)
+                break;
+            b = func_0022C2A8(bs, b, 10, 0);
+            if (mlo == mhi) {
+                mhi = func_0022C2A8(bs, mhi, 10, 0);
+                mlo = mhi;
+            } else {
+                mlo = func_0022C2A8(bs, mlo, 10, 0);
+                mhi = func_0022C2A8(bs, mhi, 10, 0);
+            }
+        }
+    } else {
+        for (i = 1;; ++i) {
+            dig = func_0022ABB0(b, S) + 0x30;
+            *s++ = (u8)dig;
+            if (i >= ilim)
+                break;
+            b = func_0022C2A8(bs, b, 10, 0);
+        }
+    }
+
+    /* 0x22BE4C: round off the last digit */
+    b = func_0022C9B8(bs, b, 1);
+    j = func_0022CB30(b, S);
+    if (j > 0 || (j == 0 && (dig & 1))) {
+    roundoff:
+        while (*--s == 0x39) {
+            if (s == s0) {
+                ++k;
+                *s++ = 0x31;
+                goto ret;
+            }
+        }
+        ++*s;
+        ++s;
+    } else {
+        while (*--s == 0x30)
+            ;
+        ++s;
+    }
+
+ret:
+    func_0022C278(bs, (u32 *)S);
+    if (mhi != 0) {
+        if (mlo != 0 && mlo != mhi)
+            func_0022C278(bs, (u32 *)mlo);
+        func_0022C278(bs, (u32 *)mhi);
+    }
+ret1:
+    func_0022C278(bs, (u32 *)b);
+    *s = 0;
+    *decpt = k + 1;
+    if (rve != 0)
+        *rve = s;
+    return s0;
+}
+
+#undef DTOA_HI
+#undef DTOA_DBL
 
 INCLUDE_ASM(const s32, "core/main", func_0022BF98);
 
@@ -19030,9 +21394,16 @@ extern u8 D_00391FF8[];
 
 u8 *func_0022C0C8(void) { return D_00391FF8; }
 
-INCLUDE_ASM(const s32, "core/main", func_0022C0D8);
+s32 func_0022C0D8(s32 arg0, s32 arg1)
+{
+    return func_0022C040(*(s32 *)D_0038857C, arg0, arg1);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_0022C108);
+u8 *func_0022C108(void)
+{
+    u8 *func_0022C0C8();
+    return func_0022C0C8(*(s32 *)D_0038857C);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0022C130);
 
@@ -19061,7 +21432,14 @@ INCLUDE_ASM(const s32, "core/main", func_0022C508);
 
 INCLUDE_ASM(const s32, "core/main", func_0022C590);
 
-INCLUDE_ASM(const s32, "core/main", func_0022C650);
+u8 *func_0022C650(u8 *arg0, s32 arg1)
+{
+    u8 *func_0022C1D0();
+    u8 *p = func_0022C1D0(arg0, 1);
+    *(s32 *)(p + 0x14) = arg1;
+    *(s32 *)(p + 0x10) = 1;
+    return p;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0022C688);
 
@@ -19101,7 +21479,10 @@ u32 func_0022D298(u64 arg0)
 
 INCLUDE_ASM(const s32, "core/main", func_0022D2D0);
 
-INCLUDE_ASM(const s32, "core/main", func_0022E1D0);
+s32 func_0022E1D0(s32 arg0, s32 arg1)
+{
+    return func_0022D2D0(*(s32 *)D_0038857C, arg0, arg1);
+}
 
 s32 func_0022E200(void)
 {
@@ -19112,7 +21493,10 @@ s32 func_0022E200(void)
 
 INCLUDE_ASM(const s32, "core/main", func_0022E228);
 
-INCLUDE_ASM(const s32, "core/main", func_0022E448);
+s32 func_0022E448(s32 arg0, s32 arg1, s32 arg2)
+{
+    return func_0022E228(*(s32 *)D_0038857C, arg0, arg1, arg2);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0022E480);
 

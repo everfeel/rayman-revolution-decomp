@@ -1492,14 +1492,6 @@ extern u8 D_00388B20[];
 extern u8 D_00388B38[];
 extern u8 D_00388B50[];
 
-/* The jump table jtbl_00388B70 in rodata.rodata.s still names the retail case
- * bodies; the C rewrite dispatches without a table, so bind the labels to the
- * retail addresses to keep the table bytes unchanged. */
-__asm__(".globl .L001024D0\n.equ .L001024D0, 0x001024D0");
-__asm__(".globl .L001024E4\n.equ .L001024E4, 0x001024E4");
-__asm__(".globl .L001024EC\n.equ .L001024EC, 0x001024EC");
-__asm__(".globl .L001024F4\n.equ .L001024F4, 0x001024F4");
-__asm__(".globl .L0010250C\n.equ .L0010250C, 0x0010250C");
 
 /* Resets the actor system before a new level is set up. */
 void func_001022E8(void)
@@ -2233,7 +2225,25 @@ void func_00108428(void) {
 
 INCLUDE_ASM(const s32, "core/main", func_00108430);
 
-INCLUDE_ASM(const s32, "core/main", func_001084E8);
+s32 func_001084E8(s32 arg0, u8 *arg1)
+{
+    u8 *p = *(u8 **)(arg1 + 4);
+    s32 *q = *(s32 **)(p + 0x14);
+
+    if (q == 0)
+        return 0;
+    switch (arg0 & 0xFF) {
+    case 0:
+        return q[0];
+    case 2:
+        return q[1];
+    case 1:
+        return q[2];
+    case 3:
+        return q[3];
+    }
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00108568);
 
@@ -2286,9 +2296,35 @@ INCLUDE_ASM(const s32, "core/main", func_00108670);
 
 INCLUDE_ASM(const s32, "core/main", func_00108700);
 
-INCLUDE_ASM(const s32, "core/main", func_00108760);
+s32 func_00108760(s32 arg0, u8 *arg1)
+{
+    switch (arg0 & 0xFF) {
+    case 0:
+        return *(s32 *)(arg1 + 0x20);
+    case 3:
+        return *(s32 *)(arg1 + 0x28);
+    case 2:
+        return *(s32 *)(arg1 + 0x24);
+    case 1:
+        return *(s32 *)(arg1 + 0x2C);
+    }
+    return 0;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001087C8);
+s32 func_001087C8(s32 arg0, u8 *arg1)
+{
+    switch (arg0 & 0xFF) {
+    case 0:
+        return *(s32 *)(arg1 + 0x30);
+    case 3:
+        return *(s32 *)(arg1 + 0x3C);
+    case 2:
+        return *(s32 *)(arg1 + 0x34);
+    case 1:
+        return *(s32 *)(arg1 + 0x38);
+    }
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00108830);
 
