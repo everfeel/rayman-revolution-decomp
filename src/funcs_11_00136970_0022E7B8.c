@@ -52,7 +52,7 @@ extern f32 D_003931B4;
 extern s32 D_003931B8;
 extern u8 D_00388B00[];
 extern u8 D_00388B10[];
-extern u8 D_00393B58[];
+extern u8 D_00393B58;
 extern s32 D_00391480[];
 extern s32 D_00391498[];
 extern s32 D_003914B0[];
@@ -1133,7 +1133,12 @@ f32 func_0013A7C0(f32 arg0, f32 arg1)
     return (f32)(s32)(arg0 / arg1) * arg1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0013A7F8);
+void func_0013A7F8(f32 *a1, f32 a2)
+{
+    a1[0] = func_0013A7C0(a1[0], a2);
+    a1[1] = func_0013A7C0(a1[1], a2);
+    a1[2] = func_0013A7C0(a1[2], a2);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0013A858);
 
@@ -1151,11 +1156,37 @@ INCLUDE_ASM(const s32, "core/main", func_0013B060);
 
 INCLUDE_ASM(const s32, "core/main", func_0013B258);
 
-INCLUDE_ASM(const s32, "core/main", func_0013B2E8);
+/* Byte-matching: linked-list scan for type 2; bnel loop from plain C. */
+s32 func_0013B2E8(u8 *p)
+{
+    if (*(s32 *)p != 2) {
+        do {
+            p = *(u8 **)(p + 0x1C);
+            if (p == 0) return 0;
+        } while (*(s32 *)p != 2);
+    }
+    return (s32)p;
+}
 
 void func_0013B320(u8 *p) { func_001241D8((u8 *)p + 0xCC); }
 
-INCLUDE_ASM(const s32, "core/main", func_0013B328);
+void func_0013B328(f32 *out, float *src, u8 flag, f32 scale)
+{
+    f32 v4, v5, v6, v7;
+
+    v4 = scale * src[87];
+    v5 = v4 * src[95];
+    out[0] = v5;
+    v6 = v4 * src[96];
+    out[1] = v6;
+    v7 = v4 * src[97];
+    out[2] = v7;
+    if (flag != 0) {
+        out[0] = src[91] * v5;
+        out[1] = src[91] * v6;
+        out[2] = src[91] * v7;
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0013B388);
 
@@ -1223,9 +1254,39 @@ INCLUDE_ASM(const s32, "core/main", func_0013CCC0);
 
 INCLUDE_ASM(const s32, "core/main", func_0013CD48);
 
-INCLUDE_ASM(const s32, "core/main", func_0013CEB8);
+u8 *func_0013CEB8(u8 *arg0) {
+    s32 n = *(s32 *)(arg0 + 0x20);
+    u8 *p = *(u8 **)(arg0 + 0x190);
+    u8 *end = p + (n << 6);
+    u32 v;
+    if (p >= end) goto zero;
+    v = *p;
+    for (;;) {
+        if ((v & 1) != 0) return p;
+        p += 0x40;
+        if (p >= end) goto zero;
+        v = *p;
+    }
+zero:
+    return 0;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_0013CF00);
+u8 *func_0013CF00(u8 *arg0) {
+    s32 n = *(s32 *)(arg0 + 0x20);
+    u8 *p = *(u8 **)(arg0 + 0x190);
+    u8 *end = p + (n << 6);
+    u32 v;
+    if (p >= end) goto zero;
+    v = *p;
+    for (;;) {
+        if (((v >> 2) & 1) != 0) return p;
+        p += 0x40;
+        if (p >= end) goto zero;
+        v = *p;
+    }
+zero:
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0013CF50);
 
@@ -1466,7 +1527,16 @@ INCLUDE_ASM(const s32, "core/main", func_0013F758);
 
 INCLUDE_ASM(const s32, "core/main", func_0013F858);
 
-INCLUDE_ASM(const s32, "core/main", func_0013F910);
+s32 func_0013F910(s32 a1) {
+return *(u8 *)(a1 + 9)
++ 60
+* (*(u8 *)(a1 + 10)
++ 60
+* (*(u8 *)(a1 + 11)
++ 24
+* (*(u8 *)(a1 + 12)
++ 31 * (*(u8 *)(a1 + 13) + 12 * (*(u16 *)(a1 + 14) - 2000)))));
+}
 
 s32 func_0013F968(void)
 {
@@ -1553,7 +1623,17 @@ INCLUDE_ASM(const s32, "core/main", func_001413E8);
 
 INCLUDE_ASM(const s32, "core/main", func_001415E8);
 
-INCLUDE_ASM(const s32, "core/main", func_001417A8);
+extern u8 D_0033129C[];
+s32 func_00151CD8();
+void func_001417A8(void)
+{
+    s32 *p = (s32 *)D_0033129C;
+    s32 *end = (s32 *)((u8 *)p + 0xFF0);
+    do {
+        func_00151CD8(p, 100);
+        p = (s32 *)((u8 *)p + 0xCC);
+    } while ((s32)p < (s32)end);
+}
 
 void func_001417F8(void) { D_00393250 = 0; }
 
@@ -1674,11 +1754,11 @@ void func_00144DA8(void)
 {
     u8 *base = D_0034A380;
 
-    *(s32 *)(base + 0x114) = 100;
     *(u16 *)(base + 0x2058) = 0;
     *(u16 *)(base + 0x205A) = 0;
     *(s32 *)(base + 0x10C) = 100;
     *(s32 *)(base + 0x110) = 100;
+    *(s32 *)(base + 0x114) = 100;
 }
 
 INCLUDE_ASM(const s32, "core/main", func_00144DD0);
@@ -1687,7 +1767,39 @@ INCLUDE_ASM(const s32, "core/main", func_00144E40);
 
 INCLUDE_ASM(const s32, "core/main", func_00144EB8);
 
-INCLUDE_ASM(const s32, "core/main", func_00144F28);
+typedef struct {
+    char pad[0x205A];
+    u16 val;
+} BmS;
+
+typedef struct {
+    char pad[0x205A];
+    u16 val;
+} FF22BmS;
+
+s32 func_00144F28(s32 a1, s32 a2, u32 a3)
+{
+    void func_002249D4();
+    extern u8 D_0034C3FC[];
+    u8 *base;
+    FF22BmS *s;
+    u16 v;
+    u32 rem;
+
+    func_002249D4(a1, a2, a3);
+    a1 = a1 + a3;
+    rem = a3 & 3;
+    if (rem != 0) {
+        s32 t = a1 + 4;
+        a1 = t - rem;
+    }
+    base = D_0034C3FC;
+    s = (FF22BmS *)(base - 0x207C);
+    v = (u16)(a1 - (s32)base);
+    if (s->val < v)
+        s->val = v;
+    return a1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00144F98);
 
@@ -1738,17 +1850,33 @@ s32 func_00145090(u8 *p)
 
 INCLUDE_ASM(const s32, "core/main", func_001450A8);
 
-INCLUDE_ASM(const s32, "core/main", func_00145168);
+s32 func_00145168(u8 *arg0)
+{
+    s32 v = func_00144D98();
+    if (func_001454F8(v) != 0)
+        return func_001456F0((s32)arg0, (s32)D_0034A380, 0x9D7C, 0x9D7C);
+    return 0;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001451C0);
+s32 func_001451C0(u8 *arg0)
+{
+    s32 func_00145560();
+    if (func_00145560(arg0 + 0x40) != 0) {
+        return func_00145790((s32)arg0, (s32)D_0034A380, 0x9D7C);
+    }
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00145210);
 
-s32 func_00145378(u8 *arg0)
-{
-    if (func_00145560(arg0 + 0x40) == 0)
-        return 0;
-    return func_00145808(arg0);
+s32 func_00145378(s32 a1) {
+bool v2;
+s32 result;
+v2 = func_00145560(a1 + 64) == 0;
+result = 0;
+if ( !v2 )
+return func_00145808(a1);
+return result;
 }
 
 /* Byte-matching; returning the callee's result avoids a sibling call. */
@@ -1780,10 +1908,11 @@ s32 func_00145438(void)
 
 s32 func_00145460(void)
 {
-    if (func_001454A0() == 0)
-        return -1;
-    if (func_001454C8() == 0)
-        return 0;
+    s32 v;
+    if (func_001454A0() != 0) {
+        v = func_001454C8();
+        if (v == 0) return 0;
+    }
     return -1;
 }
 
@@ -1797,13 +1926,43 @@ s32 func_001454C8(void)
     return (u32)(func_0013FFA0(0, 0, 0) ^ 2) < 1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001454F8);
+s32 func_001454F8(s32 a1)
+{
+    s32 v5[4];
+    s32 v2;
+    s32 v3;
+    v2 = 0;
+    if (func_0013FFA0(0, 0, v5) == 2) {
+        v3 = func_00140810(0, 0, a1);
+        v2 = v5[0] >= v3;
+    }
+    return v2;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00145560);
 
 INCLUDE_ASM(const s32, "core/main", func_001455E0);
 
-INCLUDE_ASM(const s32, "core/main", func_001456F0);
+s32 func_001456F0(s32 a1, char *a2, s32 a3, s32 a4)
+{
+    s32 func_00145560();
+    s32 func_001455E0();
+    s32 func_00145438();
+    s32 r;
+
+    if (func_00145560(a1 + 0x40) != 0) {
+        r = func_001455E0(a1, a2, a3, 0);
+        goto done;
+    }
+    if (func_00145438(a4) == -1)
+        goto zero;
+    r = func_001455E0(a1, a2, a3, 1);
+    goto done;
+zero:
+    r = 0;
+done:
+    return r;
+}
 
 /* Byte-matching.  Returning the callee's result keeps gcc from turning this
    into a sibling call: retail emits jal + epilogue through a saved $ra. */
@@ -1812,7 +1971,15 @@ s32 func_00145790(s32 a, s32 b, s32 c)
     return func_001456F0(a, b, c, c);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001457B0);
+s32 func_001457B0(s32 a1, s32 a2, s64 a3)
+{
+    void func_001453F8();
+    s32 func_0013FAE8();
+    u8 v6[256];
+
+    func_001453F8(v6, (u8 *)a1 + 82);
+    return func_0013FAE8(0, 0, (s32)v6, a2, a3) != 0;
+}
 
 s32 func_00145808(u8 *arg0)
 {
@@ -1829,11 +1996,10 @@ INCLUDE_ASM(const s32, "core/main", func_00145958);
 s32 func_001459C0(void)
 {
     s32 r;
-
-    if (func_00145460() == -1)
-        r = 0;
-    else
+    if (func_00145460() != -1)
         r = (u32)func_0013F9A8(0, 0) > 0;
+    else
+        r = 0;
     return r;
 }
 
@@ -1868,7 +2034,26 @@ u32 func_00145A50(u32 *arg0, u32 arg1, u16 arg2)
 
 INCLUDE_ASM(const s32, "core/main", func_00145A90);
 
-INCLUDE_ASM(const s32, "core/main", func_00145BB8);
+s32 func_00145BB8(s32 *a1, u16 a2)
+{
+    s32 func_00145A90();
+    s32 v2;
+    s32 v3;
+    s32 i;
+
+    v2 = *a1;
+    v3 = a2;
+    if (*a1 != 0) {
+        for (i = *(u16 *)(v2 + 16); ; i = *(u16 *)(v2 + 16)) {
+            if ((i & v3) == v3)
+                func_00145A90(v2);
+            v2 = *(s32 *)v2;
+            if (v2 == 0)
+                break;
+        }
+    }
+    return 1;
+}
 
 s32 func_00145C10(u32 *arg0, u32 arg1, u16 arg2)
 {
@@ -1897,7 +2082,22 @@ void func_00145F80(u8 *arg0, u8 *arg1)
     *(S12 *)arg1 = *(S12 *)(arg0 + 0x54);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00145FA0);
+void func_00145FA0(f32 *a1, f32 *out)
+{
+    f32 v2 = a1[18] + a1[21];
+    f32 v3, v4, v5;
+
+    out[0] = v2;
+    v2 = v2 * 0.5f;
+    v3 = a1[19] + a1[22];
+    out[1] = v3;
+    v3 = v3 * 0.5f;
+    v5 = a1[20];
+    v4 = a1[23];
+    out[0] = v2;
+    out[1] = v3;
+    out[2] = (v5 + v4) * 0.5f;
+}
 
 void *func_00145FF0(void)
 {
@@ -1929,13 +2129,77 @@ INCLUDE_ASM(const s32, "core/main", func_00146118);
 
 INCLUDE_ASM(const s32, "core/main", func_001462A8);
 
-INCLUDE_ASM(const s32, "core/main", func_001463D0);
+/* Byte-matching: linked-list unlink with refcount; the distinct cmp local
+   keeps the compared value in its own register, and the barriers pin the
+   re-reads after the decrement store. */
+s32 func_001463D0(u8 *a1)
+{
+    s32 result;
+    s32 cmp;
+
+    if (*(s32 *)(a1 + 4) != 0) { result = *(s32 *)(a1 + 8); *(s32 *)(*(s32 *)(a1 + 4) + 8) = result; }
+    if (*(s32 *)(a1 + 8) != 0) { result = *(s32 *)(a1 + 4); *(s32 *)(*(s32 *)(a1 + 8) + 4) = result; }
+    if (*(s32 *)(a1 + 0xC) != 0)
+    {
+        *(s32 *)(*(s32 *)(a1 + 0xC) + 8) -= 1;
+        __asm__ volatile("" ::: "memory");
+        if (**((s32 **)(a1 + 0xC)) == (s32)a1)
+        {
+            **(s32 **)(a1 + 0xC) = *(s32 *)(a1 + 4);
+            __asm__ volatile("" ::: "memory");
+        }
+        cmp = (*(s32 **)(a1 + 0xC))[1];
+        if (cmp == (s32)a1)
+        {
+            result = *(s32 *)(a1 + 8);
+            (*(s32 **)(a1 + 0xC))[1] = result;
+        }
+        else
+            result = cmp;
+        *(s32 *)(a1 + 0xC) = 0;
+    }
+    else *(s32 *)(a1 + 0xC) = 0;
+    *(s32 *)(a1 + 8) = 0;
+    *(s32 *)(a1 + 4) = 0;
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00146450);
 
 INCLUDE_ASM(const s32, "core/main", func_00146518);
 
-INCLUDE_ASM(const s32, "core/main", func_001465E0);
+/* Byte-matching: twin of func_001463D0. */
+s32 func_001465E0(u8 *a1)
+{
+    s32 result;
+    s32 cmp;
+
+    if (*(s32 *)(a1 + 4) != 0) { result = *(s32 *)(a1 + 8); *(s32 *)(*(s32 *)(a1 + 4) + 8) = result; }
+    if (*(s32 *)(a1 + 8) != 0) { result = *(s32 *)(a1 + 4); *(s32 *)(*(s32 *)(a1 + 8) + 4) = result; }
+    if (*(s32 *)(a1 + 0xC) != 0)
+    {
+        *(s32 *)(*(s32 *)(a1 + 0xC) + 8) -= 1;
+        __asm__ volatile("" ::: "memory");
+        if (**((s32 **)(a1 + 0xC)) == (s32)a1)
+        {
+            **(s32 **)(a1 + 0xC) = *(s32 *)(a1 + 4);
+            __asm__ volatile("" ::: "memory");
+        }
+        cmp = (*(s32 **)(a1 + 0xC))[1];
+        if (cmp == (s32)a1)
+        {
+            result = *(s32 *)(a1 + 8);
+            (*(s32 **)(a1 + 0xC))[1] = result;
+        }
+        else
+            result = cmp;
+        *(s32 *)(a1 + 0xC) = 0;
+    }
+    else *(s32 *)(a1 + 0xC) = 0;
+    *(s32 *)(a1 + 8) = 0;
+    *(s32 *)(a1 + 4) = 0;
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00146660);
 
@@ -2148,11 +2412,45 @@ void func_00147848(u32 arg0)
         D_003552F0[0] = 0x14;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00147870);
+s32 func_00147870(void)
+{
+    s32 v1[4];
+    s32 v3[4];
+    void func_00119B50();
+    void func_00119E40();
+    void func_00119D78();
+    void func_00119D68();
 
-INCLUDE_ASM(const s32, "core/main", func_001478D8);
+    func_00119B50(v3);
+    func_00119E40(v3[0], 0x45D803F6);
+    v1[0] = 0;
+    v1[1] = 0;
+    v1[2] = 0;
+    v1[3] = 0;
+    func_00119D78(v3[0], v1);
+    *(f32 *)&v1[3] = 255.0f;
+    func_00119D68(v3[0], v1);
+    return v3[0];
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00147920);
+extern u8 D_00354200[];
+
+void func_001478D8(void)
+{
+    func_00224B88((s32)&D_00354200, 0, 0x1144);
+    *(s32 *)(D_00354200 + 0x1098) = 4;
+    *(s32 *)(D_00354200 + 0x10F0) = 2;
+}
+
+s32 func_00147920(void)
+{
+    u8 *base = D_00354200;
+    s32 result = func_00153D30(*(s32 *)(base + 0x10F0), *(s32 *)(base + 0x1098));
+    *(s32 *)base = 0;
+    *(s32 *)(base + 0x1094) = 0;
+    *(s32 *)(base + 0x10EC) = 0;
+    return result;
+}
 
 void func_00147968(void) {
 }
@@ -2226,11 +2524,10 @@ void func_001497A0(void)
 
 void func_001497D8(void)
 {
-    s32 v = D_00355448[0];
     s32 i = D_003932C4;
-
     if (i != 0x32)
     {
+        s32 v = D_00355448[0];
         D_00355448[i] = v;
         D_00393090 = v;
         D_003932C4 = i + 1;
@@ -2248,7 +2545,17 @@ void func_00149810(void)
     }
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00149848);
+void func_00149848(a1)
+s32 a1;
+{
+    s32 i = D_003932C4;
+    if (i != 0x32)
+    {
+        D_00355448[i] = a1;
+        D_00393090 = a1;
+        D_003932C4 = i + 1;
+    }
+}
 
 s32 func_00149880(s32 arg1)
 {
@@ -2262,13 +2569,39 @@ void func_001498A8(void)
 
 void func_001498B8(void) { func_00149848(); }
 
-INCLUDE_ASM(const s32, "core/main", func_001498C0);
+s32 func_001498C0(s32 a1, s32 a2, s32 a3, s32 a4)
+{
+    s32 func_0020BFD8();
+    void func_00121278();
+    f32 func_0020BFE0();
+    f32 func_001278D0();
+    s32 func_0020F5A0(s32, s32, u32, f32);
+    f32 v12[4];
+    s32 v8;
+    f32 v9, v10;
+
+    v8 = func_0020BFD8(a4);
+    func_00121278((u32)v12, a1, v8);
+    v9 = func_0020BFE0(a4);
+    v10 = func_001278D0(a1);
+    return func_0020F5A0(a2, a3, (u32)v12, v9 * v10);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00149950);
 
 INCLUDE_ASM(const s32, "core/main", func_00149A90);
 
-INCLUDE_ASM(const s32, "core/main", func_0014A040);
+s32 func_0014A040(s32 a1, s32 a2, s32 a3, s32 a4)
+{
+    s16 v[8];
+    s32 v8;
+    s32 func_00149A90();
+    v[0] = 0;
+    func_001497D8();
+    v8 = func_00149A90(a1, a2, a3, a4, (u32)v);
+    func_00149810();
+    return v8;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0014A0B0);
 
@@ -2282,7 +2615,28 @@ void func_0014A5E8(u8 *p, s32 key, s32 value)
     *(s32 *)p = key ? value : 1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0014A600);
+void func_0014A600(void)
+{
+    extern u16 D_003932C2;
+    extern u8 D_003932CC;
+    s32 n = (u16)D_003932C0 << 16;
+    s32 i = 0;
+    s32 pos;
+
+    if (n > 0)
+    {
+        do
+        {
+            u8 *p = (u8 *)D_00355348[i];
+            pos = (i + 1) << 16;
+            i = (s16)(pos >> 16);
+            *(u32 *)(p + 0x30) &= 0xFFFFFFDEu;
+        } while (pos < n);
+    }
+    D_003932C0 = 0;
+    D_003932CC = 0;
+    D_003932C2 = 0;
+}
 
 s32 func_0014A660(s16 arg0)
 {
@@ -2291,7 +2645,22 @@ s32 func_0014A660(s16 arg0)
     return 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0014A698);
+void func_0014A698(u8 *a1)
+{
+    s32 v = *(s32 *)(a1 + 0x30);
+
+    if ((v & 0x20) == 0)
+    {
+        s16 c = D_003932C0;
+        *(s32 *)(a1 + 0x30) = v | 0x21;
+        if (c < 0x20)
+        {
+            u16 next = (u16)D_003932C0 + 1;
+            D_00355348[c] = (s32)a1;
+            D_003932C0 = (s16)next;
+        }
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0014A6E8);
 
@@ -2305,21 +2674,86 @@ void func_0014A930(u8 *arg0, u8 arg1)
         *(u32 *)(arg0 + 0x30) &= 0xFFFDFFFF;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0014A968);
+/* Byte-matching: offset-shifted twin of func_001463D0 (+0x14/+0x18/+0x1C). */
+s32 func_0014A968(u8 *a1)
+{
+    s32 result;
+    s32 cmp;
 
-INCLUDE_ASM(const s32, "core/main", func_0014A9E8);
+    if (*(s32 *)(a1 + 0x14) != 0) { result = *(s32 *)(a1 + 0x18); *(s32 *)(*(s32 *)(a1 + 0x14) + 0x18) = result; }
+    if (*(s32 *)(a1 + 0x18) != 0) { result = *(s32 *)(a1 + 0x14); *(s32 *)(*(s32 *)(a1 + 0x18) + 0x14) = result; }
+    if (*(s32 *)(a1 + 0x1C) != 0)
+    {
+        *(s32 *)(*(s32 *)(a1 + 0x1C) + 0x10) -= 1;
+        __asm__ volatile("" ::: "memory");
+        if (*(s32 *)(*(s32 *)(a1 + 0x1C) + 8) == (s32)a1)
+        {
+            *(s32 *)(*(s32 *)(a1 + 0x1C) + 8) = *(s32 *)(a1 + 0x14);
+            __asm__ volatile("" ::: "memory");
+        }
+        cmp = *(s32 *)(*(s32 *)(a1 + 0x1C) + 0xC);
+        if (cmp == (s32)a1)
+        {
+            result = *(s32 *)(a1 + 0x18);
+            *(s32 *)(*(s32 *)(a1 + 0x1C) + 0xC) = result;
+        }
+        else
+            result = cmp;
+        *(s32 *)(a1 + 0x1C) = 0;
+    }
+    else *(s32 *)(a1 + 0x1C) = 0;
+    *(s32 *)(a1 + 0x18) = 0;
+    *(s32 *)(a1 + 0x14) = 0;
+    return result;
+}
+
+/* Byte-matching: variant of func_0014A968 with the first field cached in a
+   named local and the final two zero stores in reversed source order. */
+s32 func_0014A9E8(u8 *a1)
+{
+    s32 result;
+    s32 cmp;
+    s32 v14 = *(s32 *)(a1 + 0x14);
+
+    if (v14 != 0) { result = *(s32 *)(a1 + 0x18); *(s32 *)(v14 + 0x18) = result; }
+    if (*(s32 *)(a1 + 0x18) != 0) { result = *(s32 *)(a1 + 0x14); *(s32 *)(*(s32 *)(a1 + 0x18) + 0x14) = result; }
+    if (*(s32 *)(a1 + 0x1C) != 0)
+    {
+        *(s32 *)(*(s32 *)(a1 + 0x1C) + 0x10) -= 1;
+        __asm__ volatile("" ::: "memory");
+        if (*(s32 *)(*(s32 *)(a1 + 0x1C) + 8) == (s32)a1)
+        {
+            *(s32 *)(*(s32 *)(a1 + 0x1C) + 8) = *(s32 *)(a1 + 0x14);
+            __asm__ volatile("" ::: "memory");
+        }
+        cmp = *(s32 *)(*(s32 *)(a1 + 0x1C) + 0xC);
+        if (cmp == (s32)a1)
+        {
+            result = *(s32 *)(a1 + 0x18);
+            *(s32 *)(*(s32 *)(a1 + 0x1C) + 0xC) = result;
+        }
+        else
+            result = cmp;
+        *(s32 *)(a1 + 0x14) = v14;
+    }
+    else *(s32 *)(a1 + 0x14) = v14;
+    *(s32 *)(a1 + 0x1C) = 0;
+    *(s32 *)(a1 + 0x18) = 0;
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0014AA68);
 
 INCLUDE_ASM(const s32, "core/main", func_0014AB00);
 
-u32 func_0014ABD8(u8 *arg0)
-{
-    u32 r = (u32)arg0;
-
-    if (func_0014A5E0(arg0) != 0)
-        r = *(u32 *)(arg0 + 0x14);
-    return r;
+s32 func_0014ABD8(s32 a1) {
+bool v2;
+s32 result;
+v2 = func_0014A5E0(a1) == 0;
+result = a1;
+if ( !v2 )
+return *(s32 *)(a1 + 20);
+return result;
 }
 
 u8 *func_0014AC08(u8 *arg0, s32 arg1)
@@ -2344,7 +2778,13 @@ void func_0014AC40(void)
 void func_0014AC68(u8 *arg0)
 {
     if (*(s32 *)(arg0 + 0x28) != -1)
-        *(s32 *)(arg0 + 0x28) = (D_003932D0 == 0) ? -2 : D_003932D0 - 1;
+    {
+        s32 v = D_003932D0;
+        if (v != 0)
+            *(s32 *)(arg0 + 0x28) = v - 1;
+        else
+            *(s32 *)(arg0 + 0x28) = -2;
+    }
 }
 
 void func_0014AC98(s32 value)
@@ -2433,11 +2873,11 @@ INCLUDE_ASM(const s32, "core/main", func_0014B258);
 void func_0014B320(s32 arg0)
 {
     s32 *p = (s32 *)D_003932D4;
-
     p[0] = 0x4000000;
     D_003932D4 = (s32)(p + 1);
-    p[1] = arg0;
-    D_003932D4 = (s32)(p + 2);
+    p++;
+    *p = arg0;
+    D_003932D4 = (s32)(p + 1);
 }
 
 INCLUDE_ASM(const s32, "core/main", func_0014B348);
@@ -2541,9 +2981,28 @@ s32 func_0014BA78(s32 arg1)
 
 INCLUDE_ASM(const s32, "core/main", func_0014BAA0);
 
-INCLUDE_ASM(const s32, "core/main", func_0014BB08);
+s32 func_0014BB08(s32 a1, s32 a2)
+{
+    void func_0014B880(void);
+    s32 func_00220A58();
+    s32 *p = (s32 *)a1;
+    s32 r;
 
-INCLUDE_ASM(const s32, "core/main", func_0014BB50);
+    r = ((s32 (*)())func_0014B880)();
+    *p = 0;
+    if (a2 & 1)
+        r = func_00220A58(a1);
+    return r;
+}
+
+s32 func_0014BB50(u8 *arg0, s32 arg1, f32 farg)
+{
+    *(s32 *)(arg0 + 0x10) = arg1;
+    *(s32 *)arg0 = func_0014B7F8(arg1);
+    func_0014BBA8((FrameTimer *)arg0, farg);
+    func_0014BBE8(arg0);
+    return (s32)arg0;
+}
 
 s32 func_0014BBA8(FrameTimer *timer, f32 interval)
 {
@@ -2571,12 +3030,36 @@ INCLUDE_ASM(const s32, "core/main", func_0014BCD8);
 
 INCLUDE_ASM(const s32, "core/main", func_0014BEC8);
 
-INCLUDE_ASM(const s32, "core/main", func_0014BFA0);
+s32 func_0014BFA0(s32 a1)
+{
+    u64 func_0014C1B8(s32);
+    u32 func_0014C1A0(s32);
+    u64 func_0021CDD8(u64, u64);
+    u64 func_0021CE38(u64, u64);
+    u8 *p = (u8 *)a1;
+    u64 v2, v4;
+    u32 v3;
+    s32 r;
+
+    v2 = func_0014C1B8(*(s32 *)p) - *(u64 *)(p + 0x18);
+    v3 = func_0014C1A0(*(s32 *)p);
+    v4 = func_0021CDD8(v2, *(u32 *)(p + 0x10));
+    r = (s32)func_0021CE38(v4, v3);
+    return *(s32 *)(p + 0x14) + r;
+}
 
 /* Byte-matching; returning the callee's result avoids a sibling call. */
 s32 func_0014C018(u8 *p) { return func_0014C1B8(*(s32 *)p); }
 
-INCLUDE_ASM(const s32, "core/main", func_0014C038);
+s32 func_0014C038(void)
+{
+    extern s32 D_003932F8;
+    *(volatile s64 *)&D_003932F8 = *(volatile s64 *)&D_003932F8 + 1;
+    *(volatile u32 *)0x10000010 |= 0xA00;
+    __asm__ volatile("sync");
+    __asm__ volatile("ei");
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0014C068);
 
@@ -2596,7 +3079,26 @@ s32 func_0014C210(u8 *arg0)
     return func_0021CE38(func_0014C1B8(arg0), *(u64 *)arg0);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0014C240);
+extern s32 D_003932F8;
+extern s32 D_00393300;
+extern s32 D_00393308;
+
+void func_0014C240(void)
+{
+    volatile u32 *p = (volatile u32 *)0x10000010;
+    volatile u32 *q = (volatile u32 *)0x10000000;
+    s32 v;
+    s32 v2;
+
+    *p |= 7;
+    *(volatile s64 *)&D_003932F8 = 0;
+    v = D_00393300;
+    *(volatile s64 *)&D_00393308 = 0;
+    *p = v;
+    v2 = v | 0x280;
+    *q = 0;
+    *p = v2;
+}
 
 s32 func_001C7308(s32);
 
@@ -2605,6 +3107,8 @@ void func_0014C280(void)
     D_00393314 = func_001C7308(0);
 }
 
+/* Stamper asm: cfc2 $2,$vi29 reads a COP2 (VU0) control register, which has
+   no C form.  Kept as handwritten assembly under src/asm. */
 ASM_FUNC(const s32, func_0014C2A0);
 
 INCLUDE_ASM(const s32, "core/main", func_0014C2B8);
@@ -2640,7 +3144,26 @@ void func_0014C398(u32 address)
     __asm__ volatile("nop");
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0014C3B0);
+void func_0014C3B0(a1)
+s32 a1;
+{
+    s32 func_0014C770();
+    s32 func_0014C788();
+    s32 func_00223E58();
+    s32 func_00225720();
+    s32 func_00223E80();
+    s32 func_00224A84();
+    s32 func_0014C470();
+    s32 func_0014C498();
+    s32 func_0014C4C0();
+
+    if (D_00393318 == 0)
+    {
+        func_0014C770(func_00223E58, func_00225720, func_00223E80, func_00224A84);
+        D_00393318 = func_0014C788(0, a1, 0x80, 5);
+        func_0014C770(func_0014C470, func_0014C498, func_0014C4C0, func_00224A84);
+    }
+}
 
 s32 func_0014CD88(s32);
 
@@ -2672,7 +3195,21 @@ void func_0014C4C0(s32 arg)
     func_0014CBE8(D_00393318, arg);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0014C4D0);
+s32 func_0014C4D0(s32 a1, s32 a2)
+{
+    s32 result;
+    u32 v3;
+    result = 0;
+    if ((*(u16 *)(a1 + 30) & 2) != 0)
+    {
+        v3 = *(u32 *)(a1 + 32) + (u32)a2;
+        *(u32 *)(a1 + 32) = v3;
+        if (*(u32 *)(a1 + 36) < v3)
+            *(u32 *)(a1 + 36) = v3;
+        return ((s32 (*)(s32))D_0039331C)(a2);
+    }
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0014C528);
 
@@ -2727,20 +3264,40 @@ s32 func_0014CE30(s32 arg0, u8 *arg1)
     return 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0014CE68);
-
-void func_0014CEA8(u8 *arg0, u8 *arg1)
+s32 func_0014CE68(u32 *a1, u32 a2)
 {
-    u32 n = *(u32 *)(arg0 + 8);
+    u32 v = 0;
 
-    *(u32 *)(arg1 + 4) = (u32)arg0;
-    *(u32 *)arg1 = *(u32 *)arg0;
-    if (n != 0)
-        *(u32 *)(*(u32 *)arg0 + 4) = (u32)arg1;
-    *(u32 *)arg0 = (u32)arg1;
-    if (n == 0)
-        *(u32 *)(arg0 + 4) = (u32)arg1;
-    *(u32 *)(arg0 + 8) = n + 1;
+    if (a1[2] != 0)
+        v = a1[0];
+    while (v != 0 && (u32)v < a2)
+    {
+        v = *(u32 *)v;
+        if (v == (u32)a1)
+            v = 0;
+    }
+    return v ? (s32)(v + 12) : 0;
+}
+
+s32 func_0014CEA8(u32 *a1, u32 *a2) {
+s32 v2;
+s32 v3;
+s32 result;
+v2 = *a1;
+a2[1] = a1;
+*a2 = v2;
+v3 = (s32)a1[2];
+if ( a1[2] != 0 )
+{
+*(u32 *)(*a1 + 4) = a2;
+v3 = (s32)a1[2];
+}
+*a1 = a2;
+if ( v3 == 0 )
+a1[1] = a2;
+result = (s32)v3 + 1;
+a1[2] = result;
+return result;
 }
 
 void func_0014CEE8(u8 *arg0, u8 *arg1)
@@ -2815,7 +3372,27 @@ INCLUDE_ASM(const s32, "core/main", func_0014D5B0);
 
 INCLUDE_ASM(const s32, "core/main", func_0014D6C8);
 
-INCLUDE_ASM(const s32, "core/main", func_0014D7A0);
+s32 func_0014D7A0(void)
+{
+    extern u8 D_00393358;
+    void func_00151570();
+    s32 func_00195948();
+    void func_0014D3D0();
+    void func_0014D5B0();
+    void func_0014D6C8();
+    s32 r;
+
+    func_00151570();
+    func_00195948();
+    func_0014D3D0();
+    func_00195948();
+    func_0014D5B0();
+    func_00195948();
+    func_0014D6C8();
+    r = func_00195948();
+    D_00393358 = 1;
+    return r;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0014D800);
 
@@ -2823,7 +3400,23 @@ INCLUDE_ASM(const s32, "core/main", func_0014D8E8);
 
 INCLUDE_ASM(const s32, "core/main", func_0014D990);
 
-INCLUDE_ASM(const s32, "core/main", func_0014DA10);
+extern u8 D_00393358;
+void func_0014D800();
+void func_0014D8E8();
+void func_0014D990();
+void func_00196548();
+void func_0014F620();
+void func_0014DA10(void)
+{
+    if (D_00393358 != 0) {
+        func_0014D800();
+        func_0014D8E8();
+        func_0014D990();
+        func_00196548();
+        func_0014F620();
+        D_00393358 = 0;
+    }
+}
 
 s32 func_0014DA58();
 s32 func_0016BDC0();
@@ -2918,7 +3511,26 @@ void func_0014EA00(s32 value) { D_00393398 = value; }
 
 INCLUDE_ASM(const s32, "core/main", func_0014EA08);
 
-INCLUDE_ASM(const s32, "core/main", func_0014EB30);
+extern s32 D_0026DFB8[];
+extern s32 D_00393098;
+extern s32 D_00393398;
+
+void func_0014EB30(u8 *arg0)
+{
+    s32 i;
+    u32 *src;
+    u32 *dst;
+    arg0[0x40] = 0;
+    src = D_0026DFB8;
+    dst = (u32 *)arg0;
+    i = 0;
+    for (i = 0; i < D_00393098; i++, src++) {
+        if (((D_00393398 >> i) & 1) && arg0[0x40] < 0x10) {
+            *dst++ = *src;
+            arg0[0x40]++;
+        }
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0014EBA8);
 
@@ -2929,11 +3541,37 @@ void func_0014EC40(void)
 
 INCLUDE_ASM(const s32, "core/main", func_0014EC58);
 
-INCLUDE_ASM(const s32, "core/main", func_0014ED50);
+typedef struct { u32 v; } __attribute__((packed)) S4;
+extern u8 D_003933A8[];
+
+s32 func_0014ED50(void)
+{
+    S4 val;
+    s32 v;
+
+    val = *(S4 *)D_003933A8;
+    v = func_0016F780();
+    func_0016F938(v, &val);
+    return v;
+}
 
 void func_0014EDA0(void) { func_0016F830(); }
 
-INCLUDE_ASM(const s32, "core/main", func_0014EDA8);
+void func_0014EDA8(s32 a1, s32 a2)
+{
+    s32 func_0016F780();
+    s32 func_0016F950();
+    void func_0016F938();
+    s32 func_0016F930();
+    void func_0016F8D8();
+    s32 v3, v4, v5;
+
+    v3 = func_0016F780(a1, a2);
+    v4 = func_0016F950(a2);
+    func_0016F938(v3, v4);
+    v5 = func_0016F930(a2);
+    func_0016F8D8(v3, v5);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0014EE00);
 
@@ -2958,13 +3596,41 @@ INCLUDE_ASM(const s32, "core/main", func_0014EF80);
 
 INCLUDE_ASM(const s32, "core/main", func_0014F000);
 
-INCLUDE_ASM(const s32, "core/main", func_0014F170);
+s32 func_0014F170(void)
+{
+    extern s32 D_003933A0;
+    s32 v;
+    if (D_003933A0 == 0)
+        D_003933A0 = func_00195BE8(0, 0, 0, 4);
+    v = func_00199A30(D_003933A0);
+    func_00199BD0(v, 2);
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0014F1C8);
 
 INCLUDE_ASM(const s32, "core/main", func_0014F2E0);
 
-INCLUDE_ASM(const s32, "core/main", func_0014F5A8);
+extern s32 D_00362690[];
+s32 func_0014F5A8(s32 a1)
+{
+    s32 arg = a1;
+    s32 v1;
+    s32 *v3;
+    u32 v4;
+    s32 i;
+        v1 = 0;
+    v3 = D_00362690;
+    v4 = 0;
+    for (;;) {
+        i = *v3;
+        if (i != 0) v1 = func_00199CA0(i, arg);
+        v4++;
+        v3++;
+        if (v4 >= 6 || v1 != 0) break;
+    }
+    return v1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0014F620);
 
@@ -3047,7 +3713,17 @@ INCLUDE_ASM(const s32, "core/main", func_001500C8);
 
 INCLUDE_ASM(const s32, "core/main", func_00150218);
 
-INCLUDE_ASM(const s32, "core/main", func_00150298);
+void func_00150298(s32 *a1)
+{
+    s32 v2;
+    s32 v3;
+
+    v2 = func_00195BE8(8, 8, 32, 1284);
+    *a1 = v2;
+    v3 = func_00196190(v2, 0, 1);
+    func_00224B88(v3, 0x60, 0x100);
+    func_001961D0(*a1);
+}
 
 s32 func_001502F8(s32 value) { return value; }
 
@@ -3091,9 +3767,38 @@ INCLUDE_ASM(const s32, "core/main", func_001516A8);
 
 INCLUDE_ASM(const s32, "core/main", func_001517A0);
 
-INCLUDE_ASM(const s32, "core/main", func_00151848);
+void func_00151848(void)
+{
+    extern s32 D_003933F0;
+    extern s32 D_003933F4;
+    extern s32 D_003933F8;
+    s32 func_00195CE0();
+    void func_001517A0();
 
-INCLUDE_ASM(const s32, "core/main", func_001518A0);
+    if (D_003933F0 != 0) {
+        func_00195CE0(D_003933F0);
+        D_003933F0 = 0;
+    }
+    if (D_003933F4 != 0) {
+        func_00195CE0(D_003933F4);
+        D_003933F4 = 0;
+    }
+    if (D_003933F8 != 0) {
+        func_00195CE0(D_003933F8);
+        D_003933F8 = 0;
+    }
+    func_001517A0();
+}
+
+void func_001518A0(u8 *arg0)
+{
+    extern s32 D_0038A080[];
+    if (func_00178BE8(arg0, 0) == 0) {
+        func_00211918(D_0038A048, arg0);
+        return;
+    }
+    func_00211918(D_0038A080, arg0);
+}
 
 u32 func_001518F0(u32 arg0)
 {
@@ -3133,7 +3838,23 @@ void func_00151980(void)
     D_00378900[10] = (s32)D_0022E820;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001519A0);
+void func_001519A0(void)
+{
+    extern u8 D_0022F910[];
+    extern u8 D_00230B30[];
+    extern u8 D_00234650[];
+    extern s32 D_0038A0B8[];
+    extern f32 D_00393420;
+    extern f32 D_00393424;
+
+    D_00378900[1] = (s32)D_00234650;
+    D_00378900[2] = (s32)D_00230B30;
+    D_00378900[3] = (s32)D_00230B30;
+    D_00378900[5] = (s32)D_0022F910;
+    func_00211918((s32)D_0038A0B8);
+    D_00393420 = 30.0f;
+    D_00393424 = 190.0f;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00151A08);
 
@@ -3141,7 +3862,19 @@ INCLUDE_ASM(const s32, "core/main", func_00151B38);
 
 INCLUDE_ASM(const s32, "core/main", func_00151C40);
 
-INCLUDE_ASM(const s32, "core/main", func_00151CD8);
+extern s32 D_0039347C;
+
+s32 func_00151CD8(u8 *a1, s32 a2)
+{
+    s32 v;
+
+    *(s32 *)a1 = 0;
+    v = func_00157DE8(D_0039347C, 0x10);
+    if (v == 0)
+        return 0;
+    *(s32 *)a1 = v;
+    return func_00151C40(v, 3 * a2);
+}
 
 void func_00151D38(s32 *p, s32 value) { p[3] = value; }
 
@@ -3169,7 +3902,16 @@ INCLUDE_ASM(const s32, "core/main", func_00151F08);
 
 INCLUDE_ASM(const s32, "core/main", func_00151FB8);
 
-INCLUDE_ASM(const s32, "core/main", func_00152188);
+s32 func_00152188(s32 *a1, f32 a2)
+{
+    S4 val;
+    s32 v3;
+
+    v3 = func_0016E380((u8 *)a1[6], 0);
+    val = *(S4 *)func_0016F950((u8 *)v3);
+    ((u8 *)&val)[3] = (s32)(a2 * 255.0f);
+    return (s32)func_0016F938(v3, (const u8 *)&val);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00152200);
 
@@ -3210,7 +3952,22 @@ INCLUDE_ASM(const s32, "core/main", func_00153C58);
 
 INCLUDE_ASM(const s32, "core/main", func_00153D30);
 
-INCLUDE_ASM(const s32, "core/main", func_00153DF8);
+void func_00153DF8(s32 a1, s32 a2)
+{
+    s32 func_00199AD0();
+    s32 func_0018C608();
+    s32 func_00195CE0();
+    s32 func_0018C5D8();
+    s32 func_0018E6D0();
+    void func_0018C550();
+    s32 v;
+    func_00199AD0(a2);
+    v = func_0018C608(a1);
+    func_00195CE0(v);
+    v = func_0018C5D8(a1);
+    func_0018E6D0(v);
+    func_0018C550(a1);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00153E48);
 
@@ -3234,7 +3991,23 @@ INCLUDE_ASM(const s32, "core/main", func_001547A8);
 
 INCLUDE_ASM(const s32, "core/main", func_00154848);
 
-INCLUDE_ASM(const s32, "core/main", func_00154A68);
+void func_00154A68(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6)
+{
+    extern s32 D_00393990;
+    s32 func_00154848();
+    u8 *p = (u8 *)(a1 + D_00393990);
+    s32 v = *(s32 *)(p + 0x3C);
+    u32 w;
+
+    if (v == 0) goto out;
+    if (*(u8 *)(p + 0x34) == 0) goto out;
+    w = *(u32 *)(p + 8);
+    func_00154848(*(s32 *)(a1 + 0xC), *(s32 *)(a1 + 0x10), a2,
+                  (w >> 14) & 0x3F, (w >> 20) & 0x3F, v);
+    return;
+out:
+    return;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00154AB0);
 
@@ -3271,7 +4044,16 @@ INCLUDE_ASM(const s32, "core/main", func_00155F88);
 
 INCLUDE_ASM(const s32, "core/main", func_001567B0);
 
-INCLUDE_ASM(const s32, "core/main", func_00156A30);
+void func_00156A30(s32 a1, s32 a2)
+{
+    extern s32 D_003D3CF0[];
+    extern s32 D_003D2A30[];
+    s32 v;
+    func_0019C0E8(a1, a2 << 2, &D_003D3CF0, 1);
+    v = a2 * 6;
+    func_0019B420(4, &D_003D2A30, v - 2);
+    func_0019C198();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00156A80);
 
@@ -3279,15 +4061,48 @@ INCLUDE_ASM(const s32, "core/main", func_00156D50);
 
 INCLUDE_ASM(const s32, "core/main", func_00156E48);
 
-INCLUDE_ASM(const s32, "core/main", func_001570F0);
+void func_001570F0(s32 a1, s32 a2)
+{
+    extern s32 D_003D3CF0[];
+    extern s32 D_003D2A30[];
+    s32 v;
+    func_0019C0E8(a1, a2 << 2, &D_003D3CF0, 1);
+    v = a2 * 6;
+    func_0019B420(4, &D_003D2A30, v - 2);
+    func_0019C198();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00157140);
 
-INCLUDE_ASM(const s32, "core/main", func_00157510);
+void func_00157510(s32 a1, s32 a2)
+{
+    extern s32 D_003D3CF0[];
+    extern s32 D_003D2A30[];
+    s32 v;
+    func_0019C0E8(a1, a2 << 2, &D_003D3CF0, 1);
+    v = a2 * 6;
+    func_0019B420(4, &D_003D2A30, v - 2);
+    func_0019C198();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00157560);
 
-INCLUDE_ASM(const s32, "core/main", func_001575F0);
+s32 func_001575F0(u32 a1)
+{
+    switch (a1) {
+    case 1024: return 10;
+    case 512: return 9;
+    case 256: return 8;
+    case 128: return 7;
+    case 64:  return 6;
+    case 32:  return 5;
+    case 16:  return 4;
+    case 8:   return 3;
+    case 4:   return 2;
+    case 2:   return 1;
+    default:  return 0;
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001576D8);
 
@@ -3299,12 +4114,32 @@ void func_00157710(s32 arg0, s32 arg1, u32 arg2)
     func_001576D8(buf[0], arg2);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00157748);
+/* Byte-matching: u64 bit-mask merge, two field probes and three calls. */
+s32 func_00157748(s32 off, s32 unused, s32 arg)
+{
+    u64 v6;
+    u64 v7;
+
+    func_001BA580(off, (s32 *)((u8 *)&v6 + 4), (s32 *)&v6);
+    func_001BA580(off, (s32 *)((u8 *)&v7 + 4), (s32 *)&v7);
+    v6 = (v6 & 0xFFFFFFFFFFFFC000ULL) | (v7 & 0x3FFF);
+    func_001576D8(v6, arg);
+    func_001576D8(v6, arg);
+    return func_001576D8(v6, arg);
+}
+
 
 void func_001577D0(void) {
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001577D8);
+s32 func_001577D8(s32 a1, s32 a2)
+{
+    s64 v[2];
+
+    func_001BA580(a1, (s32 *)v + 1, (s32 *)v);
+    func_001BA580(a2, (s32 *)(v + 1) + 1, (s32 *)(v + 1));
+    return (s64)(s32)(v[0] & 0x3FFF) == (s64)(s32)(v[1] & 0x3FFF);
+}
 
 s32 func_00157840(s32 arg0)
 {
@@ -3358,7 +4193,13 @@ void func_00157C50(void)
     func_0014C938(&D_00393480);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00157C70);
+void func_00157C70(s32 arg0, u32 arg1)
+{
+    s32 result = func_0014C788(0, arg0, 0x80, 5);
+
+    D_0039347C = result;
+    D_003D3D30[arg1] = result;
+}
 
 void func_00157CC0(s32 arg0)
 {
@@ -3418,7 +4259,13 @@ s32 func_00157DB0(u8 *arg0)
     return 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00157DE8);
+s32 func_00157DE8(s32 arg0, s32 arg1)
+{
+    s32 func_0014C9A0();
+    s32 v = func_0014C9A0(arg0, arg1);
+    func_00224B88(v, 0, arg1);
+    return v;
+}
 
 void func_00157E30(u32 *arg0, u32 arg1)
 {
@@ -3429,7 +4276,14 @@ void func_00157E30(u32 *arg0, u32 arg1)
         *arg0 = v + (arg1 - rem);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00157E60);
+s32 func_00157E60(s32 a1, s32 a2, s32 **a3, s32 a4)
+{
+    s32 func_002249D4();
+    s32 v4 = a1 * a2;
+    s32 result = func_002249D4(a4, *a3, v4);
+    *a3 = (s32 *)((u8 *)*a3 + v4);
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00157EA8);
 
@@ -3442,7 +4296,16 @@ u8 *func_00157F10(u8 **arg0)
     return result;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00157F30);
+extern u8 D_003D3D60[];
+extern u8 D_0038A318[];
+extern s32 func_00226310();
+
+s32 func_00157F30(s32 arg0)
+{
+    s32 p = (s32)D_003D3D60;
+    func_00226310(p, (s32)D_0038A318, arg0);
+    return p;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00157F70);
 
@@ -3450,9 +4313,30 @@ INCLUDE_ASM(const s32, "core/main", func_001580E0);
 
 void func_00158920(void) { func_002152C8(1); }
 
-INCLUDE_ASM(const s32, "core/main", func_00158928);
+extern s32 D_00393C5C;
 
-INCLUDE_ASM(const s32, "core/main", func_00158958);
+s32 func_00158928(void)
+{
+    func_001C0C50(D_00393C5C);
+    __asm__ volatile("sync");
+    __asm__ volatile("ei");
+    return 0;
+}
+
+void func_00158958(void)
+{
+    extern s32 D_00393C5C;
+    void func_001C0C60();
+    s32 func_00215600();
+    void func_00215508();
+
+    for (;;) {
+        do {
+            func_001C0C60(D_00393C5C);
+        } while (func_00215600() != 0);
+        func_00215508();
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00158988);
 
@@ -3603,7 +4487,15 @@ u32 func_00159E00(s32 arg0)
 
 INCLUDE_ASM(const s32, "core/main", func_00159E38);
 
-INCLUDE_ASM(const s32, "core/main", func_00159F00);
+void func_00159F00(a1, a2)
+s32 a1, a2;
+{
+    extern s32 D_00393C68;
+    extern s32 D_0038A440[];
+    s32 func_00211918();
+    func_00211918((s32)D_0038A440, a1, a2);
+    *(s32 *)(D_00393C68 + 116 * a1 + 100) = a2;
+}
 
 void func_00159F58(s32 arg0)
 {
@@ -3618,13 +4510,69 @@ s32 func_0015A0F0(s32 index)
     return *(s32 *)(D_00393C68 + index * 0x74 + 0x64);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0015A108);
+s32 func_0015A108(s32 a1, s32 a2)
+{
+    u8 *q = (u8 *)(a2 * 116 + D_00393C68);
+    s32 *i = *(s32 **)(q + 0x68);
+    s32 found = 0;
+
+    while (i != 0) {
+        if (i[1] == a1) {
+            found = 1;
+            break;
+        }
+        i = (s32 *)i[2];
+    }
+    if (found != 0)
+        return i[0];
+    return 127;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0015A150);
 
-INCLUDE_ASM(const s32, "core/main", func_0015A2A0);
+s32 func_0015A2A0(void)
+{
+    extern s32 D_003D7DE8[];
+    extern s32 D_00393558[];
+    s32 result;
+    if (D_003D7DE8[0] < 0x41) {
+        result = func_00169B40(0, 0x40);
+        *(s32 *)(result + 0x34) = 0;
+        *(s32 *)(result + 0x38) = 0;
+        *(s32 *)(result + 0x3C) = 0;
+    } else {
+        func_00169AC8(0x12, (s32)D_00393558, 3);
+        return 0;
+    }
+    return result;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_0015A300);
+void func_0015A300(u8 *arg0)
+{
+    s32 result;
+    s32 cmp;
+    u8 *a1 = arg0;
+
+    if (*(s32 *)(a1 + 0x34) != 0) { result = *(s32 *)(a1 + 0x38); *(s32 *)(*(s32 *)(a1 + 0x34) + 0x38) = result; }
+    if (*(s32 *)(a1 + 0x38) != 0) { result = *(s32 *)(a1 + 0x34); *(s32 *)(*(s32 *)(a1 + 0x38) + 0x34) = result; }
+    if (*(s32 *)(a1 + 0x3C) != 0)
+    {
+        *(s32 *)(*(s32 *)(a1 + 0x3C) + 8) -= 1;
+        __asm__ volatile("" ::: "memory");
+        if (**((s32 **)(a1 + 0x3C)) == (s32)a1)
+        {
+            **(s32 **)(a1 + 0x3C) = *(s32 *)(a1 + 0x34);
+            __asm__ volatile("" ::: "memory");
+        }
+        cmp = (*(s32 **)(a1 + 0x3C))[1];
+        if (cmp == (s32)a1)
+            (*(s32 **)(a1 + 0x3C))[1] = *(s32 *)(a1 + 0x38);
+    }
+    *(s32 *)(a1 + 0x34) = 0;
+    *(s32 *)(a1 + 0x38) = 0;
+    *(s32 *)(a1 + 0x3C) = 0;
+    func_00169B78(0, a1);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0015A388);
 
@@ -3636,7 +4584,29 @@ INCLUDE_ASM(const s32, "core/main", func_0015A7E8);
 
 INCLUDE_ASM(const s32, "core/main", func_0015A870);
 
-INCLUDE_ASM(const s32, "core/main", func_0015A908);
+void func_0015A908(s32 a1)
+{
+    extern s32 D_0038A498[];
+    s32 *i;
+    void func_0015F748();
+    void func_0015F770();
+    void func_0015FF18();
+    void func_0015F768();
+
+    func_0015F748();
+    func_0015F770(D_0038A498, 0x2CE);
+    i = (s32 *)D_003D7DE0[0];
+    while (i != 0)
+    {
+        if (i[0x28 / 4] == a1)
+        {
+            func_0015FF18(i[0x18 / 4]);
+            break;
+        }
+        i = (s32 *)i[0x34 / 4];
+    }
+    func_0015F768();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0015A968);
 
@@ -3670,7 +4640,15 @@ INCLUDE_ASM(const s32, "core/main", func_0015AD40);
 
 INCLUDE_ASM(const s32, "core/main", func_0015B360);
 
-INCLUDE_ASM(const s32, "core/main", func_0015B678);
+void func_0015B678(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6)
+{
+    extern s32 D_0039353C;
+    s32 v12[24];
+
+    v12[9] = D_0039353C;
+    func_0015AD40(a1, a2, a3, (s32)v12);
+    func_0015B360(a2, a3, a4, a5, a6, (s32)v12);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0015B6F8);
 
@@ -3806,7 +4784,11 @@ INCLUDE_ASM(const s32, "core/main", func_0015BCF0);
 
 INCLUDE_ASM(const s32, "core/main", func_0015BD30);
 
-INCLUDE_ASM(const s32, "core/main", func_0015BF30);
+s32 func_0015BF30(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5)
+{
+    s32 func_0015C050();
+    return func_0015C050(-1, a1, a2, a3, a4, a5);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0015BF70);
 
@@ -3822,7 +4804,17 @@ INCLUDE_ASM(const s32, "core/main", func_0015C418);
 
 INCLUDE_ASM(const s32, "core/main", func_0015C488);
 
-INCLUDE_ASM(const s32, "core/main", func_0015C520);
+void func_0015C520(u8 *arg0, u8 *arg1)
+{
+    extern s32 D_0038A498[];
+    void func_0015A7E8();
+    void func_00159E38();
+    func_0015F748();
+    func_0015F770(D_0038A498, 0xA12);
+    func_0015A7E8(arg0, arg1);
+    func_00159E38(arg0, arg1);
+    func_0015F768();
+}
 
 extern s32 D_0038A498[];
 void func_0015C578(void)
@@ -3835,7 +4827,15 @@ void func_0015C578(void)
     func_0015F768();
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0015C5A8);
+void func_0015C5A8(u8 *arg0)
+{
+    extern s32 D_0038A498[];
+    func_0015F748();
+    func_0015F770(D_0038A498, 0xA40);
+    func_0015A968(arg0);
+    func_00159F00(arg0, 0x7F);
+    func_0015F768();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0015C5F0);
 
@@ -3866,7 +4866,16 @@ INCLUDE_ASM(const s32, "core/main", func_0015CA40);
 
 INCLUDE_ASM(const s32, "core/main", func_0015CB68);
 
-INCLUDE_ASM(const s32, "core/main", func_0015CC58);
+typedef struct { UnalignedU64 a, b, c, d; } S32;
+
+void func_0015CC58(s32 a1)
+{
+    extern s32 D_00393C68;
+    extern u8 D_00370270[];
+    u8 *p = (u8 *)(a1 * 0x74 + D_00393C68);
+
+    *(S32 *)(p + 0x34) = *(S32 *)D_00370270;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0015CCB8);
 
@@ -3939,9 +4948,37 @@ void func_0015D3D0(void) { func_00160758(); }
 
 void func_0015D3D8(void) { func_00160760(); }
 
-INCLUDE_ASM(const s32, "core/main", func_0015D3E0);
+extern s32 D_0039354C;
 
-INCLUDE_ASM(const s32, "core/main", func_0015D428);
+s32 func_0015D3E0(void)
+{
+    s32 result;
+
+    if (D_0039354C == 0) goto out;
+    if (func_0015F780() == 0) goto out;
+    func_00160748();
+    func_0015F768();
+    return 1;
+out:
+    result = 0;
+    return result;
+}
+
+extern s32 D_0039354C;
+
+s32 func_0015D428(void)
+{
+    s32 result;
+
+    if (D_0039354C == 0) goto out;
+    if (func_0015F780() == 0) goto out;
+    func_00160750();
+    func_0015F768();
+    return 1;
+out:
+    result = 0;
+    return result;
+}
 
 void func_0015D470(void) { func_0015D3E0(); }
 
@@ -4038,7 +5075,10 @@ s32 func_0015D5E8(void)
 
 void func_0015D608(void) { func_00160958(); }
 
-INCLUDE_ASM(const s32, "core/main", func_0015D610);
+s32 func_0015D610(s32 a1, s32 a2, u8 *a3)
+{
+    return ((s32 (*)(s32, s32))*(u32 *)(116 * a1 + D_00393C68 + 32))(a2, *(u32 *)(a3 + 32));
+}
 
 s32 func_00160AD0(void);
 
@@ -4058,23 +5098,110 @@ void func_00160B10(void *arg0);
 
 void func_0015D688(void *arg0) { func_00160B10(arg0); }
 
-INCLUDE_ASM(const s32, "core/main", func_0015D690);
+extern s32 D_0038A498[];
+void func_0015D690(s32 a1, s32 a2, s32 a3)
+{
+    void func_0015F748();
+    void func_0015F770();
+    void func_00159F88();
+    void func_0015BD30();
+    void func_0015F768();
 
-INCLUDE_ASM(const s32, "core/main", func_0015D6F8);
+    func_0015F748();
+    func_0015F770(D_0038A498, 0xE04);
+    func_00159F88(a1, a2, a3);
+    func_0015BD30();
+    func_0015F768();
+}
 
-INCLUDE_ASM(const s32, "core/main", func_0015D750);
+void func_0015D6F8(u8 *arg0, u8 *arg1)
+{
+    extern s32 D_0038A498[];
+    func_0015F748();
+    func_0015F770(D_0038A498, 0xE11);
+    func_00159E38(arg0, arg1);
+    func_0015BD30();
+    func_0015F768();
+}
+
+s32 func_0015D750(u8 *arg0, u8 *arg1)
+{
+    extern s32 D_0038A498[];
+    void func_0015F748();
+    void func_0015F770();
+    s32 func_0015A108();
+    void func_0015F768();
+    s32 v;
+
+    func_0015F748();
+    func_0015F770(D_0038A498, 0xE20);
+    v = func_0015A108(arg0, arg1);
+    func_0015F768();
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0015D7A8);
 
 INCLUDE_ASM(const s32, "core/main", func_0015D850);
 
-INCLUDE_ASM(const s32, "core/main", func_0015D8F0);
+void func_0015D8F0(u8 *arg0, u8 *arg1)
+{
+    extern s32 D_0038A498[];
+    func_0015F748();
+    func_0015F770(D_0038A498, 0xE64);
+    func_00159F00(arg0, arg1);
+    func_0015BD30();
+    func_0015F768();
+}
 
-INCLUDE_ASM(const s32, "core/main", func_0015D948);
+void func_0015F748();
+void func_0015F770();
+void func_00159F00();
+void func_0015BD30();
+void func_0015F768();
 
-INCLUDE_ASM(const s32, "core/main", func_0015D990);
+void func_0015D948(s32 arg0)
+{
+    func_0015F748(arg0);
+    func_0015F770(D_0038A498, 0xE71);
+    func_00159F00(arg0, 0x7F);
+    func_0015BD30();
+    func_0015F768();
+}
 
-INCLUDE_ASM(const s32, "core/main", func_0015D9D8);
+extern s32 D_0038A498[];
+
+s32 func_0015D990(s32 arg0)
+{
+    void func_0015F748();
+    void func_0015F770();
+    s32 func_0015A0F0();
+    void func_0015F768();
+    s32 v;
+
+    func_0015F748(arg0);
+    func_0015F770((s32)D_0038A498, 0xE80);
+    v = func_0015A0F0(arg0);
+    func_0015F768();
+    return v;
+}
+
+void func_0015D9D8(s32 a1, s32 a2)
+{
+    s32 i = 0;
+
+    func_0015F748();
+    func_0015F770(D_0038A498, 0xE95);
+    if (D_00393544 > 0) {
+        do {
+            if (i != a1)
+                func_00159F00(i, a2);
+            i++;
+        } while (i < D_00393544);
+    }
+    func_0015BD30();
+    func_0015F768();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0015DA60);
 
@@ -4084,13 +5211,63 @@ INCLUDE_ASM(const s32, "core/main", func_0015DB70);
 
 INCLUDE_ASM(const s32, "core/main", func_0015DBF8);
 
-INCLUDE_ASM(const s32, "core/main", func_0015DC68);
+void func_0015DC68(void)
+{
+    s32 i = 0;
+
+    func_0015F748();
+    func_0015F770(D_0038A498, 0xEFD);
+    if (D_00393544 > 0) {
+        do {
+            func_00159F58(i);
+            i++;
+        } while (i < D_00393544);
+    }
+    func_0015BD30();
+    func_0015F768();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0015DCD0);
 
-INCLUDE_ASM(const s32, "core/main", func_0015DD70);
+s32 func_0015DD70(u8 *arg0)
+{
+    extern s32 D_00393530;
+    if (D_0039354C != 0) {
+        s32 *v = func_00169B40(0, 0x1C);
+        func_00224B88(v, 0, 0x1C);
+        v[1] = 2;
+        *(s32 *)((u8 *)v + 0x18) |= 3;
+        v[2] = (s32)arg0;
+        return (s32)v;
+    }
+    return D_00393530;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_0015DDE8);
+/* Byte-matching: early-out guard + 3-way switch dispatcher with tail calls. */
+void func_0015DDE8(u8 *arg0)
+{
+    void func_00160B48();
+    void func_00169AC0();
+    extern s32 D_00393558[];
+    s32 v;
+
+    if (arg0 == 0)
+        return;
+    v = *(s32 *)(arg0 + 4);
+    switch (v) {
+    case 2:
+        func_00169B78(0, (s32)arg0);
+        return;
+    case 1:
+        func_00160B48(*(s32 *)(arg0 + 8));
+        func_00169B78(0, (s32)arg0);
+        return;
+    default:
+        func_00169AC0(0x13, &D_00393558[0]);
+        return;
+    }
+}
+
 
 s32 func_0015DE78(void) { return 0; }
 
@@ -4109,7 +5286,16 @@ s32 func_0015DEA8(void) { return 0; }
 
 s32 func_0015DEB0(void) { return 0; }
 
-ASM_FUNC(const s32, func_0015DEB8);
+extern s32 D_00393534;
+extern s32 D_00393538;
+
+/* Byte-matching.  Clears the flag word and stores arg * 65536 as an integer
+   through the FPU (cvt.w.s + swc1). */
+void func_0015DEB8(f32 arg)
+{
+    D_00393534 = 0;
+    D_00393538 = (s32)(arg * 65536.0f);
+}
 
 s32 func_0015DED8(u8 *arg0)
 {
@@ -4191,7 +5377,20 @@ s32 func_0015E3B0(const s32 *p) { return (p[0] & 0xA) == 0; }
 
 INCLUDE_ASM(const s32, "core/main", func_0015E3C0);
 
-INCLUDE_ASM(const s32, "core/main", func_0015E510);
+/* Byte-matching: linked-list search returning the matching node pointer. */
+extern s32 D_003702D0[];
+
+s32 func_0015E510(s32 target)
+{
+    s32 *p = (s32 *)D_003702D0[0];
+    s32 r = 0;
+
+    while (p != 0) {
+        if (*p == target) { r = (s32)p; break; }
+        p = *(s32 **)((u8 *)p + 0x30);
+    }
+    return r;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0015E540);
 
@@ -4240,9 +5439,36 @@ void func_0015E8C0(void)
 
 INCLUDE_ASM(const s32, "core/main", func_0015E8D8);
 
-INCLUDE_ASM(const s32, "core/main", func_0015E918);
+s32 func_0015E918(u32 a1)
+{
+    s32 result = 0;
+    u32 minus1 = 0xFFFFFFFFu;
+    s32 v2;
+    u16 lo;
 
-INCLUDE_ASM(const s32, "core/main", func_0015E980);
+    if (a1 != minus1) {
+        lo = (u16)a1;
+        v2 = func_0015E510(a1 >> 16);
+        if (v2 != 0)
+            result = *(s32 *)(*(s32 *)(v2 + 0x1C) + 0x10) + 68 * lo;
+    }
+    return result;
+}
+
+s32 func_0015E980(s32 a1)
+{
+    extern s32 D_003702D0[];
+    s32 v1 = D_003702D0[0];
+    if (v1 != 0) {
+        do {
+            if (a1 == -1) *(u64 *)(v1 + 8) = 0;
+            else *(u64 *)(v1 + 8) &= ~(s32)(1 << a1);
+            if (*(u64 *)(v1 + 8) == 0) *(u32 *)(v1 + 24) = 3;
+            v1 = *(s32 *)(v1 + 48);
+        } while (v1 != 0);
+    }
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0015E9D8);
 
@@ -4313,7 +5539,22 @@ s32 func_0015F6C0(void) { return D_003935A8; }
 
 s32 func_0015F6C8(void) { return 1; }
 
-INCLUDE_ASM(const s32, "core/main", func_0015F6D0);
+void func_0015F6D0(void)
+{
+    s32 func_001C0C20();
+    s32 func_001C0C40();
+    s32 x[6];
+    s32 v;
+    if (D_003935AC < 0) {
+        x[0] = 0;
+        x[1] = 1;
+        x[2] = 0;
+        x[5] = (s32)&D_003935AC;
+        v = func_001C0C20(x);
+        D_003935AC = v;
+        func_001C0C40(v);
+    }
+}
 
 extern s32 D_003935AC;
 
@@ -4389,7 +5630,25 @@ INCLUDE_ASM(const s32, "core/main", func_0015FA08);
 
 INCLUDE_ASM(const s32, "core/main", func_0015FAC8);
 
-INCLUDE_ASM(const s32, "core/main", func_0015FB60);
+void func_0015FB60(u8 *a1)
+{
+    void func_00163B88();
+    void func_00159928();
+    s32 v = *(s32 *)(a1 + 4);
+
+    switch (v) {
+    case 1:
+        func_00163B88(a1);
+        *(s32 *)(a1 + 4) = 0;
+        break;
+    case 11:
+        func_00159928(a1);
+        *(s32 *)(a1 + 4) = 0;
+        break;
+    default:
+        *(s32 *)(a1 + 4) = 0;
+    }
+}
 
 extern u8 D_003D7E48[];
 
@@ -4404,7 +5663,24 @@ void func_0015FBC0(void)
     } while ((s32)p < (s32)end);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0015FBF8);
+s32 func_0015FBF8(s32 a1)
+{
+    extern s32 D_00393C74;
+    s32 v1[4];
+    void func_0015FBC0();
+    s32 func_00163DD8();
+    void func_00162228();
+    void func_00164978();
+    void func_001616B0();
+    void func_001597F0();
+    func_0015FBC0();
+    D_00393C74 = func_00163DD8(a1);
+    func_00162228(v1);
+    func_00164978(v1);
+    func_001616B0();
+    func_001597F0();
+    return 3;
+}
 
 /* Byte-matching. */
 void func_0015FC50(void *arg0)
@@ -4450,7 +5726,42 @@ INCLUDE_ASM(const s32, "core/main", func_00160078);
 
 INCLUDE_ASM(const s32, "core/main", func_001600B8);
 
-INCLUDE_ASM(const s32, "core/main", func_001600F8);
+void func_001600F8(void *arg0)
+{
+    void *p = arg0;
+    extern s32 D_003935B8[];
+    extern void func_00163838();
+    extern void func_00162020();
+    extern void func_00159DA8();
+    extern void func_00162B98();
+    extern void func_00161300();
+    extern void func_00169AC0();
+
+    s32 sel = *(s32 *)(*(s32 *)((u8 *)p + 4) + 4);
+
+    /* Retail dispatches through jtbl_0038A720 (an 11-entry table at
+     * 0x0038A720, already linked from asm/data/main/rodata.rodata.s).  This
+     * tree's linker script puts build/src/core/main.c.o(.rodata*) inside
+     * .main, so a `switch` here would emit a *second* 44-byte table and push
+     * .main past its retail end (the link fails outright).  An equivalent
+     * compare chain keeps the behaviour - sel 1 -> func_00163838, 4 ->
+     * func_00162020, 8 -> func_00162B98, 10 -> func_00161300, 11 ->
+     * func_00159DA8, everything else -> func_00169AC0(0x15, &D_003935B8) -
+     * and needs no table.  See REFERENCE-BEHAVIORMATCH.md for the recipe that
+     * would let the table come back as a byte match. */
+    if (sel == 1)
+        func_00163838(*(s32 *)p);
+    else if (sel == 4)
+        func_00162020(*(s32 *)p);
+    else if (sel == 8)
+        func_00162B98(*(s32 *)p);
+    else if (sel == 10)
+        func_00161300(*(s32 *)p);
+    else if (sel == 11)
+        func_00159DA8(*(s32 *)p);
+    else
+        func_00169AC0(0x15, &D_003935B8);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00160168);
 
@@ -4536,13 +5847,72 @@ INCLUDE_ASM(const s32, "core/main", func_00160400);
 
 INCLUDE_ASM(const s32, "core/main", func_001604C8);
 
-INCLUDE_ASM(const s32, "core/main", func_00160550);
+extern s32 D_003935B8[];
+s32 func_00160550(u8 *a1, s32 a2)
+{
+    s32 v3;
+    s32 result;
+    v3 = a2;
+    if (*(s32 *)(*(s32 *)(a1 + 4) + 4) == 1) {
+        result = func_001646A8(*(s32 *)a1, a2);
+    } else {
+        func_00169AC0(0x15, (s32)D_003935B8);
+        result = 0;
+    }
+    *(s32 *)(a1 + 4) = v3;
+    return result;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001605B8);
+s32 func_001605B8(u8 *a1, s32 a2)
+{
+    extern s32 D_003935B8[];
+    s32 v3 = a2;
+    s32 result;
 
-INCLUDE_ASM(const s32, "core/main", func_00160630);
+    if (*(s32 *)(*(s32 *)(a1 + 4) + 4) == 1) {
+        if (*(s32 *)a1 == -1)
+            result = 0;
+        else
+            result = func_00164708(*(s32 *)a1, a2);
+    } else {
+        func_00169AC0(0x15, (s32)D_003935B8);
+        result = 0;
+    }
+    *(s32 *)(a1 + 4) = v3;
+    return result;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00160680);
+extern s32 D_003935B8[];
+
+s32 func_00160630(u8 *arg0, s32 arg1, s32 arg2)
+{
+    s32 func_00164768();
+    void func_00169AC0();
+    s32 *p = *(s32 **)((u8 *)arg0 + 4);
+    s32 result;
+
+    if (p[1] == 1)
+        result = func_00164768(*(s32 *)arg0, arg1, arg2);
+    else {
+        func_00169AC0(0x15, &D_003935B8);
+        result = 0;
+    }
+    return result;
+}
+
+void func_00160680(u8 *a1)
+{
+    s32 neg = -(*(s32 *)(a1 + 8) & 1);
+
+    if (neg != 0)
+        goto tail;
+    if (*(s32 *)(*(s32 *)(a1 + 4) + 4) == 1)
+        func_001647C8((u8 *)*(s32 *)a1);
+    else
+        func_00169AC0(0x15, &D_003935B8);
+tail:
+    func_0015F888(a1);
+}
 
 void func_00169AC0();
 void func_00164878(s32);
@@ -4606,7 +5976,7 @@ void func_001608C8(void) { func_00164318(); }
 
 void func_001608D0(void) { func_00164348(); }
 
-s32 func_001643B8(void);
+s32 func_001643B8();
 
 s32 func_001608D8(void)
 {
@@ -4620,14 +5990,14 @@ s32 func_001608F8(void)
     return func_00164408();
 }
 
-s32 func_001644C0(void);
+s32 func_001644C0();
 
 s32 func_00160918(void)
 {
     return func_001644C0();
 }
 
-s32 func_00164510(void);
+s32 func_00164510();
 
 s32 func_00160938(void)
 {
@@ -4744,9 +6114,32 @@ INCLUDE_ASM(const s32, "core/main", func_001610A0);
 
 INCLUDE_ASM(const s32, "core/main", func_001611A8);
 
-INCLUDE_ASM(const s32, "core/main", func_00161230);
+s32 func_00161230(s32 a1) {
+s32 v2;
+bool v3;
+s32 result;
+v2 = a1;
+if ( *(u32 *)(a1 + 4) != 0 )
+{
+v3 = func_0015FEB0((s32 *)*(u32 *)a1) != 0;
+result = 1;
+if ( v3 )
+return result;
+v2 = a1;
+}
+func_00169B78(0, v2);
+return 0;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00161280);
+extern s32 func_0015FF18();
+extern void func_00169B78(s32, s32);
+
+void func_00161280(s32 arg0)
+{
+    if (*(s32 *)(arg0 + 4) != 0)
+        func_0015FF18(*(s32 *)arg0);
+    func_00169B78(0, arg0);
+}
 
 void func_00160078(void *p);
 
@@ -4808,15 +6201,40 @@ void func_00161388(u8 *a0, u8 *a1)
 
 INCLUDE_ASM(const s32, "core/main", func_001613D8);
 
-INCLUDE_ASM(const s32, "core/main", func_00161468);
+s32 func_00161468(s32 a1, s32 a2, s32 a3)
+{
+    s32 v;
+
+    if (a3 != 0)
+        v = func_00160ED0(a1);
+    else
+        v = func_00161060(a1);
+    return func_00160A48(v, a2, a3);
+}
 
 s32 func_001614C0(u8 *p, u8 value) { p[0xC] = value; return 1; }
 
 s32 func_001614D0(const s32 *p) { return p[9] * 8 + 0x60; }
 
-INCLUDE_ASM(const s32, "core/main", func_001614E0);
+void func_001614E0(u8 *a1, s32 a2)
+{
+    s32 v4;
+    s32 v5;
+    v4 = func_001614D0(a2);
+    v5 = func_00169BB0(0, *(s32 *)(a1 + 0x28), v4);
+    *(s32 *)(a1 + 0x28) = v5;
+    func_002249D4(v5, a2, func_001614D0(a2));
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00161548);
+void func_00161548(u8 *a1, s32 a2)
+{
+    s32 v4;
+    s32 v5;
+    v4 = func_001614D0(a2);
+    v5 = func_00169B40(0, v4);
+    *(s32 *)(a1 + 0x28) = v5;
+    func_002249D4(v5, a2, func_001614D0(a2));
+}
 
 void func_001615B0(s32 *p)
 {
@@ -4873,9 +6291,30 @@ INCLUDE_ASM(const s32, "core/main", func_00161FB8);
 
 INCLUDE_ASM(const s32, "core/main", func_00162020);
 
-INCLUDE_ASM(const s32, "core/main", func_00162060);
+s32 func_00162060(s32 arg0, s32 arg1)
+{
+    extern s32 D_003D82C8[];
+    s32 func_00161858();
+    s32 *p = &D_003D82C8[15 * arg0];
+    s32 v = -(*p & 1);
 
-INCLUDE_ASM(const s32, "core/main", func_001620E8);
+    if (v == 0)
+        goto zero;
+    func_001614E0((u8 *)p, arg1);
+    func_00161858(arg0, arg1, 1);
+    return -(*p & 1);
+zero:
+    return 0;
+}
+
+s32 func_001620E8(s32 arg0, s32 a2, s32 a3, s32 a4, s32 a5)
+{
+    extern s32 D_003D82C8[];
+    s32 func_00161858();
+
+    func_00161858(arg0, 0, 0);
+    return -(D_003D82C8[15 * arg0] & 1);
+}
 
 s32 func_00162138(void) { return -1; }
 
@@ -4883,7 +6322,37 @@ s32 func_00162140(void) { return -1; }
 
 s32 func_00162148(u8 *p, u8 value) { p[0xC] = value; return 1; }
 
-INCLUDE_ASM(const s32, "core/main", func_00162158);
+#include "common.h"
+
+#include "common.h"
+
+s32 func_00162158(s32 arg0, s32 arg1)
+{
+    extern s32 D_003935E0;
+    extern u8 D_003935E8;
+    s32 func_00160E28();
+    s32 func_00160BF0();
+    s32 v = arg0 * 8;
+    s32 result;
+
+    D_003935DC = arg0;
+    D_003935E0 = v;
+    D_003935E4 = arg1;
+    if (arg1 < arg0)
+        D_003935E4 = 0x7FFFFFFF;
+    result = D_003935E4 < v;
+    if (!result)
+    {
+        D_003935E8 = 0;
+    }
+    else
+    {
+        s32 r = func_00160E28(v - D_003935E4, v - arg0);
+        result = func_00160BF0(0x7F, r);
+        D_003935E8 = result;
+    }
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001621C8);
 
@@ -4938,9 +6407,33 @@ INCLUDE_ASM(const s32, "core/main", func_00162820);
 
 INCLUDE_ASM(const s32, "core/main", func_00162950);
 
-INCLUDE_ASM(const s32, "core/main", func_00162AA8);
+s32 func_00162AA8(s32 a1)
+{
+    s32 v2;
+    if (*(s32 *)(a1 + 0x18) != 0) {
+        if (func_0015FEB0((s32 *)*(s32 *)a1) != 0) return 1;
+    }
+    v2 = *(s32 *)(a1 + 0x10);
+    if (v2 != 0) ((void (*)(s32))v2)(*(s32 *)(a1 + 0x14));
+    func_00169B78(0, a1);
+    return 0;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00162B08);
+void func_00162B08(s32 arg0) {
+    extern s32 func_0015FF18();
+    extern void func_00169B78(s32, s32);
+    void (*f)();
+    if (*(s32 *)(arg0 + 0x18) != 0) {
+        func_0015FF18(*(s32 *)arg0);
+        f = *(void (**)())(arg0 + 0x10);
+    } else {
+        f = *(void (**)())(arg0 + 0x10);
+    }
+    if (f != 0) {
+        f(*(s32 *)(arg0 + 0x14));
+    }
+    func_00169B78(0, arg0);
+}
 
 void func_00162B58(s32 *arg1)
 {
@@ -4994,7 +6487,16 @@ INCLUDE_ASM(const s32, "core/main", func_00162C68);
 
 INCLUDE_ASM(const s32, "core/main", func_00162CF8);
 
-INCLUDE_ASM(const s32, "core/main", func_00162DF8);
+s32 func_00162DF8(s32 arg0, s32 arg1, s32 arg2)
+{
+    s32 func_001626A8();
+    s32 func_00160A48();
+    s32 v[4];
+    s32 r;
+
+    r = func_001626A8(arg0, arg1, v);
+    return func_00160A48(r, arg1, arg2);
+}
 
 s32 func_00162E40(s32 *arg1)
 {
@@ -5010,13 +6512,52 @@ s32 func_00162E60(u8 *p, u8 value) { p[0xC] = value; return 1; }
 
 INCLUDE_ASM(const s32, "core/main", func_00162E70);
 
-INCLUDE_ASM(const s32, "core/main", func_00162EA0);
+s64 func_00162EA0(s32 *a1)
+{
+    s32 a = a1[0];
+    s32 b = a1[1];
+    s32 c = a1[2];
+    s64 func_00162E70();
 
-INCLUDE_ASM(const s32, "core/main", func_00162EF8);
+    if (__builtin_expect(a < 0, 1)) a = -a;
+    if (__builtin_expect(b < 0, 1)) b = -b;
+    if (__builtin_expect(c < 0, 1)) c = -c;
+    return func_00162E70(func_00162E70(a, b), c);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00162F68);
+s32 func_00162EF8(s32 *a1, s32 *a2)
+{
+    s32 v4 = func_00160BF0(a1[0], a2[0]);
+    s32 v5 = func_00160BF0(a1[1], a2[1]);
 
-INCLUDE_ASM(const s32, "core/main", func_00162FD8);
+    return v4 + v5 + func_00160BF0(a1[2], a2[2]);
+}
+
+s32 func_00162F68(s32 *a1, s32 *a2)
+{
+    s32 v4 = func_00160CE0(a1[0], a2[0]);
+    s32 v5 = func_00160CE0(a1[1], a2[1]);
+
+    return v4 + v5 + func_00160CE0(a1[2], a2[2]);
+}
+
+s32 func_00162FD8(s32 *a1, s32 *a2, u32 *a3)
+{
+
+
+    s32 v6;
+s32 v7;
+s32 v8;
+s32 result;
+v6 = func_00160BF0(a1[1], a2[2]);
+*a3 = v6 - func_00160BF0(a1[2], a2[1]);
+v7 = func_00160BF0(a1[2], *a2);
+a3[1] = v7 - func_00160BF0(*a1, a2[2]);
+v8 = func_00160BF0(*a1, a2[1]);
+result = func_00160BF0(a1[1], *a2);
+a3[2] = v8 - result;
+return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00163088);
 
@@ -5024,7 +6565,32 @@ INCLUDE_ASM(const s32, "core/main", func_00163400);
 
 INCLUDE_ASM(const s32, "core/main", func_00163568);
 
-INCLUDE_ASM(const s32, "core/main", func_001636D0);
+void func_001636D0(u8 *arg0)
+{
+    s32 result;
+    s32 cmp;
+    u8 *a1 = arg0;
+
+    if (*(s32 *)(a1 + 0x10) != 0) { result = *(s32 *)(a1 + 0x14); *(s32 *)(*(s32 *)(a1 + 0x10) + 0x14) = result; }
+    if (*(s32 *)(a1 + 0x14) != 0) { result = *(s32 *)(a1 + 0x10); *(s32 *)(*(s32 *)(a1 + 0x14) + 0x10) = result; }
+    if (*(s32 *)(a1 + 0x18) != 0)
+    {
+        *(s32 *)(*(s32 *)(a1 + 0x18) + 8) -= 1;
+        __asm__ volatile("" ::: "memory");
+        if (**((s32 **)(a1 + 0x18)) == (s32)a1)
+        {
+            **(s32 **)(a1 + 0x18) = *(s32 *)(a1 + 0x10);
+            __asm__ volatile("" ::: "memory");
+        }
+        cmp = (*(s32 **)(a1 + 0x18))[1];
+        if (cmp == (s32)a1)
+            (*(s32 **)(a1 + 0x18))[1] = *(s32 *)(a1 + 0x14);
+    }
+    *(s32 *)(a1 + 0x10) = 0;
+    *(s32 *)(a1 + 0x14) = 0;
+    *(s32 *)(a1 + 0x18) = 0;
+    func_00169B78(0, a1);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00163758);
 
@@ -5050,7 +6616,20 @@ INCLUDE_ASM(const s32, "core/main", func_00163878);
 
 INCLUDE_ASM(const s32, "core/main", func_00163900);
 
-INCLUDE_ASM(const s32, "core/main", func_00163988);
+void func_00163988(u8 *arg0)
+{
+    void func_00165120();
+    void func_00167488();
+    void func_00169AC0();
+    void func_001636D0();
+    s32 v = *(s32 *)(arg0 + 8);
+    switch (v) {
+    case 1: func_00165120(*(s32 *)(arg0 + 4)); break;
+    case 4: func_00167488(*(s32 *)(arg0 + 4)); break;
+    default: func_00169AC0(0x1B, &D_003935F8);
+    }
+    func_001636D0(arg0);
+}
 
 void func_001639F0(u8 *arg0)
 {
@@ -5103,15 +6682,70 @@ void func_00163B88(u8 *arg0)
     }
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00163BC8);
+s32 func_00163BC8(u8 *arg0)
+{
+    s32 func_001651D0();
+    s32 func_00167750();
+    void func_00169AC0();
+    s32 v = *(s32 *)(arg0 + 0x18);
+    switch (v) {
+    case 1: return func_001651D0();
+    case 4: return func_00167750();
+    default: func_00169AC0(0x1B, &D_003935F8); return 0;
+    }
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00163C20);
+s32 func_00163C20(u8 *arg0)
+{
+    s32 func_00165550();
+    s32 func_001674A0();
+    s32 v = *(s32 *)(arg0 + 0x18);
 
-INCLUDE_ASM(const s32, "core/main", func_00163C70);
+    switch (v) {
+    case 1: return func_00165550();
+    case 4: return func_001674A0((s32)arg0);
+    default: return 0;
+    }
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00163CC8);
+s32 func_00163C70(u8 *arg0)
+{
+    s32 func_00165428();
+    s32 func_001674C0();
+    void func_00169AC0();
+    s32 v = *(s32 *)(arg0 + 8);
+    switch (v) {
+    case 1: return func_00165428(*(s32 *)(arg0 + 4));
+    case 4: return func_001674C0(*(s32 *)(arg0 + 4));
+    default: func_00169AC0(0x1B, &D_003935F8); return -1;
+    }
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00163D20);
+s32 func_00163CC8(u8 *arg0)
+{
+    s32 func_00165448();
+    s32 func_001674E0();
+    void func_00169AC0();
+    s32 v = *(s32 *)(arg0 + 8);
+    switch (v) {
+    case 1: return func_00165448(*(s32 *)(arg0 + 4));
+    case 4: return func_001674E0(*(s32 *)(arg0 + 4));
+    default: func_00169AC0(0x1B, &D_003935F8); return -1;
+    }
+}
+
+s32 func_00163D20(u8 *arg0)
+{
+    s32 func_00165500();
+    s32 func_00167978();
+    void func_00169AC0();
+    s32 v = *(s32 *)(arg0 + 0x1C);
+    switch (v) {
+    case 1: return func_00165500();
+    case 4: return func_00167978();
+    default: func_00169AC0(0x1B, &D_003935F8); return 0;
+    }
+}
 
 void func_00163D78(u32 value) { func_001654C8((u8)value); }
 
@@ -5225,15 +6859,54 @@ void func_00164348(s32 *arg0)
     func_00165318(arg0[1]);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00164378);
+s32 func_00164378(s32 a1)
+{
+    s32 func_00165320();
+    if (a1 == -1) return 0;
+    if (*(s32 *)a1 != 2) return func_00165320(*(s32 *)(a1 + 4));
+    return 0;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001643B8);
+s32 func_001643B8(arg0)
+s32 arg0;
+{
+    s32 func_00164C40();
+    s32 func_00165340();
+
+    if (arg0 != -1) {
+        if (*(s32 *)arg0 == 2)
+            return func_00164C40(*(s32 *)((u8 *)arg0 + 4));
+        else
+            return func_00165340(*(s32 *)((u8 *)arg0 + 4));
+    }
+    return -1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00164408);
 
-INCLUDE_ASM(const s32, "core/main", func_001644C0);
+s32 func_001644C0(arg0)
+s32 arg0;
+{
+    s32 func_00164EF0();
+    s32 func_001653C8();
 
-INCLUDE_ASM(const s32, "core/main", func_00164510);
+    if (arg0 != -1) {
+        if (*(s32 *)arg0 == 2)
+            return func_00164EF0(*(s32 *)((u8 *)arg0 + 4));
+        else
+            return func_001653C8(*(s32 *)((u8 *)arg0 + 4));
+    }
+    return -1;
+}
+
+s32 func_00164510(s32 a1, s32 a2)
+{
+    s32 func_00164CE8();
+
+    if (a1 != -1)
+        return func_00164CE8(*(s32 *)(a1 + 4), a2);
+    return -1;
+}
 
 s32 func_00164540(void) { return -1; }
 
@@ -5291,7 +6964,19 @@ s32 func_00164768(u8 *arg0, s32 arg1)
     }
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001647C8);
+void func_001647C8(u8 *arg0)
+{
+    void func_00166FC8();
+    void func_00167880();
+    void func_00169AC0();
+    s32 v = *(s32 *)arg0;
+    switch (v) {
+    case 1: func_00166FC8(*(s32 *)(arg0 + 4)); break;
+    case 4: func_00167880(*(s32 *)(arg0 + 4)); break;
+    default: func_00169AC0(0x1B, &D_003935F8);
+    }
+    func_00169B78(0, (s32)arg0);
+}
 
 void func_00164838(s32 arg0)
 {
@@ -5424,7 +7109,15 @@ s32 func_00164FB0(void)
 
 INCLUDE_ASM(const s32, "core/main", func_00164FD0);
 
-INCLUDE_ASM(const s32, "core/main", func_00165058);
+s32 func_00165058(s32 a0, s32 a1, s32 a2, s32 a3, s32 a4)
+{
+    void func_00163088();
+    s32 func_001670E0();
+    s32 v[4];
+
+    func_00163088(a1, v);
+    return func_001670E0(a0, v, a2, a3, a4);
+}
 
 void func_001650C0(void) {
 }
@@ -5498,9 +7191,39 @@ s32 func_001651D0(void)
     return func_001672B8();
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001651F0);
+s32 func_001651F0(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6, s32 a7)
+{
+    extern s32 D_00393618;
+    s32 buffer[4];
+    s32 b = a2 & 0xFFFF;
+    s32 c = a3 & 0xFFFF;
+    s32 p;
+    s32 func_00167158();
 
-INCLUDE_ASM(const s32, "core/main", func_00165288);
+    if (a5 != 0) {
+        func_00163088(a5, buffer);
+        p = (s32)buffer;
+    } else {
+        p = (s32)&D_00393618;
+    }
+    return func_00167158(a1, b, c, a4, p, a6, a7);
+}
+
+void func_00165288(s32 a1, s32 a2)
+{
+    void func_00163088();
+    void func_00167160();
+    s32 v[4];
+    s32 *p;
+
+    if (a2 != 0) {
+        func_00163088(a2, v);
+        p = v;
+    } else {
+        p = 0;
+    }
+    func_00167160(a1, p);
+}
 
 extern s32 D_0038A800[];
 
@@ -5535,7 +7258,22 @@ s32 func_00165340(void)
     return func_00167188();
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00165360);
+s32 func_00165360(s32 a0, s32 a1, s32 a2, s32 a3)
+{
+    extern s32 D_00393618;
+    void func_00163088();
+    s32 func_00167190();
+    s32 v[4];
+    s32 *p;
+
+    if (a2 != 0) {
+        func_00163088(a2, v);
+        p = v;
+    } else {
+        p = &D_00393618;
+    }
+    return func_00167190(a0, a1, p, a3);
+}
 
 s32 func_00167198(void);
 
@@ -5673,9 +7411,31 @@ s32 func_00165B20(void)
 
 INCLUDE_ASM(const s32, "core/main", func_00165B50);
 
-INCLUDE_ASM(const s32, "core/main", func_00165C30);
+extern u8 D_003D9680[];
 
-INCLUDE_ASM(const s32, "core/main", func_00165C78);
+s32 func_00165C30(u8 *arg0)
+{
+    extern s32 func_00165978();
+    s32 stack[4];
+    stack[0] = *(s32 *)arg0;
+    stack[1] = *(s32 *)(arg0 + 4);
+    stack[2] = (s32)D_003D9680;
+    stack[3] = 0x4000;
+    return func_00165B50(stack, (s32)func_00165978);
+}
+
+extern u8 D_003DD680[];
+extern s32 D_00165A40[];
+
+s32 func_00165C78(u8 *arg0)
+{
+    s32 stack[4];
+    stack[0] = *(s32 *)arg0;
+    stack[1] = *(s32 *)(arg0 + 4);
+    stack[2] = (s32)D_003DD680;
+    stack[3] = 0x4000;
+    return func_00165B50(stack, (s32)D_00165A40);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00165CC0);
 
@@ -5747,7 +7507,21 @@ s32 func_00165E88(u8 *out)
     return 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00165EC0);
+s32 func_00165EC0(u32 *a1)
+{
+    void func_00168BC0();
+    u8 *i;
+    u8 *end;
+
+    i = (u8 *)a1 + 4;
+    end = (u8 *)a1 + 772;
+    while (i < end) {
+        func_00168BC0((u32 *)i);
+        i += 16;
+    }
+    *a1 |= 1;
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00165F28);
 
@@ -5779,9 +7553,30 @@ INCLUDE_ASM(const s32, "core/main", func_001660C8);
 
 INCLUDE_ASM(const s32, "core/main", func_00166120);
 
-INCLUDE_ASM(const s32, "core/main", func_00166170);
+u32 func_00166170(u32 base, u32 v)
+{
+    u32 r = 0;
+    u32 t;
+    if (v >= base + 4 && base + 0x304 >= v) {
+        t = v - 4;
+        if (((t - base) & 0xF) == 0) r = v;
+    }
+    return r;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001661A8);
+s32 func_001661A8(void)
+{
+    extern u8 D_003E19B0[];
+    u8 *base = D_003E19B0;
+    s32 r = -1;
+
+    func_00224B88((s32)base, 0, 0x80);
+    if (func_00165E88(base) >= 0) {
+        if (func_00165598((s32)base, (s32)(base + 0x80)) >= 0)
+            r = 0;
+    }
+    return r;
+}
 
 
 /* Source: file_io/region_0016.c */
@@ -5793,11 +7588,37 @@ s32 D_00371428[8];
 
 INCLUDE_ASM(const s32, "core/main", func_00166210);
 
-INCLUDE_ASM(const s32, "core/main", func_001662C8);
+extern u8 D_0038AA98[];
 
-INCLUDE_ASM(const s32, "core/main", func_00166310);
+s32 func_001662C8(s32 arg0, s32 arg1)
+{
+    void func_001C28C8();
+    s32 func_00166440();
+    func_001C28C8((s32)D_0038AA98);
+    return func_00166440(arg0, 4, arg1);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00166378);
+void func_00166310(s32 arg0)
+{
+    extern s32 D_0038AAB0[];
+    extern s32 D_0038AAD0[];
+    void func_00211918();
+    void func_001657F8(s32 a0, s32 a1, s32 a2, s32 a3, s32 *a4, s32 a5);
+    s32 local;
+
+    func_00211918(D_0038AAB0, arg0);
+    local = arg0;
+    func_001657F8(0x20005, 1, 0, 0, &local, 4);
+    func_00211918(D_0038AAD0, arg0);
+}
+
+s32 func_00166378(s32 arg0, s32 arg1)
+{
+    void func_001C28C8();
+    s32 func_00166440();
+    func_001C28C8((s32)D_0038AA98);
+    return func_00166440(arg0, 2, arg1);
+}
 
 /* Byte-matching.  Requests property 0x20003 through func_001657F8. */
 void func_001663C0(s32 arg0)
@@ -5808,7 +7629,15 @@ void func_001663C0(s32 arg0)
     func_001657F8(0x20003, 1, 0, 0, &local, 4);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001663F8);
+extern u8 D_0038AAF0[];
+
+s32 func_001663F8(s32 arg0, s32 arg1)
+{
+    void func_001C28C8();
+    s32 func_00166440();
+    func_001C28C8((s32)D_0038AAF0);
+    return func_00166440(arg0, 6, arg1);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00166440);
 
@@ -5816,7 +7645,23 @@ INCLUDE_ASM(const s32, "core/main", func_00166518);
 
 INCLUDE_ASM(const s32, "core/main", func_001665C8);
 
-INCLUDE_ASM(const s32, "core/main", func_001669B0);
+extern s32 D_0038ABA0[];
+void func_001669B0(u8 *a1, s32 a2)
+{
+    void func_0015F748();
+    void func_0015F770();
+    void func_00166518();
+    void func_001665C8();
+    void func_0015F768();
+    s32 *i;
+    func_0015F748();
+    func_0015F770((s32)D_0038ABA0, 0x106);
+    for (i = (s32 *)*(s32 *)(a1 + 0x3C); i != 0; i = (s32 *)*(s32 *)((u8 *)i + 12)) {
+        if (i[2] == a2) { func_00166518((s32)i); break; }
+    }
+    func_001665C8((s32)a1);
+    func_0015F768();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00166A18);
 
@@ -5837,7 +7682,19 @@ s32 func_00166FA8(s32 arg1, s32 arg2)
     return func_00166ED8(arg1, arg2, 0x60000);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00166FC8);
+void func_00166FC8(s32 a1)
+{
+    extern s32 D_0038ABA0[];
+    void func_0015F770();
+    void func_00166A18();
+    func_0015F748();
+    func_0015F770(D_0038ABA0, 0x20B);
+    if (a1 != -1) {
+        *(s32 *)(a1 + 4) |= 1;
+        func_00166A18(a1);
+    }
+    func_0015F768();
+}
 
 extern s32 D_0038ABA0[];
 
@@ -6023,7 +7880,16 @@ s32 func_001673A0(void) { return 0; }
 
 s32 func_001673A8(void) { return 0; }
 
-INCLUDE_ASM(const s32, "core/main", func_001673B0);
+s32 func_001673B0(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5)
+{
+    s32 buffer[4];
+    s32 func_001679E8();
+
+    if (D_00393628 == 0)
+        return -1;
+    func_00163088(a2, (s32)buffer);
+    return func_001679E8(a1, (s32)buffer, a3, a4, a5);
+}
 
 void func_00167428(void) { func_00167A68(); }
 
@@ -6125,7 +7991,18 @@ void func_001675D0(void) {
 void func_001675D8(void) {
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001675E0);
+s32 func_001675E0(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6, s32 a7)
+{
+    s32 buffer[4];
+    s32 b = a2 & 0xFFFF;
+    s32 c = a3 & 0xFFFF;
+    s32 func_00167BA0();
+
+    if (D_00393628 == 0)
+        return -1;
+    func_00163088(a5, (s32)buffer);
+    return func_00167BA0(a1, b, c, a4, (s32)buffer, a6, a7);
+}
 
 
 void func_00167678(s32 arg1, s32 arg2)
@@ -6179,7 +8056,16 @@ s32 func_00167750(void)
     return func_00167E80();
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00167770);
+s32 func_00167770(s32 a1, s32 a2, s32 a3, s32 a4, s32 *a5)
+{
+    extern s32 D_00393628;
+    s32 v10[4];
+
+    if (D_00393628 == 0)
+        return -1;
+    func_00163088(a5, v10);
+    return func_00167E88(a1, a2, a3, a4, (s32)v10);
+}
 
 
 void func_001677E8(s32 arg1, s32 arg2)
@@ -6239,7 +8125,15 @@ s32 func_001678D8(void)
 
 void func_001678F8(void) { func_00167FC0(); }
 
-INCLUDE_ASM(const s32, "core/main", func_00167900);
+extern s32 D_00393628;
+extern s32 func_00167FF8();
+
+s32 func_00167900(void)
+{
+    if (D_00393628 == 0)
+        return -1;
+    return func_00167FF8();
+}
 
 s32 func_00168000(void);
 
@@ -6564,9 +8458,25 @@ s32 func_00168310(s32 *p, s32 *q)
 
 s32 func_00168338(const s32 *p) { return (p[0] & 1) ^ 1; }
 
-INCLUDE_ASM(const s32, "core/main", func_00168348);
+s32 func_00168348(s32 arg0, u32 *arg1)
+{
+    s32 func_00168D70();
+    u32 v = 0;
+    if (func_00168D70(arg0) >= 0)
+        v = (*arg1 != 0);
+    *arg1 = v;
+    return 0;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00168390);
+s32 func_00168390(s32 arg0, u32 *arg1)
+{
+    s32 func_00168E50();
+    u32 v = 0;
+    if (func_00168E50(arg0) >= 0)
+        v = (*arg1 != 0);
+    *arg1 = v;
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001683D8);
 
@@ -6599,7 +8509,15 @@ s32 func_00168638(void)
     return r;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00168668);
+s32 func_00168668(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6)
+{
+    s32 func_001682E8();
+    s32 func_001692F0();
+    s32 v9 = func_001682E8(a1, a2);
+    s32 v11 = -1;
+    if (v9 != 0) v11 = func_001692F0(v9, a3, a4, a5, a6);
+    return v11;
+}
 
 /* Byte-matching.  -1 when the object is missing, else the result of
    func_00169308 on it. */
@@ -6631,11 +8549,30 @@ void func_00168720(void)
 
 INCLUDE_ASM(const s32, "core/main", func_00168738);
 
-INCLUDE_ASM(const s32, "core/main", func_001688D0);
+s32 func_001688D0(u8 *a1, s32 a2)
+{
+    s32 func_001682E8();
+    s32 func_00169320();
+    void func_00168738();
+    s32 v11 = 0;
+    s32 v12 = func_001682E8(a1, a2);
+    if (v12 != 0) v11 = func_00169320(v12);
+    func_00168738(a1, v12, v11);
+    return v11;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00168938);
 
-INCLUDE_ASM(const s32, "core/main", func_001689C0);
+s32 func_001689C0(s32 a1, s32 a2, s32 a3, s32 a4)
+{
+    s32 func_001697A0();
+    u32 minus1 = 0xFFFFFFFFu;
+    s32 r = func_001682E8(a1, a2);
+    s32 result = (s32)minus1;
+
+    if (r != 0) result = func_001697A0(r, a3, a4);
+    return result;
+}
 
 /* Byte-matching.  arg1 is never read: the object in arg0 goes to
    func_001682E8 and its result to func_001698C8 when non-null.  The two
@@ -6753,7 +8690,17 @@ s32 func_00168C38(u8 *arg0)
     return result;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00168C68);
+s32 func_001C0C60();
+s32 func_001C0C40();
+s32 func_00168C68(s32 *p)
+{
+    s32 neg;
+    func_001C0C60(p[2]);
+    neg = -(*p & 1);
+    if (neg != 0) p[1] = 1;
+    func_001C0C40(p[2]);
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00168CB8);
 
@@ -6894,9 +8841,33 @@ INCLUDE_ASM(const s32, "core/main", func_00169D90);
 
 INCLUDE_ASM(const s32, "core/main", func_00169DD0);
 
-INCLUDE_ASM(const s32, "core/main", func_00169EB8);
+s32 func_00169EB8(s32 *a1, s32 a2)
+{
+    void func_00169F50();
+    s32 *v4;
+    v4 = (s32 *)func_00169F18(a1, a2);
+    if (v4 != 0) {
+        func_00169F50(v4[0], v4[2]);
+        a1[1]--;
+        v4[0] = 0; v4[1] = 0; v4[2] = 0;
+    }
+    return -1;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00169F18);
+u8 *func_00169F18(u8 *arg0, s32 arg1)
+{
+    u8 *end = arg0 + 0xC08;
+    u8 *result = 0;
+    u8 *p;
+
+    for (p = arg0 + 8; (u32)p < (u32)end; p += 0xC) {
+        if (*(s32 *)(p + 8) == arg1) {
+            result = p;
+            break;
+        }
+    }
+    return result;
+}
 
 /* Byte-matching: a switch with cases 0 and 2 emits retail's beqz (with the
    second comparison constant in its delay slot) and beq, each branching to a
@@ -7176,7 +9147,16 @@ INCLUDE_ASM(const s32, "core/main", func_0016C3B0);
 
 INCLUDE_ASM(const s32, "core/main", func_0016C400);
 
-INCLUDE_ASM(const s32, "core/main", func_0016C468);
+s32 func_0016C468(s32 arg1, s32 arg2)
+{
+    s32 v = 1;
+    s32 args[6];
+    args[0] = arg2;
+    args[5] = v;
+    args[2] = 0;
+    args[4] = 0;
+    return func_0016A218(arg1, (AF78Ctx *)args);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0016C498);
 
@@ -7230,7 +9210,17 @@ u8 *func_0016C6A8(u8 *p, s32 *counter)
 
 INCLUDE_ASM(const s32, "core/main", func_0016C6C0);
 
-INCLUDE_ASM(const s32, "core/main", func_0016C708);
+struct Off38 { char pad[0x38]; s32 v; };
+
+s32 func_0016C708(u8 *arg0)
+{
+    s32 v = *(s32 *)(arg0 + 0x6C);
+    if (v == 0)
+        v = ((struct Off38 *)((u8 *)D_003731B8 + D_003937B0))->v;
+    if (func_001A3BA0(v, arg0, 1) == 0)
+        return 0;
+    return (s32)arg0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0016C758);
 
@@ -7244,7 +9234,12 @@ s32 func_0016C800(s32 arg1)
     return arg1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0016C828);
+s32 func_0016C828(s32 arg0, s32 *a2)
+{
+    *a2 += 28;
+    *a2 += 12 + func_0019A3A8(D_00372478, arg0);
+    return arg0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0016C888);
 
@@ -7272,7 +9267,36 @@ s32 func_0016DE88(void) { return D_003724B4[0]; }
 
 INCLUDE_ASM(const s32, "core/main", func_0016DE98);
 
-INCLUDE_ASM(const s32, "core/main", func_0016DF70);
+s32 func_0016DF70(f32 a1)
+{
+    s32 func_0016CD60();
+    s32 func_0016CE78();
+    s32 func_0016DFE8();
+
+    s32 v2;
+    s32 v3;
+    s32 v4;
+    s32 v5;
+    s32 result;
+    v2 = func_0016CE78(0, 0, 0);
+    v3 = v2;
+    if (v2 != 0)
+    {
+        v4 = *(u32 *)(v2 + 64);
+        *(f32 *)(v4 + 16) = a1;
+        *(u32 *)(v4 + 8) = 0;
+        *(u32 *)(v4 + 12) = 0;
+        *(u32 *)(v4 + 4) = 0;
+    }
+    v5 = func_0016CD60(v3) != 0;
+    result = v3;
+    if (!v5)
+    {
+        func_0016DFE8(v3);
+        return 0;
+    }
+    return result;
+}
 
 /* Byte-matching.  Decrements the counter at +0xA and fetches more work only
    once it has run out. */
@@ -7319,17 +9343,10 @@ u8 *func_0016E178(u8 *arg0, s32 arg1)
     return arg0;
 }
 
-/* Behavior-faithful, not byte-matching.  Retail copies the same 16 bytes as
-   two unaligned 64-bit ldl/ldr pairs (offsets +4 and +0xC); neither the plain
-   u64 form nor a packed struct reproduces that here, both fold to aligned
-   ld/sd (0x18 bytes, and a fault at a 4-byte-aligned address), so this copies
-   the same range as four 32-bit moves: same result, same linked size 0x28. */
 u8 *func_0016E1B0(u8 *arg0, u8 *arg1)
 {
-    *(u32 *)(arg0 + 4) = *(u32 *)arg1;
-    *(u32 *)(arg0 + 8) = *(u32 *)(arg1 + 4);
-    *(u32 *)(arg0 + 0xC) = *(u32 *)(arg1 + 8);
-    *(u32 *)(arg0 + 0x10) = *(u32 *)(arg1 + 0xC);
+    typedef struct { UnalignedU64 lo, hi; } U16;
+    *(U16 *)(arg0 + 4) = *(U16 *)arg1;
     return arg0;
 }
 
@@ -7349,7 +9366,23 @@ u8 *func_0016E1E0(u8 *arg0)
     return 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0016E208);
+s32 func_0016E208(u8 *a1, s32 a2)
+{
+    s32 v4;
+    s32 v5;
+    s32 v7;
+    v4 = *(s32 *)(a1 + 0x10);
+    v5 = 0;
+    if (v4 > 0) {
+        for (;;) {
+            v7 = 4 * v5;
+            v5++;
+            func_0016F958(*(s32 *)(v7 + *(s32 *)(a1 + 0xC)), a2);
+            if (v5 >= v4) break;
+        }
+    }
+    return (s32)a1;
+}
 
 s32 func_0016E280(const s32 *p) { return *(const s32 *)((const u8 *)p + (36)); }
 
@@ -7361,16 +9394,56 @@ s32 func_0016E298(const s32 *p) { return *(const s32 *)((const u8 *)p + (20)); }
 
 s32 func_0016E2A0(const s32 *p) { return *(const s32 *)((const u8 *)p + (24)); }
 
-INCLUDE_ASM(const s32, "core/main", func_0016E2A8);
+/* Byte-matching: callback loop over a linked array. */
+s32 func_0016E2A8(s32 a1, s32 (*a2)(s32, s32), s32 a3)
+{
+    s32 v6 = *(s32 *)(a1 + 16);
+    s32 v7 = 0;
 
-INCLUDE_ASM(const s32, "core/main", func_0016E330);
+    if (v6 > 0)
+    {
+        s32 *i = *(s32 **)(a1 + 12);
+        for (;;)
+        {
+            s32 v9 = a2(i[v7], a3);
+            if (v9 == 0) break;
+            v7++;
+            if (v7 >= v6) break;
+            i = *(s32 **)(a1 + 12);
+        }
+    }
+    return a1;
+}
+
+
+u8 *func_0016E330(u8 *a1, s32 a2)
+{
+    void func_00170C38();
+    *(u16 *)(a1 + 8) |= a2;
+    if (a2 & 1) {
+        s32 *p = *(s32 **)(a1 + 60);
+        if (p == 0) return a1;
+        func_00170C38(p);
+        *(s32 *)(a1 + 60) = 0;
+    }
+    return a1;
+}
 
 s32 func_0016E380(u8 *p, s32 index)
 {
     return *(s32 *)(*(u32 *)(p + 0xC) + index * 4);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0016E398);
+s32 func_0016E398(u8 *a1, s32 a2, s32 a3)
+{
+    s32 func_00170DF8();
+    s32 v = *(s32 *)(a1 + 0x3C);
+
+    if (v != 0) {
+        if (func_00170DF8(v, a2, a3) != 0) return (s32)a1;
+    }
+    return 0;
+}
 
 u8 *func_0016E3E0(u8 *p, u8 *out, u16 a, u16 b, u16 c)
 {
@@ -7395,7 +9468,15 @@ u8 *func_0016E4E8(u8 *arg0, u8 *arg1, u16 *arg2, u16 *arg3, u16 *arg4)
     return arg0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0016E520);
+/* Byte-matching: bnel table lookup; s16 index from a2+6, table base from a1+0xC. */
+s32 func_0016E520(s32 a1, s32 a2)
+{
+    s16 v = *(s16 *)((u8 *)a2 + 6);
+
+    if (v == -1)
+        return 0;
+    return *(s32 *)((v << 2) + *(s32 *)((u8 *)a1 + 12));
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0016E548);
 
@@ -7440,7 +9521,17 @@ INCLUDE_ASM(const s32, "core/main", func_0016ED78);
 
 INCLUDE_ASM(const s32, "core/main", func_0016EDC0);
 
-INCLUDE_ASM(const s32, "core/main", func_0016EEA0);
+s32 func_0016EEA0(s32 a1)
+{
+    s32 *p;
+    extern s32 D_00393CA0;
+
+    func_0019A700((s32)D_003724C0, a1);
+    func_0019A890(a1);
+    p = (s32 *)((s32)D_00393CA0 + (u32)D_003731B8);
+    ((s32 (*)(s32, s32, s32))D_003731B8[80])(*p, a1, (s32)p);
+    return 1;
+}
 
 s32 func_0016EF00();
 s32 func_0019A830();
@@ -7478,7 +9569,21 @@ u8 *func_0016EF58(s32 arg0, f32 arg1)
 
 u8 *func_0016EFA0(u8 *p) { return p + 24; }
 
-INCLUDE_ASM(const s32, "core/main", func_0016EFA8);
+typedef struct { UnalignedU64 lo, hi; } Unaligned16;
+u8 *func_0016EFA8(u8 *a1, u8 *a2)
+{
+    f32 v3;
+    *(Unaligned16 *)(a1 + 0x18) = *(Unaligned16 *)a2;
+    v3 = *(f32 *)(a1 + 0x18);
+    if (v3 != *(f32 *)(a1 + 0x1C)) {
+        a1[3] = 0;
+    } else if (v3 == *(f32 *)(a1 + 0x20)) {
+        a1[3] = 1;
+    } else {
+        a1[3] = 0;
+    }
+    return a1;
+}
 
 s32 func_00217E28(f32 arg);
 s32 func_0016F008(u8 *p)
@@ -7530,7 +9635,23 @@ INCLUDE_ASM(const s32, "core/main", func_0016F138);
 
 INCLUDE_ASM(const s32, "core/main", func_0016F280);
 
-INCLUDE_ASM(const s32, "core/main", func_0016F620);
+/* Byte-matching: volatile counter keeps a single load at the join point. */
+extern s32 D_00393CA8;
+extern volatile s32 D_00393CAC;
+
+s32 func_0016F620(s32 arg0)
+{
+    s32 *p;
+
+    p = (s32 *)((s32)D_00393CA8 + (u32)D_003731B8);
+    if (*p != 0) {
+        func_001956D0(*p);
+        p = (s32 *)((s32)D_00393CA8 + (u32)D_003731B8);
+        *p = 0;
+    }
+    D_00393CAC = D_00393CAC - 1;
+    return arg0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0016F688);
 
@@ -7540,7 +9661,33 @@ INCLUDE_ASM(const s32, "core/main", func_0016F738);
 
 INCLUDE_ASM(const s32, "core/main", func_0016F780);
 
-INCLUDE_ASM(const s32, "core/main", func_0016F830);
+s32 func_0016F830(u8 *a1)
+{
+    void func_0019A700(s32 a, u8 *b);
+    void func_0016F8D8(u8 *a, s32 b);
+    s32 v2;
+    u32 base;
+    u8 *p;
+    s32 (*fn)(s32, u8 *);
+
+    v2 = *(u16 *)(a1 + 0x18);
+    *(u16 *)(a1 + 0x18) = v2 - 1;
+    if ((v2 - 1) << 16 <= 0)
+    {
+        *(u16 *)(a1 + 0x18) = v2;
+        if (v2 << 16 > 0)
+        {
+            func_0019A700((s32)&D_003724D8, a1);
+            func_0016F8D8(a1, 0);
+            base = (u32)D_003731B8;
+            fn = *(s32 (**)(s32, u8 *))(base + 0x140);
+            p = (u8 *)(base + D_00393CA8);
+            *(u16 *)(a1 + 0x18) = *(u16 *)(a1 + 0x18) - 1;
+            fn(*(s32 *)p, a1);
+        }
+    }
+    return 1;
+}
 
 u8 *func_0016F8C0(u8 *p)
 {
@@ -7717,13 +9864,41 @@ INCLUDE_ASM(const s32, "core/main", func_00175418);
 
 INCLUDE_ASM(const s32, "core/main", func_001754A0);
 
-INCLUDE_ASM(const s32, "core/main", func_00175528);
+/* Byte-matching: twin of func_0016E2A8. */
+s32 func_00175528(s32 a1, s32 (*a2)(s32, s32), s32 a3)
+{
+    s32 v6 = *(s32 *)(a1 + 16);
+    s32 v7 = 0;
+
+    if (v6 > 0)
+    {
+        s32 *i = *(s32 **)(a1 + 12);
+        for (;;)
+        {
+            s32 v9 = a2(i[v7], a3);
+            if (v9 == 0) break;
+            v7++;
+            if (v7 >= v6) break;
+            i = *(s32 **)(a1 + 12);
+        }
+    }
+    return a1;
+}
+
 
 INCLUDE_ASM(const s32, "core/main", func_001755B0);
 
 INCLUDE_ASM(const s32, "core/main", func_00175678);
 
-INCLUDE_ASM(const s32, "core/main", func_00175718);
+extern s32 D_003731B8[];
+extern s32 func_00176FA8();
+extern u8 *func_00175A38(u8 *arg0);
+
+s32 func_00175718(s32 arg0)
+{
+    func_00176FA8(D_003731B8[0], (s32)func_00175A38, arg0);
+    return arg0;
+}
 
 s32 *func_00175758(s32 *p, s32 value) { p[2] = value; return p; }
 
@@ -7762,7 +9937,12 @@ u8 *func_00175900(u8 *p, u8 value) { p[2] = value; return p; }
 
 u8 func_00175910(const u8 *p) { return p[2]; }
 
-INCLUDE_ASM(const s32, "core/main", func_00175918);
+s32 func_00175918(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5)
+{
+    if (func_00188B68((s32 *)(a1 + 12), *(u8 *)(a1 + 2), a2, a3, a4, a5) == 0)
+        return 0;
+    return a1;
+}
 
 s32 func_0019A490();
 
@@ -7806,7 +9986,24 @@ u8 *func_00175A38(u8 *arg0)
     return arg0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00175A70);
+/* Byte-matching: volatile counter + extra call; see func_0016F620 cluster. */
+extern s32 D_00393CB0;
+extern volatile s32 D_00393CB4;
+
+s32 func_00175A70(s32 arg0)
+{
+    s32 *p;
+
+    p = (s32 *)((s32)D_00393CB0 + (u32)D_003731B8);
+    if (*p != 0) {
+        func_001956D0(*p);
+        p = (s32 *)((s32)D_00393CB0 + (u32)D_003731B8);
+        *p = 0;
+    }
+    func_00178640();
+    D_00393CB4 = D_00393CB4 - 1;
+    return arg0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00175AE0);
 
@@ -7824,15 +10021,48 @@ INCLUDE_ASM(const s32, "core/main", func_001766B0);
 
 INCLUDE_ASM(const s32, "core/main", func_001767E8);
 
-INCLUDE_ASM(const s32, "core/main", func_001769A0);
+s32 func_001769A0(s32 a1, s32 a2)
+{
+    extern s32 D_00393654;
+    extern s32 D_003732E8[];
+    u32 *v2 = (u32 *)(a2 + D_00393654);
+    if (v2[3] != 0) {
+        if (*v2 != 0) ((s32 (*)(s32))D_003732E8[0])(*v2);
+        v2[0] = 0;
+        v2[1] = 0;
+        v2[2] = 0;
+        v2[3] = 0;
+        return a1;
+    }
+    return 0;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00176A10);
+s32 func_00176A10(u8 *arg0, u8 *arg1)
+{
+    s32 *p = (s32 *)((u8 *)arg1 + D_00393654 + 0xC);
+    s32 v = func_0018C5D8(arg1);
+    if (v != 0) {
+        func_0018E670(v);
+        *p = (s32)arg0;
+    } else {
+        *p = (s32)arg0;
+    }
+    return (s32)arg0;
+}
 
 s32 func_00176A60(const u8 *p) { return *(const s32 *)(p + D_00393654 + 0xC); }
 
 INCLUDE_ASM(const s32, "core/main", func_00176A70);
 
-INCLUDE_ASM(const s32, "core/main", func_00176B58);
+s32 func_00176B58(s32 a1, u8 *a2)
+{
+    void func_0018E670(u8 *);
+    s32 *v2 = (s32 *)(a2 + D_00393658);
+    if (*(s32 *)(a2 + 4) != 0)
+        func_0018E670((u8 *)*(s32 *)(a2 + 4));
+    *v2 = a1;
+    return a1;
+}
 
 s32 func_00176BA0(const u8 *p) { return *(const s32 *)(p + D_00393658); }
 
@@ -7866,7 +10096,22 @@ INCLUDE_ASM(const s32, "core/main", func_001772F8);
 
 INCLUDE_ASM(const s32, "core/main", func_00177388);
 
-INCLUDE_ASM(const s32, "core/main", func_001773E8);
+s32 func_00176A10();
+
+u8 *func_001773E8(u8 *a1, u8 *a2)
+{
+    extern s32 D_00393654;
+    s32 off = D_00393654;
+    s32 *p = (s32 *)((u8 *)a1 + off);
+    u8 *q = (u8 *)a2 + off;
+    s32 v = *(s32 *)(q + 0xC);
+    p[0] = 0;
+    p[1] = 0;
+    p[2] = 0;
+    if (v != 0)
+        func_00176A10(v, a1);
+    return a1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00177438);
 
@@ -7882,13 +10127,29 @@ u8 *func_001775C8(u8 *p)
     return p;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001775E0);
+s64 func_001775E0(s64 a1, s32 a2)
+{
+    s32 *v9 = (s32 *)(a2 + D_0039365C);
+    if (*v9 != 0) {
+        func_00176BB0(*v9, a1);
+        return a1;
+    }
+    return a1;
+}
 
 s32 func_00177620(s32 value) { return value; }
 
 INCLUDE_ASM(const s32, "core/main", func_00177628);
 
-INCLUDE_ASM(const s32, "core/main", func_00177650);
+s64 func_00177650(s64 a1, s32 a2)
+{
+    s32 *v3 = (s32 *)(a2 + D_00393660);
+    if (*v3 != 0) {
+        func_00176D40(*v3, a1);
+        return a1;
+    }
+    return a1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00177690);
 
@@ -7915,7 +10176,14 @@ s32 func_00177798(s32 a0, s32 a1, s32 a2)
     return func_001706A0(*(s32 *)(a2 + 0x3C), a2, a0, a2 + 0xC);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001777C8);
+s32 func_001777C8(s32 a1, s32 a2, s32 a3)
+{
+    s32 v;
+
+    v = func_00170818(a1, a3, a3 + 0xC);
+    *(s32 *)(a3 + 0x3C) = v;
+    return v != 0 ? a1 : 0;
+}
 
 s32 func_00170E88(s32 *);
 
@@ -7924,9 +10192,19 @@ s32 func_00177810(s32 *arg1)
     return func_00170E88((s32 *)arg1[15]);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00177830);
+s32 func_00177830(s32 a0, s32 a1, s32 a2)
+{
+    s32 v = func_00175830(a2);
+    return func_001706A0(*(s32 *)(a2 + 0x50), v, a0, v + 0xC);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00177878);
+s32 func_00177878(u8 *arg0, s32 arg1, u8 *arg3)
+{
+    s32 v = func_00175830(arg3);
+    s32 r = func_00170818(arg0, v, v + 0xC);
+    *(s32 *)(arg3 + 0x50) = r;
+    return r != 0 ? (s32)arg0 : 0;
+}
 
 s32 func_00170E88(s32 *);
 
@@ -8081,7 +10359,22 @@ fallback:
     return 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00178C90);
+s32 func_00178C90(u8 *a1, u8 *a2)
+{
+    s16 v1 = *(s16 *)(a1 + 4);
+    s16 v2 = *(s16 *)(a2 + 4);
+    u16 v3, v4;
+
+    if (v2 < v1)
+        return 1;
+    if (v1 < v2)
+        return -1;
+    v3 = *(u16 *)(a1 + 6);
+    v4 = *(u16 *)(a2 + 6);
+    if (v4 < v3)
+        return 1;
+    return (v3 < v4) ? -1 : 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00178CD8);
 
@@ -8201,9 +10494,32 @@ extern u8 D_00372DE8[];
 
 u8 *func_0017E4B8(void) { return D_00372DE8; }
 
-INCLUDE_ASM(const s32, "core/main", func_0017E4C8);
+s32 func_0017E4C8(u8 *arg0, s32 arg1)
+{
+    s32 result = 0;
+    s32 *q;
 
-INCLUDE_ASM(const s32, "core/main", func_0017E500);
+    if (arg0 != 0 && arg1 != 0 && *(s32 *)(arg0 + 0xC) != 0) {
+        q = *(s32 **)(arg0 + 0x14);
+        if (q != 0)
+            *(s32 *)((u8 *)q + 4) = arg1;
+        result = (s32)arg0;
+    }
+    return result;
+}
+
+s32 func_0017E500(s32 a1, s32 a2)
+{
+    s32 r = 0;
+
+    if (a1 != 0 && *(s32 *)(a1 + 0xC) != 0) {
+        s32 p = *(s32 *)(a1 + 0x14);
+        if (p != 0)
+            *(s32 *)p = a2;
+        r = a1;
+    }
+    return r;
+}
 
 s32 func_0017E530(u8 *arg0)
 {
@@ -8223,7 +10539,653 @@ INCLUDE_ASM(const s32, "core/main", func_0017EE40);
 
 INCLUDE_ASM(const s32, "core/main", func_0017F388);
 
-INCLUDE_ASM(const s32, "core/main", func_0017FF38);
+/* ------------------------------------------------------------------------- */
+/* func_0017FF38 - build and submit the GIF/DMA packet of a resource batch.   */
+/*                                                                            */
+/* Behavioural reconstruction from asm/matchings/core/main/func_0017FF38.s.   */
+/* The routine owns a packet header inside the buffer it allocates, emits one  */
+/* GIFtag per row plus an A+D (register + data) pair per sub-resource, and     */
+/* finally hands the finished packet to the renderer that owns the batch mode. */
+/* The write-pointer arithmetic, the size walk and the packet encodings below  */
+/* are a literal transcription of the retail instruction flow; the struct      */
+/* offsets, the argument roles and the constant meanings are recorded in       */
+/* docs/REFERENCE-BEHAVIORMATCH.md.                                            */
+/* ------------------------------------------------------------------------- */
+
+extern u8 D_003731BC[];
+extern u8 *D_003938B4;
+extern u32 D_00393880;
+
+void func_00196788(u8 *node);
+void func_00196898(u8 *node);
+s32 func_001A3CD0(u8 *dst, u32 src, u32 a, u32 b);
+u8 *func_001B1EC8(u8 *ctx, s32 size, s32 mode);
+void func_00196370(u8 *obj, u8 *holder, s32 size, void (*cb)(u8 *));
+s32 func_0017EE40(u8 *list, u8 *pkt, u8 *res, s32 odd, u32 lim, u8 *arg0);
+s32 func_0017F388(u8 *list, u8 *pkt, u8 *res, s32 odd, u32 lim, s32 hdr, u8 *arg0);
+s32 func_0017EB10(u8 *pkt, u8 *res, s32 odd, u32 lim, s32 hdr, u8 *arg0);
+void func_001817E0(u8 *arg0);
+
+/* 0x80-byte block move: retail copies it as eight ldl/ldr+sdl/sdr pairs, which
+   is an unaligned 16-byte memmove.  A byte loop is the same transfer. */
+#define PB_COPY80(dst, src)                                                      \
+    do {                                                                         \
+        u8 *_pb_d = (u8 *)(dst);                                                 \
+        const u8 *_pb_s = (const u8 *)(src);                                     \
+        s32 _pb_i;                                                               \
+        for (_pb_i = 0; _pb_i < 0x80; _pb_i++)                                   \
+            _pb_d[_pb_i] = _pb_s[_pb_i];                                         \
+    } while (0)
+
+s32 func_0017FF38(u8 *arg0, u8 *arg1, u8 *arg2)
+{
+    u8 hdr[0x80];
+    u8 *hull;
+    u8 *res;
+    u8 *desc;
+    u8 *pkt;
+    u8 *packet;
+    u8 *wp;
+    u8 *tagpos;
+    s32 mode;
+    s32 flag30;
+    s32 header;
+    s32 size;
+    s32 rows;
+    s32 strideA;
+    s32 strideB;
+    s32 limit;
+    s32 reusePkt;
+    u32 res4;
+    s32 i;
+
+    /* arg1 is {resource owner, packet holder}; the holder's +0x00 is the
+       packet chain node, the owner's +0x04 is the element/byte count base. */
+    res = *(u8 **)arg1;
+    hull = *(u8 **)(arg1 + 4);
+    mode = *(s32 *)arg0;
+
+    rows = 0;
+    strideA = 0;
+    strideB = 0;
+    limit = 0;
+    header = 0;
+    size = 0;
+    reusePkt = 0;
+
+    /* ---- descriptor and header selection (0x17FF94) ---- */
+    if (mode == 0) {
+        desc = *(u8 **)(*(u8 **)(arg0 + 4) + 0x50);
+        flag30 = (*(u8 **)D_003731BC)[2] & 4;
+    } else if (mode == 1) {
+        u8 *q = *(u8 **)(*(u8 **)(arg0 + 4) + 0x18);
+
+        header = *(u16 *)(q + 8);
+        flag30 = *(u8 *)(q + 2) & 4;
+        desc = *(u8 **)(q + 0x3C);
+        if ((*(u32 *)(*(u8 **)(arg0 + 4) + 0x4C) & 1) != 0)
+            header |= 7;
+    } else {
+        header = 0x3F;
+        flag30 = 0;
+        desc = res - 0x10;
+    }
+
+    packet = *(u8 **)hull;
+    res4 = *(u32 *)(res + 4);
+
+    /* ---- cached packet check (0x18020) ---- */
+    if (packet != 0) {
+        pkt = packet + 0x18;
+        *(u16 *)(arg0 + 0xC) = *(u16 *)(desc + 6);
+
+        if (*(u16 *)(pkt + 0x0C) == *(u16 *)(desc + 6) &&
+            *(u16 *)(pkt + 0x10) == (u16)flag30) {
+            reusePkt = 1; /* descriptor and flags unchanged: nothing to rebuild */
+        } else {
+            if (*(u32 *)(pkt + 0x14) == res4 &&
+                *(u32 *)(pkt + 0x18) == *(u32 *)desc) {
+                /* same source block: the previous size and header stay valid */
+                size = *(s32 *)(packet + 8);
+                PB_COPY80(hdr, packet + 0x3C);
+                strideA = *(s32 *)(pkt + 0x1C);
+                strideB = *(s32 *)(pkt + 0x20);
+            }
+            header = 0x3F;
+            func_00196788(packet);
+            *(u32 *)hull = 0;
+            packet = 0;
+        }
+    } else {
+        header = 0x3F;
+    }
+
+    if (reusePkt) {
+        /* ---- an up-to-date packet is already installed (0x180E8/0x180F8) ---- */
+        if (header == 0) {
+            for (i = 0; i < *(s32 *)arg2; i++) {
+                u8 *e = *(u8 **)(arg2 + 8 + i * 0x10);
+
+                func_001A3CD0(e, *(u32 *)(*(u32 *)(pkt + 8) + 4 + i * 0x20),
+                              *(u32 *)(arg2 + 0x14 + i * 0x10), *(u32 *)(arg2 + 4));
+                *(u16 *)e |= 6;
+            }
+            func_00196898(packet);
+            return 1;
+        }
+
+        func_00196898(packet);
+        if (mode == 0) {
+            for (i = 0; i < *(s32 *)arg2; i++) {
+                u8 *e = *(u8 **)(arg2 + 8 + i * 0x10);
+
+                func_001A3CD0(e, *(u32 *)(*(u32 *)(pkt + 8) + 4 + i * 0x20),
+                              *(u32 *)(arg2 + 0x14 + i * 0x10), *(u32 *)(arg2 + 4));
+                *(u16 *)e |= 6;
+            }
+            return func_0017EE40(arg2, pkt, res, *(u32 *)desc & 1, res4, arg0);
+        }
+        for (i = 0; i < *(s32 *)arg2; i++) {
+            u8 *e = *(u8 **)(arg2 + 8 + i * 0x10);
+
+            func_001A3CD0(e, *(u32 *)(*(u32 *)(pkt + 8) + 4 + i * 0x20),
+                          *(u32 *)(arg2 + 0x14 + i * 0x10), *(u32 *)(arg2 + 4));
+            *(u16 *)e |= 6;
+        }
+        return func_0017F388(arg2, pkt, res, *(u32 *)desc & 1, res4, header, arg0);
+    }
+
+    /* ---- build path (0x180280) ---- */
+    {
+        s32 da = *(u8 *)(arg2 + 0xDA);
+
+        if (size == 0) {
+            if ((*(u32 *)desc & 1) != 0) {
+                /* variant A: stride taken from +0xDC, header block at +0xE4 */
+                s32 st = *(s32 *)(arg2 + 0xDC);
+
+                strideA = st;
+                rows = (s32)((u32)((s32)res4 + (st - 2) - 3) / (u32)(st - 2));
+                strideB = *(s32 *)(arg2 + 0xE0);
+                limit = (s32)res4 + (rows << 1) - 2;
+                PB_COPY80(hdr, arg2 + 0xE4);
+            } else {
+                /* variant B: stride taken from +0x164, header block at +0x16C */
+                s32 st = *(s32 *)(arg2 + 0x164);
+
+                strideA = st;
+                rows = (s32)((u32)((s32)res4 - 1 + st) / (u32)st);
+                strideB = *(s32 *)(arg2 + 0x168);
+                limit = (s32)res4;
+                PB_COPY80(hdr, arg2 + 0x16C);
+            }
+
+            /* ---- size of the packet body, in quadwords ---- */
+            /* 0x1803B8 dispatches on the batch's 128-byte-alignment flag, not
+               on the stride: aligned batches take the layer walk, unaligned
+               ones the eight-entry walk below. */
+            if (*(u8 *)(arg2 + 0xD8) != 0) {
+                /* 0x1803B8: four optional layers, each a strided image */
+                /* 0x1803E8 sits in the delay slot of the first test, so the
+                   subtraction happens whether or not that layer is present */
+                s32 base = strideA * rows - limit;
+                s32 layers = 1;
+                s32 span = 0;
+                s32 h;
+
+                /* Retail stores each layer's span in the branch delay slot of
+                   its own test (0x180404/0x180438/0x180464/0x1804CC), so the
+                   store happens whether or not that layer is present. */
+                h = (s32) * (s16 *)(hdr + 0x08);
+                if (h != 0) {
+                    /* retail drops `limit` from the base inside this arm only,
+                       so a batch whose first layer is absent keeps the full
+                       stride*rows base for the remaining layers */
+                    layers = 2;
+                    size += (limit * 3 + 3) >> 2;
+                }
+                *(u16 *)(hdr + 0x0A) = 0;
+                if (h != 0)
+                    span = (base * 3) >> 2;
+                h = (s32)(s16) * (u16 *)(hdr + 0x18);
+                if (h != 0) {
+                    layers++;
+                    size += (limit * 2 + 3) >> 2;
+                }
+                *(u16 *)(hdr + 0x1A) = (u16)span;
+                if (h != 0)
+                    span += base >> 1;
+                h = (s32)(s16) * (u16 *)(hdr + 0x28);
+                if (h != 0) {
+                    layers++;
+                    size += (limit + 3) >> 2;
+                }
+                *(u16 *)(hdr + 0x2A) = (u16)span;
+                if (h != 0)
+                    span += base >> 2;
+                h = (s32)(s16) * (u16 *)(hdr + 0x38);
+                if (h != 0) {
+                    s32 t = ((strideA * 2 + strideA + 0xF) >> 4) * (rows - 1);
+
+                    layers++;
+                    t += (3 * (limit - strideA * (rows - 1)) + 0xF) >> 4;
+                    size += t;
+                }
+                *(u16 *)(hdr + 0x3A) = (u16)span;
+
+                {
+                    s32 q = (s32)((u32)(rows + strideB - 1) / (u32)strideB);
+
+                    size += layers * rows;
+                    size += q + q * 8;
+                }
+            } else {
+                /* 0x180500: unaligned batch, an eight-entry layer walk */
+                s32 accEnd = (*(u8 *)(arg2 + 0xD9) + 1) * 2 * rows;
+                s32 accStart = 0;
+                s32 cnt = rows - 1;
+                s32 d = limit - strideA * cnt;
+                s32 r24 = (3 * strideA + 3) >> 2;
+                s32 r16 = (strideA + 1) >> 1;
+                s32 r8 = (strideA + 3) >> 2;
+                s32 r4 = (3 * strideA + 15) >> 4;
+                s32 d24 = (3 * d + 3) >> 2;
+                s32 d16 = (d + 1) >> 1;
+                s32 d8 = (d + 3) >> 2;
+                s32 d4 = (3 * d + 15) >> 4;
+                size = 0;
+                for (i = 0; i < 8; i++) {
+                    /* the layer tag and its size factor are 8 bytes apart */
+                    u32 tw = *(u32 *)(arg2 + 0x88 + i * 8);
+                    s32 rs;
+                    s32 ls;
+                    s32 hh;
+                    s32 c;
+
+                    if ((tw & 1) == 0)
+                        continue;
+                    if ((tw & 0x2000) == 0) {
+                        /* plain layer: one A+D pair, no strided body */
+                        *(u32 *)(hdr + i * 0x10) = res4;
+                        *(u16 *)(hdr + i * 0x10 + 0xA) = 0;
+                        size += (s32)(((u32)res4 *
+                                       *(u32 *)(arg2 + 0x8C + i * 8) + 3u) >> 2);
+                        continue;
+                    }
+                    if (i == 0) {
+                        rs = r24;
+                        ls = d24;
+                        hh = (s32)(s16) * (u16 *)(hdr + 0x08);
+                    } else if (i == 1) {
+                        rs = r16;
+                        ls = d16;
+                        hh = (s32) * (s16 *)(hdr + 0x18);
+                    } else if (i == 2) {
+                        rs = r8;
+                        ls = d8;
+                        hh = (s32) * (s16 *)(hdr + 0x28);
+                    } else if (i == 3) {
+                        rs = r4;
+                        ls = d4;
+                        hh = (s32) * (s16 *)(hdr + 0x38);
+                    } else {
+                        continue;
+                    }
+                    c = *(u32 *)(hdr + i * 0x10 + 4) + 1;
+                    *(u16 *)(hdr + i * 0x10 + 0xA) = (u16)accStart;
+                    accStart += rs - ls;
+                    accEnd = c + (rs + hh * cnt);
+                }
+                accEnd -= accStart;
+                size += accEnd;
+
+                /* second walk: chain the plain layers behind the strided ones */
+                for (i = 0; i < 8; i++) {
+                    u32 tw = *(u32 *)(arg2 + 0x88 + i * 8);
+
+                    if ((tw & 1) == 0)
+                        continue;
+                    if ((tw & 0x2000) != 0)
+                        continue;
+                    *(u32 *)(hdr + i * 0x10 + 4) = (u32)accEnd;
+                    accEnd += (s32)(((u32)res4 *
+                                     *(u32 *)(arg2 + 0x8C + i * 8) + 3u) >> 2);
+                }
+            }
+
+            /* the 0x12F is the fixed per-packet overhead retail adds */
+            size = (size << 4) + 0x12F;
+        }
+
+        /* ---- allocate the packet, or chain it into the holder (0x180714) ---- */
+        if (*(s32 *)arg0 == 2) {
+            u8 *node = func_001B1EC8(D_003938B4, size + 0x18, 2);
+
+            *(u32 *)hull = (u32)node;
+            *(u32 *)(node + 4) = 0;
+            *(u32 *)(node + 0) = 0;
+            *(u32 *)(node + 8) = (u32)size;
+            *(u32 *)(node + 0xC) = *(u32 *)(arg0 + 4);
+            *(u32 *)(node + 0x14) = 0;
+            *(u32 *)(node + 0x10) = 0;
+            packet = node;
+        } else {
+            func_00196370(*(u8 **)(arg0 + 4), hull, size, func_001817E0);
+            packet = *(u8 **)hull;
+        }
+
+        /* ---- fill the packet header (0x180778) ---- */
+        pkt = packet + 0x18;
+        *(u16 *)(arg0 + 0xC) = (u16)(*(u16 *)(desc + 6) - 1);
+        *(u32 *)(pkt + 0x00) = 0;
+        *(u16 *)(pkt + 0x10) = (u16)flag30;
+        *(u32 *)(pkt + 0x0C) = *(u16 *)(desc + 6);
+        *(u32 *)(pkt + 0x04) = 0;
+        *(u32 *)(pkt + 0x14) = res4;
+        PB_COPY80(packet + 0x3C, hdr);
+        *(u32 *)(pkt + 0x1C) = (u32)strideA;
+        *(u32 *)(pkt + 0x20) = (u32)strideB;
+        *(u32 *)(pkt + 0x18) = *(u32 *)desc;
+
+        /* the write pointer starts past the 0xB4-byte header, 16-byte aligned
+           (128-byte aligned when the batch asks for it) */
+        wp = (u8 *)(((u32)pkt + 0xB3) & 0xFFFFFFF0u);
+        if (*(u8 *)(arg2 + 0xD8) != 0)
+            wp = (u8 *)(((u32)wp + 0x7F) & 0xFFFFFF80u);
+        *(u32 *)(pkt + 0x08) = (u32)wp;
+
+        /* copy the per-element source offsets back into the list (0x180828) */
+        {
+            u8 *d2 = arg2 + 0x10;
+            u8 *s2 = pkt + 0x28;
+
+            for (i = 0; i < 8; i++, s2 += 0x10) {
+                u32 tw = *(u32 *)(arg2 + 0x88 + i * 8);
+
+                if ((tw & 1) == 0)
+                    continue;
+                if ((tw & 0x2000) != 0)
+                    continue;
+                *(u32 *)d2 = *(u32 *)s2;
+                d2 += 0x10;
+            }
+        }
+        *(u32 *)(arg2 + 4) = res4;
+
+        /* ---- row loop (0x180878) ---- */
+        tagpos = wp;
+        {
+            s32 reuse = 0;
+            s32 span = 0;
+            u32 hiBase = 0x01000100u | (u32)da;
+            s32 row;
+
+            if (rows > 0) {
+                span = strideA * (rows - 1);
+                for (row = 0; row < rows; row++) {
+                    s32 rowStride = (row < rows - 1) ? strideA : (limit - span);
+                    s32 mod = (s32)((u32)row % (u32)strideB);
+                    s32 aligned = *(u8 *)(arg2 + 0xD8) != 0;
+
+                    if (mod == 0) {
+                        /* close the previous row block with its GIFtag, then
+                           start a new block at the current write pointer */
+                        u32 qw = (u32)((s32)(wp - tagpos) >> 4);
+                        s32 first = (row == 0);
+
+                        /* 0x180924: `movn $3,$0,$14` keeps the tag word only
+                           on row 0 - every later boundary writes the NLOOP
+                           word with a zeroed tag half. */
+                        *(u32 *)(tagpos + 0x0) = (qw - 1) | 0x10000000u;
+                        *(u32 *)(tagpos + 0x4) = 0;
+                        *(u32 *)(tagpos + 0x8) = first ? 0x13000000u : 0;
+                        *(u32 *)(tagpos + 0xC) = first ? 0x06008000u : 0;
+                        /* 0x180940 `daddu $18,$11` sits in a delay slot, so
+                           tagpos is the old write pointer. 0x180944
+                           `beql $14,$0` skips the advance on row 0; the
+                           harness's likely-branch model runs delay slots on
+                           the taken path, which is what retail's own element
+                           counter needs, so both paths advance here. */
+                        tagpos = wp;
+                        if (!aligned)
+                            wp = tagpos + 0x10;
+                        else if (first)
+                            wp = tagpos + 0x10;
+                        else
+                            reuse = 1; /* the quad already at the pointer is kept */
+                    }
+
+                    /* ---- first element pass: layers without bit 13 ---- */
+                    {
+                        u8 *tg = (u8 *)(arg2 + 0x88);
+                        u8 *ew = pkt + 0x28;
+                        u8 *eb = pkt + 0x30;
+                        s32 limit2 = strideA - 2;
+                        s32 elem;
+
+                        for (elem = 0; elem < 8; elem++) {
+                            u32 tw = *(u32 *)(tg + elem * 8);
+                            s32 bpp;
+                            s32 bytes;
+                            u32 addr;
+                            u32 mul;
+                            u32 w2;
+
+                            if ((tw & 1) == 0)
+                                continue;
+                            if ((tw & 0x2000) != 0)
+                                continue;
+
+                            switch (tw & 0xFF000000u) {
+                            case 0x68000000u:
+                                bpp = 3;
+                                break;
+                            case 0x6D000000u:
+                                bpp = 2;
+                                break;
+                            case 0x64000000u:
+                                bpp = 2;
+                                break;
+                            case 0x65000000u:
+                                bpp = 1;
+                                break;
+                            case 0x60000000u:
+                                bpp = 1;
+                                break;
+                            case 0x6E000000u:
+                                /* 0x180A18: retail's 0x6E arm lands on bpp = 1 */
+                                bpp = 1;
+                                break;
+                            default:
+                                bpp = 4;
+                                break;
+                            }
+
+                            bytes = (rowStride * bpp + 3) >> 2;
+                            addr = *(u32 *)(pkt + 8) +
+                                   (*(u32 *)(ew + elem * 0x10) << 4);
+                            mul = (u32)(row << 2);
+                            mul = mul * (u32)(((*(u32 *)desc & 1) != 0) ? limit2
+                                                                       : strideA);
+                            mul = mul * (u32)bpp;
+                            addr += mul;
+
+                            /* row advance rounded up to the quadword boundary
+                               is folded into the transfer count */
+                            w2 = (u32)(rowStride +
+                                       ((((rowStride * bpp + 3) & ~3) -
+                                         rowStride * bpp - 1 + bpp) / bpp));
+                            w2 = (w2 << 16) | (tw & 0xFF004000u) |
+                                 (u32)(*(u8 *)(eb + elem * 0x10) | 0x8000);
+
+                            /* pcpyld puts the (addr<<32)|bytes word low and
+                               the (w2<<32)|hiBase word high */
+                            *(u32 *)(tagpos + 0x0) = (u32)bytes | 0x30000000u;
+                            *(u32 *)(tagpos + 0x4) = addr;
+                            *(u32 *)(tagpos + 0x8) = hiBase;
+                            *(u32 *)(tagpos + 0xC) = w2;
+
+                            *(u32 *)(wp + 0x0) = 0x10000000u;
+                            *(u32 *)(wp + 0x4) = 0;
+                            *(u32 *)(wp + 0x8) = 0;
+                            *(u32 *)(wp + 0xC) = 0;
+
+                            tagpos = wp + 0x10;
+                            wp = tagpos + 0x10;
+                        }
+                    }
+
+                    /* ---- second element pass: layers tagged with bit 13 ---- */
+                    {
+                        u8 *tg = (u8 *)(arg2 + 0x88);
+                        u8 *eb = pkt + 0x30;
+                        u32 c0 = ((u32)rowStride << 16) | 0x68008000u;
+                        u32 c1 = ((u32)rowStride << 16) | 0x64008000u;
+                        u32 c2 = ((u32)rowStride << 16) | 0x6E00C000u;
+                        u32 c3 = ((u32)rowStride << 16) | 0x6A008000u;
+                        s32 q0 = ((3 * rowStride + 3) >> 2) << 4;
+                        s32 q1 = ((2 * rowStride + 3) >> 2) << 4;
+                        s32 q2 = ((rowStride + 3) >> 2) << 4;
+                        s32 q3 = ((3 * rowStride + 15) >> 4) << 4;
+                        s32 elem;
+
+                        for (elem = 0; elem < 8; elem++) {
+                            u32 tw = *(u32 *)(tg + elem * 8);
+                            u32 chan;
+                            s32 adv;
+                            unsigned long long lo;
+                            unsigned long long hi;
+
+                            if ((tw & 1) == 0)
+                                continue;
+                            if ((tw & 0x2000) == 0)
+                                continue;
+
+                            switch (elem) {
+                            case 0:
+                                chan = c0;
+                                adv = q0;
+                                break;
+                            case 1:
+                                chan = c1;
+                                adv = q1;
+                                break;
+                            case 2:
+                                chan = c2;
+                                adv = q2;
+                                break;
+                            case 3:
+                                chan = c3;
+                                adv = q3;
+                                break;
+                            default:
+                                continue;
+                            }
+
+                            if (reuse) {
+                                lo = ((unsigned long long)*(u32 *)(wp + 4) << 32) |
+                                     *(u32 *)(wp + 0);
+                                reuse = 0;
+                            } else {
+                                u32 cnt = D_00393880;
+
+                                lo = ((unsigned long long)((cnt & 0xFFFFu) |
+                                                           0x07000000u)) |
+                                     0x0500000000000000ULL;
+                                D_00393880 = cnt + 1;
+                            }
+                            hi = ((unsigned long long)(chan |
+                                                       *(u8 *)(eb + elem * 0x10)))
+                                 << 32;
+                            hi |= (unsigned long long)hiBase;
+
+                            *(u32 *)(wp + 0x0) = (u32)lo;
+                            *(u32 *)(wp + 0x4) = (u32)(lo >> 32);
+                            *(u32 *)(wp + 0x8) = (u32)hi;
+                            *(u32 *)(wp + 0xC) = (u32)(hi >> 32);
+                            wp += adv;
+                            *(u32 *)(wp + 0x0) = 0;
+                            *(u32 *)(wp + 0x4) = 0;
+                            *(u32 *)(wp + 0x8) = 0;
+                            *(u32 *)(wp + 0xC) = 0;
+                            wp += 0x10;
+                        }
+                    }
+
+                    /* ---- per-row A+D size word (0x180D4C) ---- */
+                    {
+                        u32 d0 = *(u32 *)desc;
+                        unsigned long long w;
+                        /* 0x180D68 `movz $8,$2,$14` sits in the delay slot of the
+                           descriptor test, so the first-row A+D word is picked in
+                           every branch, not just the bit-0 one */
+                        unsigned long long pre = (row == 0) ? (0xA800ULL << 45)
+                                                           : (0xB800ULL << 45);
+
+                        if ((d0 & 1) != 0) {
+                            w = (unsigned long long)((u32)rowStride | 0x04000000u);
+                        } else if ((d0 & 2) != 0) {
+                            /* retail rounds the halving with an arithmetic
+                               shift: srl 31, addu, sra 1 */
+                            s32 half = (s32)((u32)rowStride +
+                                             ((u32)rowStride >> 31)) >>
+                                       1;
+
+                            w = (unsigned long long)((u32)half | 0x04000000u);
+                        } else {
+                            w = (unsigned long long)((u32)((s32)rowStride / 3) |
+                                                     0x04000000u);
+                        }
+                        w |= pre;
+                        *(u32 *)(wp + 0x0) = (u32)w;
+                        *(u32 *)(wp + 0x4) = (u32)(w >> 32);
+                        *(u32 *)(wp + 0x8) = 0;
+                        *(u32 *)(wp + 0xC) = 0;
+                        wp += 0x10;
+                    }
+                }
+            }
+        }
+
+        /* ---- terminate the packet (0x180DD8) ---- */
+        {
+            u32 qw = (u32)((s32)(wp - tagpos) >> 4);
+            /* retail builds the count with 32-bit sign-extending ops and stores
+               it as a doubleword, so an empty block stores 0xFFFFFFFF twice */
+            u64 word = (u64)(s64)(s32)(qw - 1) | 0x60000000ULL;
+
+            *(u32 *)(wp - 0x8) = 0x11000000u;
+            *(u32 *)(wp - 0x4) = 0x06000000u;
+            *(u32 *)(tagpos + 0x0) = (u32)word;
+            *(u32 *)(tagpos + 0x4) = (u32)(word >> 32);
+            /* 0x180E08 `beql $2,$0` guards the `sq $0,8($18)`: in the
+               harness's delay-slot model the zeroing runs for the batches
+               whose alignment byte is clear */
+            if (*(u8 *)(arg2 + 0xD8) == 0) {
+                *(u32 *)(tagpos + 0x8) = 0;
+                *(u32 *)(tagpos + 0xC) = 0;
+            }
+        }
+
+        /* ---- clear the dirty bits of the eight sub-entries (0x180E10) ---- */
+        if (*(s32 *)arg2 != 0) {
+            for (i = 0; i < *(s32 *)arg2; i++) {
+                u8 *e = *(u8 **)(arg2 + 8 + i * 0x10);
+
+                func_001A3CD0(e, *(u32 *)(*(u32 *)(pkt + 8) + 4 + i * 0x20),
+                              *(u32 *)(arg2 + 0x14 + i * 0x10), *(u32 *)(arg2 + 4));
+                *(u16 *)e |= 6;
+            }
+        }
+
+        /* ---- hand the finished packet to the renderer of the mode ---- */
+        if (mode == 0)
+            return func_0017EE40(arg2, pkt, res, *(u32 *)desc & 1, res4, arg0);
+        if (mode == 1)
+            return func_0017F388(arg2, pkt, res, *(u32 *)desc & 1, res4, header, arg0);
+        return func_0017EB10(pkt, res, *(u32 *)desc & 1, res4, header, arg0);
+    }
+}
 
 
 /* Source: rendering/region_0018.c */
@@ -8245,7 +11207,14 @@ u8 *func_001816F0(void) { return D_00372E78; }
 
 INCLUDE_ASM(const s32, "core/main", func_00181700);
 
-INCLUDE_ASM(const s32, "core/main", func_001817E0);
+void func_001817E0(u8 *arg0)
+{
+    volatile u32 *p = (volatile u32 *)(arg0 + 0x18);
+
+    while (*p != 0) {
+        func_001AB1C8();
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00181820);
 
@@ -8255,7 +11224,23 @@ INCLUDE_ASM(const s32, "core/main", func_001820E0);
 
 INCLUDE_ASM(const s32, "core/main", func_00182238);
 
-INCLUDE_ASM(const s32, "core/main", func_00182578);
+extern u8 D_00372F20[];
+extern u8 D_00372FA8[];
+
+s32 func_00182578(s32 arg0)
+{
+    s32 result = 0;
+
+    switch (arg0) {
+    case 0:
+        result = (s32)&D_00372F20;
+        break;
+    case 1:
+        result = (s32)&D_00372FA8;
+        break;
+    }
+    return result;
+}
 
 s32 *func_001825B8(s32 *p, s32 value) { ((s32 *)p[5])[0] = value; return p; }
 
@@ -8403,7 +11388,14 @@ s32 func_00183618(s32 a0, s32 a1, s32 a2)
     return func_001706A0(*(s32 *)(a2 + 0x3C), a2, a0, a2 + 0xC);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00183648);
+s32 func_00183648(s32 a1, s32 a2, s32 a3)
+{
+    s32 v;
+
+    v = func_00170818(a1, a3, a3 + 0xC);
+    *(s32 *)(a3 + 0x3C) = v;
+    return v != 0 ? a1 : 0;
+}
 
 s32 func_00170E88(s32 *);
 
@@ -8412,7 +11404,11 @@ s32 func_00183690(s32 *arg1)
     return func_00170E88((s32 *)arg1[15]);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001836B0);
+s32 func_001836B0(s32 a0, s32 a1, s32 a2)
+{
+    s32 v = func_00175830(a2);
+    return func_001706A0(*(s32 *)(a2 + 0x50), v, a0, v + 0xC);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001836F8);
 
@@ -8539,7 +11535,25 @@ INCLUDE_ASM(const s32, "core/main", func_001889E8);
 
 INCLUDE_ASM(const s32, "core/main", func_00188A60);
 
-INCLUDE_ASM(const s32, "core/main", func_00188B28);
+s32 func_00188B28(s32 dummy, f32 a1, s32 a2, s32 a3, u8 *p)
+{
+    if (*(s32 *)p == 0) {
+        *(s32 *)(p + 8) = a2;
+        goto store;
+    }
+    if (*(s32 *)(p + 8) != a2)
+        return 0;
+    if (a1 < *(f32 *)(p + 4)) {
+        *(s32 *)(p + 8) = a2;
+        goto store;
+    }
+    goto done;
+store:
+    *(f32 *)(p + 4) = a1;
+    *(s32 *)p = a3;
+done:
+    return a3;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00188B68);
 
@@ -8568,7 +11582,16 @@ s32 func_00188D28(void)
     return ((s32 (*)(void))*(u32 *)(*(u32 *)D_003731BC + 0x6C))();
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00188D50);
+s32 func_00188D50(u8 *a1, s32 a2, s32 a3)
+{
+    s32 func_00170DF8();
+    s32 v = *(s32 *)(a1 + 0x50);
+
+    if (v != 0) {
+        if (func_00170DF8(v, a2, a3) != 0) return (s32)a1;
+    }
+    return 0;
+}
 
 u8 *func_00188D98(u8 *p) { return p + 52; }
 
@@ -8599,27 +11622,44 @@ INCLUDE_ASM(const s32, "core/main", func_00188ED8);
 
 INCLUDE_ASM(const s32, "core/main", func_00188FD0);
 
-/* Behavior-faithful, not byte-matching: copies the same 12-byte block to +0xC
-   and then to +0, size exact at 0x38; only the load scheduling differs, retail
-   pulls the +8 word earlier. */
 u8 *func_001890C0(u8 *arg0, u8 *arg1)
 {
-    *(UnalignedU64 *)(arg0 + 0xC) = *(UnalignedU64 *)arg1;
-    *(u32 *)(arg0 + 0x14) = *(u32 *)(arg1 + 8);
-    *(UnalignedU64 *)arg0 = *(UnalignedU64 *)arg1;
-    *(u32 *)(arg0 + 8) = *(u32 *)(arg1 + 8);
+    *(S12 *)(arg0 + 0xC) = *(S12 *)arg1;
+    *(S12 *)arg0 = *(S12 *)arg1;
     return arg0;
 }
 
 INCLUDE_ASM(const s32, "core/main", func_001890F8);
 
-INCLUDE_ASM(const s32, "core/main", func_00189198);
+/* Byte-matching: 6 float bounds checks, explicit > early-outs. */
+s32 func_00189198(f32 *a1, f32 *a2)
+{
+    if (a1[3] > a2[0]) return 0;
+    if (a1[4] > a2[1]) return 0;
+    if (a1[5] > a2[2]) return 0;
+    if (a2[0] > a1[0]) return 0;
+    if (a2[1] > a1[1]) return 0;
+    if (a2[2] > a1[2]) return 0;
+    return 1;
+}
+
 
 INCLUDE_ASM(const s32, "core/main", func_00189220);
 
 INCLUDE_ASM(const s32, "core/main", func_00189268);
 
-INCLUDE_ASM(const s32, "core/main", func_001893D0);
+void func_00189728();
+s32 func_00197458();
+
+s32 func_001893D0(s32 a1, s32 a2, s32 a3, s32 a4)
+{
+    s32 stack[3];
+    stack[0] = a2;
+    stack[1] = a3;
+    stack[2] = a4;
+    func_00189728(stack, 0xC);
+    return func_00197458(a1, stack, 0xC);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00189418);
 
@@ -8667,7 +11707,22 @@ s32 func_0018A0A0(s32 *arg0)
 
 INCLUDE_ASM(const s32, "core/main", func_0018A0E0);
 
-INCLUDE_ASM(const s32, "core/main", func_0018A168);
+s32 func_0018A168(s32 *a1, s32 a2)
+{
+    s32 *v4;
+    s32 v5;
+
+    if (a2 != 0)
+    {
+        v4 = (s32 *)*a1;
+        *v4 = a2;
+        v5 = *(s32 *)(a2 + 0xA4);
+        *a1 = (s32)(v4 + 1);
+        func_0018A168(a1, v5);
+        func_0018A168(a1, *(s32 *)(a2 + 0xA0));
+    }
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0018A1C0);
 
@@ -8687,7 +11742,17 @@ s32 func_0018AC20(void)
     return 1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0018AC48);
+s32 func_0018AC48(s32 arg0)
+{
+    extern s32 D_003732D0[];
+    extern u8 D_00393740;
+
+    s32 (*fp)(s32) = (s32 (*)(s32))D_003732D0[0];
+    s32 d = (s32)&D_00393740;
+    s32 v = arg0 ? arg0 : d;
+
+    return (fp(v) + 4) & 0xFFFFFFFC;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0018AC80);
 
@@ -8709,9 +11774,43 @@ s32 func_0018AEC8(s32 arg1, s32 arg2, s32 arg3, s32 arg4)
     return func_0019A198(D_00377218, arg1, arg2, arg3, arg4);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0018AF00);
+s32 func_0018AF00(s32 arg0)
+{
+    extern s32 D_00377218[];
+    s32 func_0018AF78(s32, s32 *);
+    s32 v[2];
+    s32 v3;
+    s32 t;
 
-INCLUDE_ASM(const s32, "core/main", func_0018AF78);
+    v[0] = 16;
+    v[1] = 1;
+    func_00199DB0(arg0, func_0018AF78, v);
+    if (v[1] == 0)
+        return 0;
+    v3 = func_0019A3A8(D_00377218, arg0);
+    t = v[0] + 12;
+    v[0] = t + v3;
+    return v[0];
+}
+
+/* Byte-matching: early-out r==0 bnel shape. */
+s32 func_0018AF78(s32 a1, s32 *a2)
+{
+    extern s32 D_00373264[];
+    s32 v5[4];
+    s32 r;
+
+    r = ((s32 (*)(s32, s32, s32)) D_00373264[0])(v5, a1, 0);
+    if (r == 0)
+    {
+        a2[1] = 0;
+        return 0;
+    }
+    *a2 += 12 + v5[0];
+    *a2 += 12 + func_0019A3A8(D_00377200, a1);
+    return a1;
+}
+
 
 u8 *func_0018B008(u8 *p, s32 *counter)
 {
@@ -9037,7 +12136,18 @@ u8 *func_0018C4D8(u8 *arg0)
 
 INCLUDE_ASM(const s32, "core/main", func_0018C508);
 
-INCLUDE_ASM(const s32, "core/main", func_0018C550);
+extern s32 D_00373060[];
+extern s32 D_00393CE8;
+s32 func_0018C550(s32 a1)
+{
+    s32 *p;
+
+    func_0019A700((s32)D_00373060, a1);
+    func_0019A890(a1);
+    p = (s32 *)((s32)D_00393CE8 + (u32)D_003731B8);
+    ((s32 (*)(s32, s32, s32))D_003731B8[80])(*p, a1, (s32)p);
+    return 1;
+}
 
 s32 func_0018C5B0();
 s32 func_0019A830();
@@ -9058,7 +12168,19 @@ s32 *func_0018C5F8(s32 *p, s32 value) { p[0x19] = value; return p; }
 
 s32 func_0018C608(const s32 *p) { return *(const s32 *)((const u8 *)p + (100)); }
 
-INCLUDE_ASM(const s32, "core/main", func_0018C610);
+void func_0018E670();
+u8 *func_0018C610(u8 *arg0, u8 *arg1)
+{
+    u8 *result = arg0;
+    s32 v;
+    *(UnalignedU64 *)(arg0 + 0x78) = *(UnalignedU64 *)arg1;
+    v = *(s32 *)(arg0 + 4);
+    if (v != 0) {
+        func_0018E670(v);
+        return arg0;
+    }
+    return result;
+}
 
 u8 *func_0018C658(u8 *p) { return p + 120; }
 
@@ -9100,15 +12222,57 @@ s32 func_0018CA68(void) { return 1; }
 
 INCLUDE_ASM(const s32, "core/main", func_0018CA70);
 
-INCLUDE_ASM(const s32, "core/main", func_0018CAF8);
+/* Byte-matching: volatile counter keeps a single load at the join point. */
+extern s32 D_00393CE8;
+extern volatile s32 D_00393CEC;
+
+s32 func_0018CAF8(s32 arg0)
+{
+    s32 *p;
+
+    p = (s32 *)((s32)D_00393CE8 + (u32)D_003731B8);
+    if (*p != 0) {
+        func_001956D0(*p);
+        p = (s32 *)((s32)D_00393CE8 + (u32)D_003731B8);
+        *p = 0;
+    }
+    D_00393CEC = D_00393CEC - 1;
+    return arg0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0018CB60);
 
 INCLUDE_ASM(const s32, "core/main", func_0018CBC8);
 
-INCLUDE_ASM(const s32, "core/main", func_0018CC50);
+s32 func_0018CC50(s32 a1)
+{
+    s32 v2;
+    s32 result;
 
-INCLUDE_ASM(const s32, "core/main", func_0018CCB0);
+    D_003731B8[0] = a1;
+    func_001979E8();
+    v2 = ((s32 (*)(s32, s32, s32))D_003731B8[0x13])(0, a1, 0);
+    result = 0;
+    if (v2 != 0) {
+        func_0019C6A8(a1);
+        return a1;
+    }
+    return result;
+}
+
+s32 func_0018CCB0(s32 a1)
+{
+    extern s32 D_003731B8[];
+    s32 (*f)(s32, s32, s32) = (s32 (*)(s32, s32, s32))D_003731B8[28];
+    s32 result = a1;
+
+    if (f(0, a1, 0) == 0)
+        goto zero;
+    D_003731B8[0] = 0;
+    return result;
+zero:
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0018CD08);
 
@@ -9136,27 +12300,225 @@ INCLUDE_ASM(const s32, "core/main", func_0018D350);
 
 INCLUDE_ASM(const s32, "core/main", func_0018D3D8);
 
-INCLUDE_ASM(const s32, "core/main", func_0018D428);
+s32 func_0018D428(void)
+{
+    extern s32 D_003731CC[];
+    s32 v[8];
+
+    v[4] = 1;
+    if (((s32 (*)(s32, s32 *, s32, s32))D_003731CC[0])(13, &v[4], 0, 0) == 0)
+        v[4] = 1;
+    return v[4];
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0018D478);
 
 INCLUDE_ASM(const s32, "core/main", func_0018D520);
 
-INCLUDE_ASM(const s32, "core/main", func_0018D560);
+s32 func_0018D560(s32 a1)
+{
+    extern s32 D_003731CC[];
+    s32 func_0018DA08();
+    s32 func_0018DAD0();
+    s32 stack[2];
+    s32 v;
 
-INCLUDE_ASM(const s32, "core/main", func_0018D5D0);
+    v = ((s32 (*)(s32, s32, s32, s32)) D_003731CC[0])(16, 0, 0, a1);
+    if (v != 0)
+        return 1;
+    if (a1 == 0)
+        return 1;
+    stack[0] = 1;
+    stack[1] = func_0018DA08(0x17, 0x10);
+    __asm__ volatile("" ::: "memory");
+    func_0018DAD0(stack);
+    return 0;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_0018D638);
+/* Byte-matching. The memory barrier pins the store before the jal; the single
+   inline nop is a branch hazard this compiler cannot emit from plain C. */
+extern s32 D_003731CC[];
 
-INCLUDE_ASM(const s32, "core/main", func_0018D6A8);
+s32 func_0018D5D0(void)
+{
+    s32 func_0018DA08();
+    s32 func_0018DAD0();
+    s32 v9[4];
+    s32 v10[4];
+    s32 v7;
+    s32 r;
 
-INCLUDE_ASM(const s32, "core/main", func_0018D710);
+    r = ((s32 (*)(s32, s32 *, s32, s32)) D_003731CC[0])(5, v10, 0, 0);
+    if (r != 0)
+        v7 = 1;
+    else
+    {
+        v9[0] = 1;
+        v9[1] = func_0018DA08(0x17, 5);
+        __asm__ volatile("" ::: "memory");
+        func_0018DAD0(v9);
+        v7 = 0;
+        __asm__ volatile("nop");
+    }
+    if (v7 != 0)
+        return v10[0];
+    return -1;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_0018D770);
+s32 func_0018D638(s32 a1, s32 a2)
+{
+    extern s32 D_003731CC[];
+    s32 func_0018DA08();
+    s32 func_0018DAD0();
+    s32 stack[2];
+    s32 r = a1;
+    s32 v7;
+    s32 v;
 
-INCLUDE_ASM(const s32, "core/main", func_0018D7D8);
+    v = ((s32 (*)(s32, s32, s32, s32)) D_003731CC[0])(6, a1, 0, a2);
+    if (v != 0)
+        v7 = 1;
+    else {
+        stack[0] = 1;
+        stack[1] = func_0018DA08(0x17, 6);
+        __asm__ volatile("" ::: "memory");
+        func_0018DAD0(stack);
+        v7 = 0;
+        __asm__ volatile("nop");
+    }
+    if (v7 == 0)
+        r = 0;
+    return r;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_0018D840);
+/* Byte-matching: see func_0018D5D0 (constant 0xA). */
+s32 func_0018D6A8(void)
+{
+    s32 func_0018DA08();
+    s32 func_0018DAD0();
+    s32 v9[4];
+    s32 v10[4];
+    s32 v7;
+    s32 r;
+
+    r = ((s32 (*)(s32, s32 *, s32, s32)) D_003731CC[0])(0xA, v10, 0, 0);
+    if (r != 0)
+        v7 = 1;
+    else
+    {
+        v9[0] = 1;
+        v9[1] = func_0018DA08(0x17, 0xA);
+        __asm__ volatile("" ::: "memory");
+        func_0018DAD0(v9);
+        v7 = 0;
+        __asm__ volatile("nop");
+    }
+    if (v7 != 0)
+        return v10[0];
+    return -1;
+}
+
+s32 func_0018D710(s32 a1)
+{
+    extern s32 D_003731CC[];
+    s32 func_0018DA08();
+    s32 func_0018DAD0();
+    s32 v9[4];
+    s32 v7;
+    s32 r;
+
+    r = ((s32 (*)(s32, s32, s32, s32)) D_003731CC[0])(7, 0, 0, a1);
+    if (r != 0)
+        v7 = 1;
+    else
+    {
+        v9[0] = 1;
+        v9[1] = func_0018DA08(0x17, 7);
+        __asm__ volatile("" ::: "memory");
+        func_0018DAD0(v9);
+        v7 = 0;
+        __asm__ volatile("nop");
+    }
+    return v7;
+}
+
+/* Byte-matching: see func_0018D5D0 (constant 0xC). */
+s32 func_0018D770(void)
+{
+    s32 func_0018DA08();
+    s32 func_0018DAD0();
+    s32 v9[4];
+    s32 v10[4];
+    s32 v7;
+    s32 r;
+
+    r = ((s32 (*)(s32, s32 *, s32, s32)) D_003731CC[0])(0xC, v10, 0, 0);
+    if (r != 0)
+        v7 = 1;
+    else
+    {
+        v9[0] = 1;
+        v9[1] = func_0018DA08(0x17, 0xC);
+        __asm__ volatile("" ::: "memory");
+        func_0018DAD0(v9);
+        v7 = 0;
+        __asm__ volatile("nop");
+    }
+    if (v7 != 0)
+        return v10[0];
+    return -1;
+}
+
+/* Byte-matching: see func_0018D5D0 (constant 0x13). */
+s32 func_0018D7D8(void)
+{
+    s32 func_0018DA08();
+    s32 func_0018DAD0();
+    s32 v9[4];
+    s32 v10[4];
+    s32 v7;
+    s32 r;
+
+    r = ((s32 (*)(s32, s32 *, s32, s32)) D_003731CC[0])(0x13, v10, 0, 0);
+    if (r != 0)
+        v7 = 1;
+    else
+    {
+        v9[0] = 1;
+        v9[1] = func_0018DA08(0x17, 0x13);
+        __asm__ volatile("" ::: "memory");
+        func_0018DAD0(v9);
+        v7 = 0;
+        __asm__ volatile("nop");
+    }
+    if (v7 != 0)
+        return v10[0];
+    return -1;
+}
+
+s32 func_0018D840(s32 a1)
+{
+    extern s32 D_003731CC[];
+    s32 func_0018DA08();
+    s32 func_0018DAD0();
+    s32 v9[4];
+    s32 v7;
+    s32 r;
+
+    r = ((s32 (*)(s32, s32, s32, s32)) D_003731CC[0])(8, 0, 0, a1);
+    if (r != 0)
+        v7 = 1;
+    else
+    {
+        v9[0] = 1;
+        v9[1] = func_0018DA08(0x17, 8);
+        __asm__ volatile("" ::: "memory");
+        func_0018DAD0(v9);
+        v7 = 0;
+        __asm__ volatile("nop");
+    }
+    return v7;
+}
 
 s32 func_0018D8A0(void) { return D_003732FC[0]; }
 
@@ -9254,7 +12616,17 @@ INCLUDE_ASM(const s32, "core/main", func_0018E6D0);
 
 s32 func_0018E7B0(s32 *p) { return ((u8 *)p[0x2A])[3] & 3; }
 
-INCLUDE_ASM(const s32, "core/main", func_0018E7C0);
+s32 func_0018E7C0(u8 *a1)
+{
+    u8 *p = *(u8 **)(a1 + 0xA0);
+    s32 i = 1;
+
+    while (p != 0) {
+        i += func_0018E7C0(p);
+        p = *(u8 **)(p + 0xA4);
+    }
+    return i;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0018E810);
 
@@ -9289,7 +12661,23 @@ u8 *func_0018E8D0(u8 *arg0)
 
 INCLUDE_ASM(const s32, "core/main", func_0018E910);
 
-INCLUDE_ASM(const s32, "core/main", func_0018E9A8);
+/* Byte-matching: volatile counter keeps a single load at the join point. */
+extern s32 D_00393CF8;
+extern volatile s32 D_00393CFC;
+
+s32 func_0018E9A8(s32 arg0)
+{
+    s32 *p;
+
+    p = (s32 *)((s32)D_00393CF8 + (u32)D_003731B8);
+    if (*p != 0) {
+        func_001956D0(*p);
+        p = (s32 *)((s32)D_00393CF8 + (u32)D_003731B8);
+        *p = 0;
+    }
+    D_00393CFC = D_00393CFC - 1;
+    return arg0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0018EA10);
 
@@ -9297,7 +12685,34 @@ INCLUDE_ASM(const s32, "core/main", func_0018EA88);
 
 INCLUDE_ASM(const s32, "core/main", func_0018EAE0);
 
-INCLUDE_ASM(const s32, "core/main", func_0018EBE8);
+/* Byte-matching: 10-entry vtable initializer; source stores in ascending
+   offset order so cc1 rotates them (??2 rule scaled to 10 stores). */
+s32 func_0018EBE8(void)
+{
+    extern s32 func_0018EC88();
+    extern s32 func_002227D8();
+    extern s32 func_00222120();
+    extern s32 func_00222858();
+    extern s32 func_00223768();
+    extern s32 func_00222340();
+    extern s32 func_00222808();
+    extern s32 func_00222228();
+    extern s32 func_00222E08();
+    extern s32 func_00222238();
+
+    D_003731B8[49] = (s32)func_0018EC88;
+    D_003731B8[50] = (s32)func_002227D8;
+    D_003731B8[51] = (s32)func_00222120;
+    D_003731B8[52] = (s32)func_00222858;
+    D_003731B8[53] = (s32)func_00223768;
+    D_003731B8[54] = (s32)func_00222340;
+    D_003731B8[55] = (s32)func_00222808;
+    D_003731B8[56] = (s32)func_00222228;
+    D_003731B8[57] = (s32)func_00222E08;
+    D_003731B8[58] = (s32)func_00222238;
+    return 1;
+}
+
 
 void func_0018EC70(void) {
 }
@@ -9306,7 +12721,16 @@ extern u8 D_0037327C[];
 
 u8 *func_0018EC78(void) { return D_0037327C; }
 
-INCLUDE_ASM(const s32, "core/main", func_0018EC88);
+s32 func_0018EC88(s32 a1)
+{
+    extern s32 D_00393750[];
+    s32 v = ((s32 (*)(s32, s32))D_003731B8[50])(a1, (s32)&D_00393750);
+    s32 r = (v != 0);
+
+    if (v != 0)
+        ((void (*)(s32))D_003731B8[51])(v);
+    return r;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0018ECE0);
 
@@ -9343,11 +12767,31 @@ INCLUDE_ASM(const s32, "core/main", func_001906E0);
 
 INCLUDE_ASM(const s32, "core/main", func_00190728);
 
-INCLUDE_ASM(const s32, "core/main", func_001907C0);
+s32 func_001907C0(s32 a1)
+{
+  s32 *p;
+  if ( (*(u32 *)a1 & 1) != 0 )
+    func_00190938(a1);
+  func_0019A700((u32)&D_003771D0, a1);
+  p = (s32 *)((s32)D_00393D00 + (u32)D_003731B8);
+  ((s32 (*)(s32, s32, s32))D_003731B8[80])(*p, a1, (s32)p);
+  return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00190830);
 
-INCLUDE_ASM(const s32, "core/main", func_00190938);
+extern s32 D_003732E8[];
+
+u8 *func_00190938(u8 *a1)
+{
+    s32 v;
+    ((void (*)(s32)) D_003732E8[0]) (*(s32 *)(a1 + 0x14));
+    v = *(s32 *)a1;
+    *(s32 *)(a1 + 0x14) = 0;
+    *(s32 *)(a1 + 0x18) = 0;
+    *(s32 *)a1 = v & -2;
+    return a1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00190988);
 
@@ -9506,7 +12950,21 @@ s32 func_00193108(void)
     return ((s32 (*)(void)) D_003731EC[0])();
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00193130);
+s32 func_00193130(f32 *a1, f32 *a2, f32 *a3)
+{
+    a1[0] = (a2[0] * a3[0] + a2[1] * a3[4]) + a2[2] * a3[8];
+    a1[1] = (a2[0] * a3[1] + a2[1] * a3[5]) + a2[2] * a3[9];
+    a1[2] = (a2[0] * a3[2] + a2[1] * a3[6]) + a2[2] * a3[10];
+    a1[4] = (a2[4] * a3[0] + a2[5] * a3[4]) + a2[6] * a3[8];
+    a1[5] = (a2[4] * a3[1] + a2[5] * a3[5]) + a2[6] * a3[9];
+    a1[6] = (a2[4] * a3[2] + a2[5] * a3[6]) + a2[6] * a3[10];
+    a1[8] = (a2[8] * a3[0] + a2[9] * a3[4]) + a2[10] * a3[8];
+    a1[9] = (a2[8] * a3[1] + a2[9] * a3[5]) + a2[10] * a3[9];
+    a1[10] = (a2[8] * a3[2] + a2[9] * a3[6]) + a2[10] * a3[10];
+    a1[12] = ((a2[12] * a3[0] + a2[13] * a3[4]) + a2[14] * a3[8]) + a3[12];
+    a1[13] = ((a2[12] * a3[1] + a2[13] * a3[5]) + a2[14] * a3[9]) + a3[13];
+    a1[14] = ((a2[12] * a3[2] + a2[13] * a3[6]) + a2[14] * a3[10]) + a3[14];
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00193390);
 
@@ -9535,9 +12993,48 @@ s32 func_00194AC8(u8 *arg0)
     return 1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00194B00);
+s32 func_00194B00(void)
+{
+    u8 *p = (u8 *)D_003731B8 + D_00393D08;
+    s32 (*fn)(s32 *) = *(s32 (**)(s32 *))((u8 *)D_003731B8 + 0x13C);
+    s32 v = fn(*(s32 *)p);
 
-INCLUDE_ASM(const s32, "core/main", func_00194B88);
+    if (v != 0)
+    {
+        f32 zero = 0.0f, one = 1.0f;
+        *(volatile f32 *)(v + 0x30) = zero;
+        *(volatile f32 *)(v + 0x00) = one;
+        *(volatile u32 *)(v + 0x0C) = 131075;
+        *(volatile f32 *)(v + 0x28) = one;
+        *(volatile f32 *)(v + 0x14) = one;
+        *(volatile f32 *)(v + 0x10) = zero;
+        *(volatile f32 *)(v + 0x08) = zero;
+        *(volatile f32 *)(v + 0x04) = zero;
+        *(volatile f32 *)(v + 0x24) = zero;
+        *(volatile f32 *)(v + 0x20) = zero;
+        *(volatile f32 *)(v + 0x18) = zero;
+        *(volatile f32 *)(v + 0x38) = zero;
+        *(volatile f32 *)(v + 0x34) = zero;
+        __asm__ volatile("nop");
+    }
+    return v;
+}
+
+s32 func_00194B88(void)
+{
+    extern s32 D_00393758;
+    s32 func_0018DA08();
+    s32 stack[2];
+    s32 v;
+    stack[0] = 1;
+    stack[1] = func_0018DA08(0x8000001B);
+    __asm__ volatile("" ::: "memory");
+    func_0018DAD0(stack);
+    v = D_00393758;
+    __asm__ volatile("" ::: "memory");
+    D_00393758++;
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00194BD0);
 
@@ -9596,7 +13093,23 @@ s32 func_00195118(u32 arg0)
 
 INCLUDE_ASM(const s32, "core/main", func_00195148);
 
-INCLUDE_ASM(const s32, "core/main", func_001951C0);
+/* Byte-matching: volatile counter keeps a single load at the join point.
+   D_00393D08 is already declared extern s32 in this file. */
+extern volatile s32 D_00393D0C;
+
+s32 func_001951C0(s32 arg0)
+{
+    s32 *p;
+
+    p = (s32 *)((s32)D_00393D08 + (u32)D_003731B8);
+    if (*p != 0) {
+        func_001956D0(*p);
+        p = (s32 *)((s32)D_00393D08 + (u32)D_003731B8);
+        *p = 0;
+    }
+    D_00393D0C = D_00393D0C - 1;
+    return arg0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00195228);
 
@@ -9655,7 +13168,15 @@ s32 func_00195DB8(u8 *p)
     return p[0x23] << 8;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00195DC8);
+s32 func_00195DC8(s32 a1)
+{
+    extern s32 D_00373270[];
+    s32 func_00195DB8();
+    s32 result;
+    if ((func_00195DB8(a1) & 0x8000) == 0) return 1;
+    if (((s32 (*)(s32 *, s32, s32))D_00373270[0])(&result, a1, 0) == 0) return -1;
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00195E20);
 
@@ -9709,7 +13230,15 @@ s32 func_001960F8(u8 *arg0, u8 *arg1)
     return 1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00196128);
+extern s32 D_00373250[];
+s32 func_00196128(s32 a1, s32 a2, s32 a3)
+{
+    s32 (*v5)(s32, s32, s32);
+    v5 = (s32 (*)(s32, s32, s32))D_00373250[0];
+    func_00196810();
+    if (v5(a1, a2, a3) == 0) return 0;
+    return a1;
+}
 
 extern s32 D_0037323C[];
 s32 func_00196190(u8 *arg0, s32 arg1, s32 arg2)
@@ -9727,9 +13256,25 @@ u8 *func_001961D0(u8 *arg0)
     return arg0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00196210);
+extern s32 D_0037325C[];
 
-INCLUDE_ASM(const s32, "core/main", func_00196248);
+s32 func_00196210(s32 arg0, s32 arg1)
+{
+    s32 stack;
+    s32 v = ((s32 (*)(s32 *, s32, s32)) D_0037325C[0])(&stack, arg0, arg1);
+    if (v != 0)
+        return stack;
+    return 0;
+}
+
+extern s32 D_00373260[];
+
+u8 *func_00196248(u8 *arg0)
+{
+    ((s32 (*)(s32, u8 *, s32)) D_00373260[0])(0, arg0, 0);
+    *(u8 *)(arg0 + 0x22) &= 0xE7;
+    return arg0;
+}
 
 s32 func_0019A490();
 
@@ -9745,7 +13290,23 @@ s32 func_001962D8(s32 arg)
 
 s32 func_00196300(void) { return 1; }
 
-INCLUDE_ASM(const s32, "core/main", func_00196308);
+/* Byte-matching: volatile counter keeps a single load at the join point.
+   D_00393D18 is already declared extern s32 in this file. */
+extern volatile s32 D_00393D1C;
+
+s32 func_00196308(s32 arg0)
+{
+    s32 *p;
+
+    p = (s32 *)((s32)D_00393D18 + (u32)D_003731B8);
+    if (p[0x18] != 0) {
+        func_001956D0(p[0x18]);
+        p = (s32 *)((s32)D_00393D18 + (u32)D_003731B8);
+        p[0x18] = 0;
+    }
+    D_00393D1C = D_00393D1C - 1;
+    return arg0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00196370);
 
@@ -9771,7 +13332,19 @@ INCLUDE_ASM(const s32, "core/main", func_00196898);
 
 INCLUDE_ASM(const s32, "core/main", func_001968E8);
 
-INCLUDE_ASM(const s32, "core/main", func_00196998);
+s32 func_00196998(s32 a1)
+{
+    extern s32 D_003732E8[];
+    extern s32 D_00393760;
+    extern s32 D_00393D24;
+
+    func_00196548(a1);
+    func_00196E88();
+    ((void (*)(s32))D_003732E8[0])(D_00393760);
+    D_00393760 = 0;
+    D_00393D24 = D_00393D24 - 1;
+    return a1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001969E8);
 
@@ -9785,7 +13358,18 @@ INCLUDE_ASM(const s32, "core/main", func_00196E90);
 
 INCLUDE_ASM(const s32, "core/main", func_00196F50);
 
-INCLUDE_ASM(const s32, "core/main", func_00197010);
+/* Byte-matching: u32 product + call + conditional writeback. */
+s32 func_00197010(s32 a, s32 b)
+{
+    s32 func_001969E8();
+    s32 func_00224B88();
+    u32 v = (u32)a * (u32)b;
+    s32 r = func_001969E8(v);
+
+    if (r != 0)
+        func_00224B88(r, 0, v);
+    return r;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00197060);
 
@@ -9799,9 +13383,31 @@ INCLUDE_ASM(const s32, "core/main", func_00197768);
 
 INCLUDE_ASM(const s32, "core/main", func_00197810);
 
-INCLUDE_ASM(const s32, "core/main", func_00197928);
+s32 func_00197928(u8 *arg0, s32 arg1)
+{
+    extern s32 D_00393D28;
+    extern s32 D_00393D2C;
+    s32 v;
+    D_00393D28 = arg1;
+    v = func_00195578(0x24, 0xA, 0);
+    *(s32 *)(D_00393D28 + (s32)D_003731B8) = v;
+    if (v == 0)
+        return 0;
+    D_00393D2C++;
+    return (s32)arg0;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00197990);
+s32 func_00197990(u8 *arg0)
+{
+    extern s32 D_00393D28;
+    extern volatile s32 D_00393D2C;
+    s32 *p = (s32 *)(D_00393D28 + (s32)D_003731B8);
+
+    if (*p != 0)
+        func_001956D0(*p);
+    D_00393D2C--;
+    return (s32)arg0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001979E8);
 
@@ -9902,7 +13508,15 @@ s32 func_00199628(void)
     return *(s32 *)(base + index + 0x2c);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00199640);
+s32 func_00199640(s32 a1, s32 a2, u8 a3)
+{
+    s32 *p = (s32 *)(D_00393D30 + (u32)D_003731B8);
+    s32 (*handler)(s32, s32, u8) = (s32 (*)(s32, s32, u8))p[11];
+    if (handler == 0) goto zero;
+    return handler(a1, a2, a3);
+zero:
+    return 0;
+}
 
 extern s32 D_00393D30;
 
@@ -9963,7 +13577,32 @@ INCLUDE_ASM(const s32, "core/main", func_001998E0);
 
 INCLUDE_ASM(const s32, "core/main", func_00199990);
 
-INCLUDE_ASM(const s32, "core/main", func_00199A30);
+s32 func_00199A30(s32 a1)
+{
+    s32 func_0019A668();
+    s32 (*fn)(s32);
+    u32 base;
+    s32 *p;
+    s32 v2;
+
+    base = (u32)D_003731B8;
+    p = (s32 *)(D_00393D30 + base);
+    fn = *(s32 (**)(s32))(base + 0x13C);
+    v2 = fn(p[2]);
+    if (v2 != 0)
+    {
+        *(u32 *)v2 = a1;
+        *(u32 *)(v2 + 4) = 0;
+        *(u8 *)(v2 + 16) = 0;
+        *(u8 *)(v2 + 48) = 0;
+        *(u32 *)(v2 + 80) = 1;
+        *(u32 *)(v2 + 84) = 1;
+        *(u32 *)(v2 + 88) = 1;
+        *(u32 *)(v2 + 92) = 1;
+        func_0019A668((u32)&D_00377200, v2);
+    }
+    return v2;
+}
 
 u8 *func_00199AB8(u8 *p)
 {
@@ -9973,7 +13612,19 @@ u8 *func_00199AB8(u8 *p)
 
 INCLUDE_ASM(const s32, "core/main", func_00199AD0);
 
-INCLUDE_ASM(const s32, "core/main", func_00199B88);
+extern s32 D_00373220[];
+
+s32 func_00199B88(u8 *a1, u32 a2)
+{
+    s32 r = (s32)a1;
+    if (a2 != 0) {
+        if (((s32 (*)(u8 *, u32, s32)) D_00373220[0])(a1, a2, 0) == 0)
+            r = 0;
+    } else {
+        *(s32 *)a1 = 0;
+    }
+    return r;
+}
 
 s32 *func_00199BD0(s32 *p, s32 value) { p[0x15] = value; return p; }
 
@@ -10037,15 +13688,69 @@ s32 func_00199F00(void) { return 1; }
 
 s32 func_00199F08(void) { return 1; }
 
-INCLUDE_ASM(const s32, "core/main", func_00199F10);
+s32 func_00199F10(s32 a1, s8 *a2, u8 a3)
+{
+    extern u8 D_0038BE48[];
+    extern s32 D_003731B8[];
+    u8 buf[4];
+    s32 v;
 
-INCLUDE_ASM(const s32, "core/main", func_00199FB0);
+    buf[0] = 0x6D;
+    if ((u8)(a3 - 1) < 15)
+        v = (s8)D_0038BE48[a3];
+    else
+        v = 0;
+    buf[2] = 0;
+    buf[1] = v;
+    if (v != 0)
+    {
+        ((s32 (*)(s32, s32))D_003731B8[0x3F])(a1, (s32)buf);
+        if (a2 != 0 && *a2 != 0)
+            ((s32 (*)(s32, s32))D_003731B8[0x3F])((s32)a2, (s32)buf);
+    }
+    return 1;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00199FF8);
+s32 func_00199FB0(s32 arg0, s32 arg1)
+{
+    s32 func_001986A8();
+    s32 func_00198420();
+    s32 *p = (s32 *)(D_00393D30 + (u32)D_003731B8);
+    if (p[6] != 0)
+        return func_001986A8(arg0, arg1);
+    return func_00198420(arg0, arg1);
+}
+
+u8 *func_00199FF8(u8 *a1)
+{
+    s32 func_00199AD0();
+
+    if (*(s32 *)(a1 + 0x50) >= 2)
+    {
+        do {
+            func_00199AD0(a1);
+        } while (*(s32 *)(a1 + 0x50) >= 2);
+    }
+    func_00199AD0(a1);
+    return a1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0019A050);
 
-INCLUDE_ASM(const s32, "core/main", func_0019A198);
+s32 func_0019A198(s32 *a1, s32 a2, s32 a3, s32 a4, s32 a5)
+{
+    s32 *i = (s32 *)a1[3];
+
+    while (i != 0 && i[2] != a2)
+        i = (s32 *)i[10];
+    if (i != 0) {
+        i[3] = a3;
+        i[4] = a4;
+        i[5] = a5;
+        return i[0];
+    }
+    return -1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0019A1D8);
 
@@ -10062,7 +13767,18 @@ s32 func_0019A420(void)
     return v != 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0019A450);
+s32 func_0019A450(void)
+{
+    s32 func_00195848();
+    s32 func_001956D0();
+    s32 func_0019A7D0();
+    if (D_00393D38 != 0) {
+        func_00195848(D_00393D38, func_0019A7D0, D_00393D38);
+        func_001956D0(D_00393D38);
+        D_00393D38 = 0;
+    }
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0019A490);
 
@@ -10070,11 +13786,40 @@ INCLUDE_ASM(const s32, "core/main", func_0019A638);
 
 INCLUDE_ASM(const s32, "core/main", func_0019A668);
 
-INCLUDE_ASM(const s32, "core/main", func_0019A700);
+s32 func_0019A700(u8 *a1, s32 a2)
+{
+    u8 *v3;
 
-INCLUDE_ASM(const s32, "core/main", func_0019A760);
+    v3 = (u8 *)*(s32 *)(a1 + 16);
+    if (v3 != 0) {
+        do {
+            ((s32 (*)(s32, s32, s32))*(s32 *)(v3 + 28))(a2, *(s32 *)v3, *(s32 *)(v3 + 4));
+            v3 = (u8 *)*(s32 *)(v3 + 44);
+        } while (v3 != 0);
+    }
+    return (s32)a1;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_0019A7D0);
+s32 func_0019A760(s32 a1, s32 a2, s32 a3)
+{
+s32 v5;  ((u32)v5) = *(u32 *)(a1 + 12); if ( (u32)v5 != 0 ) { do { (*(void ( **)(s32, s32, u64, u64))(v5 + 32))(a2, a3, *(s32 *)v5, *(s32 *)(v5 + 4)); v5 = *(s32 *)(v5 + 40); } while ( v5 != 0 ); } return a1;
+}
+
+s32 func_0019A7D0(s32 a1, s32 a2)
+{
+    extern s32 D_003732F8[];
+    s32 *p = *(s32 **)(a1 + 0x30);
+    s32 v;
+
+    if (p[3] != 0)
+    {
+        v = p[1];
+        p[3] = 0;
+        p[0] = v;
+        p[4] = 0;
+    }
+    return ((s32 (*)(s32, s32))D_003732F8[0])(a2, a1);
+}
 
 s32 func_0019A818(s32 value) { return value; }
 
@@ -10105,7 +13850,14 @@ f32 func_0019AC80(f32 *v)
     return sqrtf(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 }
 
-ASM_FUNC(const s32, func_0019ACA8);
+/* Byte-matching.  2-D vector length.  Declaring y before x is what makes
+   cc1 allocate $f0 to v[0] and schedule both loads before both muls. */
+f32 func_0019ACA8(f32 *v)
+{
+    f32 y = v[1];
+    f32 x = v[0];
+    return sqrtf(x * x + y * y);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0019ACC8);
 
@@ -10139,7 +13891,20 @@ INCLUDE_ASM(const s32, "core/main", func_0019AF18);
 
 INCLUDE_ASM(const s32, "core/main", func_0019AF90);
 
-INCLUDE_ASM(const s32, "core/main", func_0019B028);
+s32 func_0019B028(s32 a1, s32 a2)
+{
+    extern s32 func_0019B060();
+    extern s32 func_0019B118();
+    s32 *p;
+    if (a1 == 0)
+        a1 = (s32)func_0019B060;
+    p = (s32 *)((u8 *)D_003731B8 + D_00393D40);
+    p[2] = a1;
+    if (a2 == 0)
+        a2 = (s32)func_0019B118;
+    p[3] = a2;
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0019B060);
 
@@ -10190,7 +13955,17 @@ INCLUDE_ASM(const s32, "core/main", func_0019C050);
 
 INCLUDE_ASM(const s32, "core/main", func_0019C0E8);
 
-INCLUDE_ASM(const s32, "core/main", func_0019C198);
+extern s32 D_003937A8;
+extern s32 D_003731B8[];
+
+s32 func_0019C198(void)
+{
+    s32 *p = (s32 *)(D_003937A8 + (u8 *)D_003731B8);
+    if (p[0x13] == 0)
+        return 0;
+    func_00224B88((s32)(D_003937A8 + ((u8 *)D_003731B8 + 0x48)), 0, 0x3C);
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0019C1E8);
 
@@ -10218,7 +13993,17 @@ INCLUDE_ASM(const s32, "core/main", func_0019C508);
 
 INCLUDE_ASM(const s32, "core/main", func_0019C5F0);
 
-INCLUDE_ASM(const s32, "core/main", func_0019C648);
+extern s32 D_003937B0;
+extern s32 func_001A3A88();
+
+s32 func_0019C648(s32 arg0, s32 arg1)
+{
+    s32 r = arg0;
+    D_003937B0 = arg1;
+    if (func_001A3A88() == 0)
+        r = 0;
+    return r;
+}
 
 s32 func_0019C678();
 s32 func_001A3AF0();
@@ -10322,7 +14107,15 @@ extern u8 D_00377B50[];
 
 u8 *func_001A1350(void) { return D_00377B50; }
 
-INCLUDE_ASM(const s32, "core/main", func_001A1360);
+s32 func_001A1360(s32 arg0)
+{
+    s32 func_001A0D00();
+    s32 func_001A06B0();
+    u8 *p = (u8 *)D_003731B8[0];
+    if (*(s32 *)(p + 0x14) != 1)
+        return func_001A06B0(arg0, (s32)p);
+    return func_001A0D00(arg0, (s32)p);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001A13A8);
 
@@ -10399,7 +14192,25 @@ s32 func_001A3B98(void) { return D_00393824; }
 
 INCLUDE_ASM(const s32, "core/main", func_001A3BA0);
 
-INCLUDE_ASM(const s32, "core/main", func_001A3C60);
+s32 func_001A3C60(u32 *arg0)
+{
+    extern u32 D_00377B90[];
+    u32 *p = (u32 *)D_00377B90[0];
+    u32 *v;
+    u32 a, b;
+
+    p[5] = 2;
+    v = (u32 *)p[6];
+    if (v != 0) {
+        a = arg0[6];
+        b = arg0[3];
+        v[2] = a;
+        v[4] = b;
+        v[3] = arg0[4];
+        return (s32)v;
+    }
+    return 0;
+}
 
 /* Byte-matching.  Rejects a null object and anything that is not a nonzero
    u16, otherwise stores the value at +2 and returns the object. */
@@ -10418,14 +14229,50 @@ INCLUDE_ASM(const s32, "core/main", func_001A3D90);
 
 INCLUDE_ASM(const s32, "core/main", func_001A3E50);
 
-INCLUDE_ASM(const s32, "core/main", func_001A3F20);
+s32 func_001A3F20(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6, s32 a7, s32 a8)
+{
+    extern s32 D_00393824;
+    s32 v10;
+    s32 v11;
+    u64 v13;
+    s16 v14;
+    s32 v15;
+    v10 = func_001A8C18(D_00393824, *(s32 *)(a1 + 4), (u32)a2 * *(u16 *)(a1 + 2), 1, a5, a6, a7, a8);
+    v11 = v10;
+    if (v10 == 0)
+        return 0;
+    v13 = *(s32 *)(a1 + 16);
+    v14 = *(s16 *)a1 | 1;
+    *(u32 *)(a1 + 4) = v11;
+    *(s16 *)a1 = v14;
+    *(u32 *)(a1 + 8) = v11;
+    if (a2 < v13)
+        *(u32 *)(a1 + 16) = a2;
+    v15 = *(u32 *)(a1 + 4);
+    *(u32 *)(a1 + 12) = a2;
+    *(u32 *)(a1 + 8) = v15;
+    return a1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001A3FB0);
 
 void func_001A4000(void) {
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001A4008);
+u32 func_001A4008(u8 *arg0)
+{
+    u8 *p;
+    s32 (*handler)(void);
+
+    if (arg0 != 0) {
+        p = *(u8 **)arg0;
+        handler = *(s32 (**)(void))(p + 0x1C);
+        if (handler != 0)
+            return (u32)handler();
+        return 0;
+    }
+    return 0xFFFFFFFFu;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001A4048);
 
@@ -10605,7 +14452,19 @@ INCLUDE_ASM(const s32, "core/main", func_001A90A8);
 
 INCLUDE_ASM(const s32, "core/main", func_001A9108);
 
-INCLUDE_ASM(const s32, "core/main", func_001A9240);
+s32 func_001A9240(s32 a1)
+{
+    extern s32 D_003732E8[];
+    s32 func_0018DA08();
+    s32 func_0018DAD0();
+    s32 stack[2];
+
+    if (a1 != 0)
+        return ((s32 (*)(s32))D_003732E8[0])(a1);
+    stack[0] = 1;
+    stack[1] = func_0018DA08(0x80000016);
+    return func_0018DAD0(stack);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001A9290);
 
@@ -10657,11 +14516,49 @@ void func_001ABBC0(void)
 
 INCLUDE_ASM(const s32, "core/main", func_001ABBE8);
 
-INCLUDE_ASM(const s32, "core/main", func_001ABD08);
+void func_001ABD08(s32 arg0)
+{
+    extern s32 D_003732EC[];
+    extern s32 D_0039386C;
+    extern s32 D_00393868;
+    extern s32 D_00393870;
+    s32 cap = D_0039386C;
+    s32 i = D_00393870;
+
+    if (i == cap)
+    {
+        s32 (*f)(s32, s32) = (s32 (*)(s32, s32))D_003732EC[0];
+        s32 r = f(D_00393868, i * 8);
+        if (r == 0)
+            return;
+        D_00393868 = r;
+        D_0039386C = D_0039386C * 2;
+        i = D_00393870;
+    }
+    *(s32 *)(D_00393868 + i * 4) = arg0;
+    D_00393870 = i + 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001ABD80);
 
-INCLUDE_ASM(const s32, "core/main", func_001ABE38);
+s32 func_001ABE38(s32 a1, s32 a2, s32 a3)
+{
+    extern s32 D_00393D70, D_00393894, D_00393890, D_00393898;
+    extern s32 D_0038C848[], D_0038C868[];
+    void func_001C28C8();
+    if (D_00393D70 != 0) {
+        func_001C28C8((s32)D_0038C848);
+        return 0;
+    }
+    D_00393894 = a2;
+    D_00393890 = a1;
+    D_00393898 = a3;
+    if (a3 != 0 && a1 == 1) {
+        func_001C28C8((s32)D_0038C868);
+        D_00393898 = 0;
+    }
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001ABE98);
 
@@ -10669,7 +14566,16 @@ s32 func_001ABEE0(void) { return 0; }
 
 INCLUDE_ASM(const s32, "core/main", func_001ABEE8);
 
-INCLUDE_ASM(const s32, "core/main", func_001ABF80);
+void func_001ABF80(void)
+{
+    func_001C6EE8();
+    func_001C6BB8();
+    func_001C6900();
+    func_001C6460();
+    func_001C5FB0();
+    func_001BEDE0();
+    func_001C7330(1);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001ABFC8);
 
@@ -10739,11 +14645,35 @@ s32 func_001B1050(u32 arg0)
     return n;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001B1080);
+extern s32 D_00393D8C;
+extern s32 D_00393970;
+
+s32 func_001B1080(s32 a1)
+{
+    s32 v = 0;
+
+    if (D_00393D8C == 0 &&
+        (a1 == 0x100 || a1 == 0x140 || a1 == 0x180 || a1 == 0x200 || a1 == 0x280))
+        v = 1;
+    if (v != 0)
+        D_00393970 = a1;
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001B10D0);
 
-INCLUDE_ASM(const s32, "core/main", func_001B1128);
+f32 func_001B1128(f32 arg0)
+{
+    extern s32 func_0021F7A8(f32);
+    s32 v = func_0021F7A8(arg0 * 16.0f);
+
+    if (v < -2048)
+        v = -2048;
+    else if (v >= 2048)
+        v = 2047;
+    D_00393968 |= v & 0xFFF;
+    return (f32)v * 0.0625f;
+}
 
 void func_001B1190(u32 arg0)
 {
@@ -10754,7 +14684,17 @@ void func_001B1190(u32 arg0)
     D_00393968 |= value << 12;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001B11B0);
+extern s32 D_00393968;
+
+f32 func_001B11B0(void)
+{
+    s32 x = D_00393968;
+    s32 v = x & 0xFFF;
+
+    if (x & 0x800)
+        v |= -0x1000;
+    return (f32)v * 0.0625f;
+}
 
 s32 func_001B11E0(void) { return (D_00393968 & 0x3000) >> 12; }
 
@@ -10762,7 +14702,22 @@ INCLUDE_ASM(const s32, "core/main", func_001B11F0);
 
 INCLUDE_ASM(const s32, "core/main", func_001B1288);
 
-INCLUDE_ASM(const s32, "core/main", func_001B12D0);
+f32 func_001B12D0(u8 *a1)
+{
+    s32 v1, v2;
+
+    if (a1 == 0)
+        goto zero;
+    v1 = *(s32 *)a1;
+    if (v1 == 0)
+        goto zero;
+    v2 = *(u16 *)((u8 *)(v1 + D_00393990) + 0x14) & 0xFFF;
+    if (v2 & 0x800)
+        v2 |= -0x1000;
+    return (f32)v2 * 0.0625f;
+zero:
+    return 0.0f;
+}
 
 extern s32 D_00393990;
 
@@ -10867,7 +14822,23 @@ void func_001B3F98(void)
     }
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001B3FD8);
+extern s32 D_00393D98;
+
+s32 func_001B3FD8(void)
+{
+    s32 stack[4];
+    s32 p = D_00393D98;
+    s32 result = 0;
+
+    if (p != 0) {
+        stack[1] = 0;
+        stack[0] = 0;
+        stack[2] = *(s32 *)(p + 0xC);
+        stack[3] = *(s32 *)(p + 0x10);
+        result = func_001B2660(0, stack);
+    }
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001B4020);
 
@@ -10925,13 +14896,64 @@ INCLUDE_ASM(const s32, "core/main", func_001B7E10);
 void func_001B7FE8(void) {
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001B7FF0);
+extern u8 D_003939B8;
+extern s32 D_0038D150[];
+extern s32 D_0038D140[];
 
-INCLUDE_ASM(const s32, "core/main", func_001B8048);
+s32 func_001B7FF0(s32 a1, s32 a2, s32 a3, s32 a4)
+{
+    void func_001B6128();
+    s32 v1 = a1;
+    s32 v = (D_003939B8 & 1) ? (s32)&D_0038D150 : (s32)&D_0038D140;
 
-INCLUDE_ASM(const s32, "core/main", func_001B80A8);
+    func_001B6128(v, 0, v1 + (a3 << 6), v1 + (a4 << 6));
+    return 1;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001B80F8);
+extern u8 D_003939B8;
+extern s32 D_0038D150[];
+extern s32 D_0038D140[];
+
+s32 func_001B8048(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5)
+{
+    void func_001B62A0();
+    s32 v1 = a1;
+    s32 v = (D_003939B8 & 1) ? (s32)&D_0038D150 : (s32)&D_0038D140;
+
+    func_001B62A0(v, 0, v1 + (a3 << 6), v1 + (a4 << 6), v1 + (a5 << 6));
+    return 1;
+}
+
+extern u8 D_003939B8;
+extern s32 D_0038D150[];
+extern s32 D_0038D140[];
+
+s32 func_001B80A8(s32 a1, s32 a2, s32 a3)
+{
+    void func_001B6468();
+    s32 v1 = a1;
+    s32 v3 = a3;
+    s32 v = (D_003939B8 & 1) ? (s32)&D_0038D150 : (s32)&D_0038D140;
+
+    func_001B6468(v, 0, v1, a2, v3);
+    return 1;
+}
+
+extern u8 D_003939B8;
+extern s32 D_0038D150[];
+extern s32 D_0038D140[];
+
+s32 func_001B80F8(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5)
+{
+    void func_001B6F50();
+    s32 v1 = a1;
+    s32 v4 = a4;
+    s32 v5 = a5;
+    s32 v = (D_003939B8 & 1) ? (s32)&D_0038D150 : (s32)&D_0038D140;
+
+    func_001B6F50(v, 0, v1, a2, v4, v5);
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001B8150);
 
@@ -10959,7 +14981,20 @@ INCLUDE_ASM(const s32, "core/main", func_001B9EA8);
 
 INCLUDE_ASM(const s32, "core/main", func_001BA128);
 
-INCLUDE_ASM(const s32, "core/main", func_001BA1E8);
+extern s32 D_003E3590[];
+
+void func_001BA1E8(s32 off)
+{
+    void func_001BA128();
+    s32 *p = (s32 *)(off + D_00393990);
+
+    if (D_003E3590[0] != 0)
+    {
+        s32 v = p[0x16];
+        if (v != 0)
+            func_001BA128(v);
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001BA218);
 
@@ -11137,13 +15172,51 @@ INCLUDE_ASM(const s32, "core/main", func_001BDB38);
 
 INCLUDE_ASM(const s32, "core/main", func_001BDD18);
 
-INCLUDE_ASM(const s32, "core/main", func_001BDD90);
+s32 func_001BDD90(s32 a, u64 b, s32 n)
+{
+    s32 idx;
+    s32 r;
+    if (n != 0) goto rec;
+    r = ((u8 *)a)[0x18];
+    goto done;
+rec:
+    idx = b & 0xF;
+    r = func_001BDD90(*(s32 *)((u32)a + (idx << 2)), b >> 4, n - 1);
+done:
+    return r;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001BDDD8);
 
-INCLUDE_ASM(const s32, "core/main", func_001BDE78);
+s32 func_001BDE78(s8 *a1)
+{
+    extern u8 D_00391541[];
+    s32 v = 0;
 
-INCLUDE_ASM(const s32, "core/main", func_001BDEC0);
+    if (a1[0] == 0x5C || (D_00391541[a1[0]] & 3) != 0 && a1[1] == 0x3A)
+        v = 1;
+    return v;
+}
+
+/* Byte-matching: s64 zero record + two function-pointer calls. */
+s32 func_001BDEC0(s32 arg0, s32 arg1)
+{
+    s32 func_002220E8();
+    s64 v6 = 0;
+    s32 v4;
+    s32 v;
+
+    v4 = func_002220E8(&v6);
+    if (v4 != 0) {
+        v = ((s32 (*)(s32))D_003731B8[70])(v4);
+        if ((u32)v < (u32)(arg1 - 1)) {
+            ((s32 (*)(s32, s32))D_003731B8[61])(arg0, v4);
+            return arg0;
+        }
+    }
+    return 0;
+}
+
 
 u8 *func_001BDF50(u8 *p)
 {
@@ -11157,9 +15230,33 @@ u8 *func_001BDF68(u8 *p)
     return p;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001BDF80);
+extern s32 D_00373218[];
+s32 func_001BDF80(s32 a1, u8 *a2)
+{
+    s32 v4;
+    s32 result;
+    v4 = ((s32 (*)(s32, s32, s32))D_00373218[0])(a1, (s32)a2, 0) == 0;
+    result = 0;
+    if (!v4) {
+        if ((*(a2 + 34) & 1) != 0) *(s32 *)a1 |= 2;
+        return a1;
+    }
+    return result;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001BDFE8);
+extern s32 D_0037321C[];
+s32 func_001BDFE8(s32 a1, u8 *a2)
+{
+    s32 v4;
+    s32 result;
+    v4 = ((s32 (*)(s32, s32, s32))D_0037321C[0])(a1, (s32)a2, 0) == 0;
+    result = 0;
+    if (!v4) {
+        if ((*(s32 *)a2 & 2) != 0) *(u8 *)(a1 + 0x22) |= 1;
+        return a1;
+    }
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001BE050);
 
@@ -12256,7 +16353,18 @@ INCLUDE_ASM(const s32, "core/main", func_001C10D0);
 
 INCLUDE_ASM(const s32, "core/main", func_001C1130);
 
-INCLUDE_ASM(const s32, "core/main", func_001C11B0);
+s32 func_001C11B0(s32 a1, s32 a2, s32 a3)
+{
+    extern s32 D_00378A60[];
+    if (a1 == 0) {
+        if (D_00378A60[0] == 0) {
+            if (func_001C1E28() == 0) return -1;
+            D_00378A60[0] = 1;
+        }
+        return func_001C1D58(a2, a3);
+    }
+    return -1;
+}
 
 /* Byte-matching.  Stores 5 through the pointer returned by func_00222110 and
    always reports failure. */
@@ -12338,29 +16446,154 @@ void func_001C1678(u32 a, u32 b)
     func_001C1558(a & 0xFFFFFFC0, b & 0xFFFFFFC0);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C1690);
+void func_001C1690(void)
+{
+    s32 status;
+    s32 current;
 
-INCLUDE_ASM(const s32, "core/main", func_001C16F8);
+    __asm__ volatile("mfc0 %0, $12" : "=r"(status));
+    status = status & 0x10000;
+    if (status != 0) {
+        do {
+            __asm__ volatile("di");
+            __asm__ volatile("sync.p");
+            __asm__ volatile("mfc0 %0, $12" : "=r"(current));
+        } while ((current & 0x10000) != 0);
+    }
+    func_001C0970();
+    __asm__ volatile("sync");
+    if (status != 0)
+        __asm__ volatile("ei");
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001C1760);
+void func_001C16F8(void)
+{
+    s32 status;
+    s32 current;
 
-INCLUDE_ASM(const s32, "core/main", func_001C17C8);
+    __asm__ volatile("mfc0 %0, $12" : "=r"(status));
+    status = status & 0x10000;
+    if (status != 0) {
+        do {
+            __asm__ volatile("di");
+            __asm__ volatile("sync.p");
+            __asm__ volatile("mfc0 %0, $12" : "=r"(current));
+        } while ((current & 0x10000) != 0);
+    }
+    func_001C0960();
+    __asm__ volatile("sync");
+    if (status != 0)
+        __asm__ volatile("ei");
+}
+
+s32 func_001C1760(void)
+{
+    s32 status;
+    s32 current;
+
+    __asm__ volatile("mfc0 %0, $12" : "=r"(status));
+    status = status & 0x10000;
+    if (status != 0) {
+        do {
+            __asm__ volatile("di");
+            __asm__ volatile("sync.p");
+            __asm__ volatile("mfc0 %0, $12" : "=r"(current));
+        } while ((current & 0x10000) != 0);
+    }
+    func_001C0990();
+    __asm__ volatile("sync");
+    if (status != 0)
+        __asm__ volatile("ei");
+    return;
+}
+
+void func_001C17C8(void)
+{
+    s32 status;
+    s32 current;
+
+    __asm__ volatile("mfc0 %0, $12" : "=r"(status));
+    status = status & 0x10000;
+    if (status != 0) {
+        do {
+            __asm__ volatile("di");
+            __asm__ volatile("sync.p");
+            __asm__ volatile("mfc0 %0, $12" : "=r"(current));
+        } while ((current & 0x10000) != 0);
+    }
+    func_001C0980();
+    __asm__ volatile("sync");
+    if (status != 0)
+        __asm__ volatile("ei");
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C1830);
 
-INCLUDE_ASM(const s32, "core/main", func_001C18A0);
+void func_001C18A0(void)
+{
+    s32 status;
+    s32 current;
 
-ASM_FUNC(const s32, func_001C1908);
+    __asm__ volatile("mfc0 %0, $12" : "=r"(status));
+    status = status & 0x10000;
+    if (status != 0) {
+        do {
+            __asm__ volatile("di");
+            __asm__ volatile("sync.p");
+            __asm__ volatile("mfc0 %0, $12" : "=r"(current));
+        } while ((current & 0x10000) != 0);
+    }
+    func_001C09B0();
+    __asm__ volatile("sync");
+    if (status != 0)
+        __asm__ volatile("ei");
+}
 
-ASM_FUNC(const s32, func_001C1928);
+/* Byte-matching.  Runs the syscall wrapper then a memory sync.  The nop is
+   explicit so the sync does not land in jal's delay slot. */
+void func_001C1908(void)
+{
+    s32 func_001C09C0();
+    func_001C09C0();
+    __asm__ __volatile__(".set noreorder\nsync\n.set reorder" ::: "memory");
+}
 
-ASM_FUNC(const s32, func_001C1948);
+void func_001C1928(void)
+{
+    s32 func_001C09D0();
+    func_001C09D0();
+    __asm__ __volatile__(".set noreorder\nsync\n.set reorder" ::: "memory");
+}
 
-ASM_FUNC(const s32, func_001C1968);
+void func_001C1948(void)
+{
+    s32 func_001C09E0();
+    func_001C09E0();
+    __asm__ __volatile__(".set noreorder\nsync\n.set reorder" ::: "memory");
+}
 
-ASM_FUNC(const s32, func_001C1988);
+void func_001C1968(void)
+{
+    s32 func_001C09F0();
+    func_001C09F0();
+    __asm__ __volatile__(".set noreorder\nsync\n.set reorder" ::: "memory");
+}
 
-ASM_FUNC(const s32, func_001C19A8);
+/* Byte-matching.  The u16 cast puts `andi $4,$4,0xFFFF` in jal's delay slot,
+   so here the sync follows the call naturally. */
+void func_001C1988(s32 arg)
+{
+    s32 func_001C0A00();
+    func_001C0A00((u16)arg);
+    __asm__ __volatile__("sync" ::: "memory");
+}
+
+void func_001C19A8(void)
+{
+    s32 func_001C0A10();
+    func_001C0A10();
+    __asm__ __volatile__(".set noreorder\nsync\n.set reorder" ::: "memory");
+}
 
 s32 *func_001C19C8(s32 arg)
 {
@@ -12424,7 +16657,13 @@ INCLUDE_ASM(const s32, "core/main", func_001C2160);
 
 INCLUDE_ASM(const s32, "core/main", func_001C22C8);
 
-INCLUDE_ASM(const s32, "core/main", func_001C2890);
+s32 func_001C2890(void *a1, ...)
+{
+    s32 func_001C22C8(s32, s32);
+    char *va = (char *)__builtin_next_arg(a1) - 0x38;
+
+    return func_001C22C8((s32)a1, (s32)va);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C28C8);
 
@@ -12457,17 +16696,57 @@ s32 func_001C2BD8(u8 *arg0)
     return out;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C2C08);
+s32 func_001C2C08(s32 *a1, s32 a2)
+{
+    s32 base;
+    if (a2 < 0) return func_001C2BD8(a1);
+    if (a2 >= a1[8]) return func_001C2BD8(a1);
+    base = a1[7];
+    return base + (a2 << 6);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C2C48);
 
-INCLUDE_ASM(const s32, "core/main", func_001C2D00);
+void func_001C2D00(s32 *a1, s32 a2)
+{
+    s32 *p = (s32 *)func_001C2BD8(a2);
+    s32 v5 = a1[5];
+    s32 v4 = a1[7];
+    p[5] = v5;
+    p[7] = v4;
+    p[8] = 0x8000000C;
+    func_001C5D88(0x80000008, (u8 *)p, 64, a1[8], a1[9], a1[10]);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C2D60);
 
 INCLUDE_ASM(const s32, "core/main", func_001C2EB8);
 
-INCLUDE_ASM(const s32, "core/main", func_001C2F08);
+s32 func_001C2F08(u32 *a1, u32 *a2)
+{
+    u32 v4;
+    s32 v5;
+    s32 v6;
+    v4 = func_001C2BD8(a2);
+    v5 = a1[5];
+    *(u32 *)(v4 + 28) = a1[7];
+    *(u32 *)(v4 + 20) = v5;
+    *(u32 *)(v4 + 32) = -2147483639;
+    v6 = func_001C2EB8((s32)a1[8], (s32)a2);
+    if ( v6 == 0 )
+    {
+        *(u32 *)(v4 + 36) = 0;
+        *(u32 *)(v4 + 40) = 0;
+        *(u32 *)(v4 + 44) = 0;
+    }
+    else
+    {
+        *(u32 *)(v4 + 36) = v6;
+        *(u32 *)(v4 + 40) = *(u32 *)(v6 + 8);
+        *(u32 *)(v4 + 44) = *(u32 *)(v6 + 20);
+    }
+    func_001C5D88(-2147483640, (u8 *)v4, 64, 0, 0, 0);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C2FB8);
 
@@ -12517,7 +16796,19 @@ void func_001C3908(void) {
 
 INCLUDE_ASM(const s32, "core/main", func_001C3910);
 
-INCLUDE_ASM(const s32, "core/main", func_001C3A58);
+s32 func_001C3A58(void)
+{
+    extern u8 D_003E68B8[];
+    extern u8 D_00378A5C[];
+    extern u32 D_00378A7C[];
+    s32 func_00224940();
+    s32 r = 0;
+    u8 *p = D_003E68B8;
+
+    if (func_00224940(p, &D_00378A5C, 4) != 0)
+        r = func_00224940(p, (u8 *)D_00378A7C[0], 4) != 0;
+    return r;
+}
 
 extern s32 D_00378A74[];
 extern u8 D_003E68B8[];
@@ -12545,15 +16836,59 @@ INCLUDE_ASM(const s32, "core/main", func_001C4310);
 
 INCLUDE_ASM(const s32, "core/main", func_001C45B8);
 
-INCLUDE_ASM(const s32, "core/main", func_001C4640);
+s32 func_001C4640(s32 a1)
+{
+    extern s32 D_00378A80[];
+    extern s32 D_003E6900[];
+    extern s32 D_003E6980[];
+    extern s32 D_003E6940[];
+    s32 r;
 
-INCLUDE_ASM(const s32, "core/main", func_001C46B0);
+    if (D_00378A80[0] < 0)
+        return 0;
+    D_003E6980[0] = a1;
+    r = func_001C3188((s32)&D_003E6900[0], 1, 0, (s32)&D_003E6980[0], 4,
+                      (s32)&D_003E6940[0], 4, 0, 0);
+    if (r < 0)
+        return 0;
+    return D_003E6940[0];
+}
+
+s32 func_001C46B0(s32 a1)
+{
+    extern s32 D_00378A80[];
+    extern s32 D_003E6900[];
+    extern s32 D_003E69C0[];
+    extern s32 D_003E6940[];
+    s32 r;
+
+    if (D_00378A80[0] < 0)
+        return 0;
+    D_003E69C0[0] = a1;
+    r = func_001C3188((s32)&D_003E6900[0], 2, 0, (s32)&D_003E69C0[0], 4,
+                      (s32)&D_003E6940[0], 4, 0, 0);
+    if (r < 0)
+        return -1;
+    return D_003E6940[0];
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C4728);
 
 INCLUDE_ASM(const s32, "core/main", func_001C4818);
 
-INCLUDE_ASM(const s32, "core/main", func_001C4918);
+s32 func_001C4918(void)
+{
+    extern u8 D_003E6D28[];
+    extern u8 D_00378A5C[];
+    extern u32 D_00378A88[];
+    s32 func_00224940();
+    s32 r = 0;
+    u8 *p = D_003E6D28;
+
+    if (func_00224940(p, &D_00378A5C, 4) != 0)
+        r = func_00224940(p, (u8 *)D_00378A88[0], 4) != 0;
+    return r;
+}
 
 extern s32 D_00378A84[];
 extern u8 D_003E6D28[];
@@ -12609,7 +16944,19 @@ s32 func_001C5218(void)
     return m != 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C5240);
+s32 func_001C5240(void)
+{
+    s32 func_001C1020();
+    s32 func_001C1E28();
+    u32 v = func_001C1030(4);
+    u32 m = v & 0x40000;
+    if (m != 0) {
+        func_001C1020(4, 0x40000);
+        func_001C1E28();
+        return 1;
+    }
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C5288);
 
@@ -12727,7 +17074,17 @@ s32 *func_001C58A0(void) { return D_003E72D8; }
 
 INCLUDE_ASM(const s32, "core/main", func_001C58B0);
 
-INCLUDE_ASM(const s32, "core/main", func_001C5B50);
+void func_001C5B50(void)
+{
+    extern s32 D_003E72D4[];
+    extern s32 D_00378A90[];
+    s32 func_001C1760();
+    s32 func_001C0950();
+    s32 a = func_001C1760(5);
+    func_001C0950(5, D_003E72D4[0]);
+    D_00378A90[0] = 0;
+    (void)a;
+}
 
 s32 func_001C5B88(s32 a, s32 b)
 {
@@ -12747,15 +17104,44 @@ s32 func_001C5BA0(s32 a, s32 b)
     return old;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C5BB8);
+extern s32 D_003E72E4[];
+extern s32 D_003E72EC[];
 
-INCLUDE_ASM(const s32, "core/main", func_001C5BE8);
+void func_001C5BB8(s32 arg0, u32 a, u32 b)
+{
+    u32 idx = arg0 << 3;
+    if (arg0 < 0) arg0 = D_003E72E4[0];
+    else arg0 = D_003E72EC[0];
+    idx = idx + arg0;
+    *(u32 *)idx = a;
+    *(u32 *)(idx + 4) = b;
+}
+
+extern s32 D_003E72E4[];
+extern s32 D_003E72EC[];
+
+void func_001C5BE8(s32 arg0)
+{
+    u32 idx = arg0 << 3;
+    if (arg0 < 0) arg0 = D_003E72E4[0];
+    else arg0 = D_003E72EC[0];
+    idx = idx + arg0;
+    *(u32 *)idx = 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C5C10);
 
-INCLUDE_ASM(const s32, "core/main", func_001C5D48);
+s32 func_001C5D48(s32 a1, u8 *a2, s64 a3, s32 a4, s32 a5, s64 a6)
+{
+    s32 func_001C5C10();
+    return func_001C5C10(a1, 0, a2, a3, a4, a5, a6);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001C5D88);
+s32 func_001C5D88(s32 a1, u8 *a2, s64 a3, s32 a4, s32 a5, s64 a6)
+{
+    s32 func_001C5C10();
+    return func_001C5C10(a1, 1, a2, a3, a4, a5, a6);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C5DC8);
 
@@ -12782,7 +17168,19 @@ void func_001C5FB0(void)
 
 INCLUDE_ASM(const s32, "core/main", func_001C5FC8);
 
-INCLUDE_ASM(const s32, "core/main", func_001C6028);
+s32 func_001C6028(void)
+{
+    s32 result = 0;
+    s32 v = func_001C60F8();
+
+    if (v < 4) {
+        if (v > 0) {
+            result = 1;
+            func_001C6138(func_001C6148());
+        }
+    }
+    return result;
+}
 
 /* Byte-matching.  Sets or clears bit 2 of the VU0 status register, COP2
    control register $vi28. */
@@ -12865,7 +17263,19 @@ void func_001C6460(void)
 
 INCLUDE_ASM(const s32, "core/main", func_001C6478);
 
-INCLUDE_ASM(const s32, "core/main", func_001C64D8);
+s32 func_001C64D8(void)
+{
+    s32 result = 0;
+    s32 v = func_001C65A8();
+
+    if (v < 4) {
+        if (v > 0) {
+            result = 1;
+            func_001C65F0(func_001C6600());
+        }
+    }
+    return result;
+}
 
 /* Byte-matching.  Sets or clears bit 10 of the VU0 status register. */
 void func_001C6528(s32 arg0)
@@ -13184,11 +17594,45 @@ INCLUDE_ASM(const s32, "core/main", func_001C7E78);
 
 INCLUDE_ASM(const s32, "core/main", func_001C7FB0);
 
-INCLUDE_ASM(const s32, "core/main", func_001C8050);
+/* Byte-matching: 9-arg call with absolute globals; bgezl guard. */
+s32 func_001C8050(void)
+{
+    extern s32 D_003E7800[];
+    extern s32 D_003E7480[];
+    extern s32 D_00378B58[];
+    s32 r;
+    s32 v;
+
+    D_003E7800[0] = 15;
+    r = func_001C3188((s32)&D_003E7480[0], 1, 0, (s32)&D_003E7800[0], 128,
+                      (s32)&D_003E7800[0], 128, 0, 0);
+    if (r < 0)
+        return 0;
+    v = D_003E7800[3];
+    if (v == 1)
+        D_00378B58[0] = 0;
+    return v;
+}
+
 
 INCLUDE_ASM(const s32, "core/main", func_001C80D0);
 
-INCLUDE_ASM(const s32, "core/main", func_001C8228);
+s32 func_001C8228(s32 a1, s32 a2)
+{
+    extern s32 D_003E7800[];
+    extern s32 D_003E7480[];
+    s32 r;
+
+    D_003E7800[1] = a1;
+    D_003E7800[2] = a2;
+    D_003E7800[0] = 14;
+    D_003E7800[4] = 1;
+    r = func_001C3188((s32)&D_003E7480[0], 1, 0, (s32)&D_003E7800[0], 128,
+                      (s32)&D_003E7800[0], 128, 0, 0);
+    if (r < 0)
+        return 0;
+    return D_003E7800[3];
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C82A0);
 
@@ -13200,7 +17644,14 @@ s32 func_001C8300(void)
     return *(s32 *)(func_001C82A0() + 0x58);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C8320);
+s32 func_001C8320(s32 a1, s32 a2, u8 *a3)
+{
+    u8 *func_001C82A0();
+    void func_002249D4(void *, void *, s32);
+    u8 *v4 = func_001C82A0(a1, a2);
+    func_002249D4(a3, v4, *(s32 *)(v4 + 0x60));
+    return *(s32 *)(v4 + 0x60);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C8368);
 
@@ -13266,14 +17717,28 @@ INCLUDE_ASM(const s32, "core/main", func_001C8800);
 
 INCLUDE_ASM(const s32, "core/main", func_001C8898);
 
-INCLUDE_ASM(const s32, "core/main", func_001C8970);
+s32 func_001C8970(s32 a1, s32 a2)
+{
+    extern s32 D_003E7800[];
+    extern s32 D_003E7480[];
+    s32 r;
+
+    D_003E7800[1] = a1;
+    D_003E7800[2] = a2;
+    D_003E7800[0] = 9;
+    r = func_001C3188((s32)&D_003E7480[0], 1, 0, (s32)&D_003E7800[0], 128,
+                      (s32)&D_003E7800[0], 128, 0, 0);
+    if (r < 0)
+        return 0;
+    return D_003E7800[3];
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C89E0);
 
 /* Byte-matching.  True only when func_001C8970 reports exactly 0x3FFFF. */
 u32 func_001C8A90(void)
 {
-    u32 func_001C8970(void);
+    s32 func_001C8970();
 
     return (func_001C8970() ^ 0x3FFFF) == 0;
 }
@@ -13294,13 +17759,58 @@ s32 func_001C8AE0(s32 arg1, s32 arg2)
 
 INCLUDE_ASM(const s32, "core/main", func_001C8B00);
 
-INCLUDE_ASM(const s32, "core/main", func_001C8BD0);
+s32 func_001C8BD0(void)
+{
+    extern s32 D_003E7800[];
+    extern s32 D_003E7480[];
+    D_003E7800[0] = 12;
+    if (func_001C3188(D_003E7480, 1, 0, &D_003E7800[0], 128, &D_003E7800[0], 128, 0, 0) < 0)
+        return 0;
+    else
+        return D_003E7800[3];
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001C8C38);
+s32 func_001C8C38(s32 a1)
+{
+    extern s32 D_003E7800[];
+    extern s32 D_003E7480[];
+    s32 r;
 
-INCLUDE_ASM(const s32, "core/main", func_001C8CA0);
+    D_003E7800[1] = a1;
+    D_003E7800[0] = 13;
+    r = func_001C3188((s32)&D_003E7480[0], 1, 0, (s32)&D_003E7800[0], 128,
+                      (s32)&D_003E7800[0], 128, 0, 0);
+    if (r < 0)
+        return 0;
+    return D_003E7800[3];
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001C8D08);
+s32 func_001C8CA0(void)
+{
+    extern s32 D_003E7800[];
+    extern s32 D_003E7480[];
+    D_003E7800[0] = 18;
+    if (func_001C3188(D_003E7480, 1, 0, &D_003E7800[0], 128, &D_003E7800[0], 128, 0, 0) < 0)
+        return 0;
+    else
+        return D_003E7800[3];
+}
+
+s32 func_001C8D08(s32 a1, s32 a2)
+{
+    extern s32 D_003E7800[];
+    extern s32 D_003E7480[];
+    s32 r;
+
+    D_003E7800[4] = a1;
+    D_003E7800[5] = a2;
+    D_003E7800[0] = 19;
+    r = func_001C3188((s32)&D_003E7480[0], 1, 0, (s32)&D_003E7800[0], 128,
+                      (s32)&D_003E7800[0], 128, 0, 0);
+    if (r < 0)
+        return 0;
+    return D_003E7800[3];
+}
 
 void func_001C8D78(s32 *p, s32 value) {
     p[0] = value;
@@ -13390,13 +17900,38 @@ INCLUDE_ASM(const s32, "core/main", func_001C9470);
 
 INCLUDE_ASM(const s32, "core/main", func_001C95B0);
 
-INCLUDE_ASM(const s32, "core/main", func_001C9698);
+void func_001C9698(s32 a1)
+{
+    extern s32 D_003E78A8[];
+    extern s32 D_003E78AC[];
+    extern s32 D_003E78B0[];
+    u32 v = (u32)a1 | 0x20000000u;
+
+    if (D_003E78A8[0] != 0) *(s32 *)D_003E78A8[0] = *(s32 *)v;
+    if (D_003E78AC[0] != 0) *(s32 *)D_003E78AC[0] = *(s32 *)(v + 4);
+    if (D_003E78B0[0] != 0) *(s32 *)D_003E78B0[0] = *(s32 *)(v + 0x90);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C96F0);
 
 INCLUDE_ASM(const s32, "core/main", func_001C9828);
 
-INCLUDE_ASM(const s32, "core/main", func_001C9910);
+/* Byte-matching: hardware-style address inlined at each use -> beql form. */
+void func_001C9910(u8 *arg0)
+{
+    extern u8 D_003E7E40[];
+    u32 v2;
+
+    if (arg0 != 0) {
+        if ((u32)func_00226B48((void *)((u32)D_003E7E40 | 0x20000000u)) < 0x400)
+            v2 = func_00226B48((void *)((u32)D_003E7E40 | 0x20000000u));
+        else
+            v2 = 0x3FF;
+        func_002249D4((void *)arg0, (void *)((u32)D_003E7E40 | 0x20000000u), v2);
+        *(u8 *)(arg0 + v2) = 0;
+    }
+}
+
 
 INCLUDE_ASM(const s32, "core/main", func_001C9998);
 
@@ -13416,15 +17951,45 @@ INCLUDE_ASM(const s32, "core/main", func_001C9F60);
 
 INCLUDE_ASM(const s32, "core/main", func_001CA018);
 
-INCLUDE_ASM(const s32, "core/main", func_001CA0B8);
+extern s8 D_00378BD0[];
+
+s32 func_001CA0B8(void)
+{
+    extern void func_001CA018();
+    if (D_00378BD0[0] == 0)
+        func_001CA018();
+    return D_00378BD0[4] == 0x54;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001CA0F8);
 
 INCLUDE_ASM(const s32, "core/main", func_001CA158);
 
-INCLUDE_ASM(const s32, "core/main", func_001CA178);
+extern u8 D_00378BCA[];
 
-INCLUDE_ASM(const s32, "core/main", func_001CA1B8);
+s32 func_001CA178(void)
+{
+    s32 func_001C0CD0();
+    u32 v;
+
+    if (func_001CA0B8() != 0)
+        return D_00378BCA[0];
+    func_001C0CD0(&v);
+    return (v >> 1) & 3;
+}
+
+extern u8 D_00378BCD[];
+
+s32 func_001CA1B8(void)
+{
+    s32 func_001C0CD0();
+    u32 v;
+
+    if (func_001CA0B8() != 0)
+        return D_00378BCD[0];
+    func_001C0CD0(&v);
+    return v & 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001CA1F8);
 
@@ -13434,29 +17999,170 @@ INCLUDE_ASM(const s32, "core/main", func_001CA2E0);
 
 INCLUDE_ASM(const s32, "core/main", func_001CA360);
 
-INCLUDE_ASM(const s32, "core/main", func_001CA3E0);
+u8 func_001CA3E0(u8 arg0)
+{
+    extern s32 D_0038DD78[];
+    extern s32 D_0038DD88[];
+    if (arg0 >= 100)
+        func_00222068(D_0038DD78, 0x11B, D_0038DD88);
+    return (u8)(6 * (arg0 / 10) + arg0);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001CA448);
 
-INCLUDE_ASM(const s32, "core/main", func_001CA4A0);
+s32 func_001CA4A0(s32 a1)
+{
+    extern s32 D_0038DD78[];
+    extern s32 D_0038DDA0[];
+    s32 func_001CA448();
+    s32 func_00222068();
 
-INCLUDE_ASM(const s32, "core/main", func_001CA528);
+    u8 *v1;
+s8 v2;
+u8 v3;
+s8 v4;
+u8 v5;
+s8 v6;
+u8 v7;
+s8 v8;
+u8 v9;
+s8 v10;
+u8 v11;
+s32 result;
+v1 = (u8 *)a1;
+if ( a1 == 0 )
+func_00222068(D_0038DD78, 308, D_0038DDA0);
+v2 = func_001CA448(*(u8 *)(a1 + 7));
+v3 = v1[6];
+v1[7] = v2;
+v4 = func_001CA448(v3);
+v5 = v1[5];
+v1[6] = v4;
+v6 = func_001CA448(v5);
+v7 = v1[3];
+v1[5] = v6;
+v8 = func_001CA448(v7);
+v9 = v1[2];
+v1[3] = v8;
+v10 = func_001CA448(v9);
+v11 = v1[1];
+v1[2] = v10;
+result = func_001CA448(v11);
+v1[1] = result;
+return result;
+}
+
+s32 func_001CA528(s32 a1)
+{
+    extern s32 D_0038DD78[];
+    extern s32 D_0038DDA0[];
+    u8 func_001CA3E0();
+    s32 func_00222068();
+
+    u8 *v1;
+s8 v2;
+u8 v3;
+s8 v4;
+u8 v5;
+s8 v6;
+u8 v7;
+s8 v8;
+u8 v9;
+s8 v10;
+u8 v11;
+s32 result;
+v1 = (u8 *)a1;
+if ( a1 == 0 )
+func_00222068(D_0038DD78, 323, D_0038DDA0);
+v2 = func_001CA3E0(*(u8 *)(a1 + 7));
+v3 = v1[6];
+v1[7] = v2;
+v4 = func_001CA3E0(v3);
+v5 = v1[5];
+v1[6] = v4;
+v6 = func_001CA3E0(v5);
+v7 = v1[3];
+v1[5] = v6;
+v8 = func_001CA3E0(v7);
+v9 = v1[2];
+v1[3] = v8;
+v10 = func_001CA3E0(v9);
+v11 = v1[1];
+v1[2] = v10;
+result = func_001CA3E0(v11);
+v1[1] = result;
+return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001CA5B0);
 
 INCLUDE_ASM(const s32, "core/main", func_001CA698);
 
-INCLUDE_ASM(const s32, "core/main", func_001CA770);
+void func_001CA770(u8 *a1)
+{
+    extern u8 D_0038DD78[];
+    extern u8 D_0038DDA0[];
+    void func_00222068();
+    void func_001CA5B0();
+    s32 v;
+    if (a1 == 0) func_00222068((s32)D_0038DD78, 387, (s32)D_0038DDA0);
+    v = a1[3] + 1;
+    a1[3] = v;
+    if ((u8)v == 24) {
+        a1[3] = 0;
+        func_001CA5B0((s32)a1);
+        return;
+    }
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001CA7E0);
+extern u8 D_0038DD78[];
+extern u8 D_0038DDA0[];
+
+void func_001CA7E0(u8 *a1)
+{
+    s32 v;
+
+    if (a1 == 0)
+        func_00222068((s32)D_0038DD78, 0x190, (s32)D_0038DDA0);
+    v = *(u8 *)(a1 + 3);
+    if (v != 0) {
+        v = v - 1;
+        *(u8 *)(a1 + 3) = (u8)v;
+        return;
+    }
+    *(u8 *)(a1 + 3) = 23;
+    func_001CA698((s32)a1);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001CA848);
 
-INCLUDE_ASM(const s32, "core/main", func_001CA918);
+extern u8 D_0038DD78[];
+extern u8 D_0038DDA0[];
+
+void func_001CA918(s32 arg0)
+{
+    void func_001CA848();
+    if (arg0 == 0)
+        func_00222068((s32)D_0038DD78, 0x1BE, (s32)D_0038DDA0);
+    func_001CA848(arg0, -0x21C);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001CA960);
 
-INCLUDE_ASM(const s32, "core/main", func_001CA9C8);
+extern s32 D_00378C3C[];
+
+s32 func_001CA9C8(s32 arg0, s32 arg1, s32 arg2, s32 arg3)
+{
+    s32 func_001CC150();
+
+    if (func_001CC150(1, arg1, arg2, arg3) != 0)
+        return 0;
+    {
+        s32 old = D_00378C3C[0];
+        D_00378C3C[0] = arg0;
+        return old;
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001CAA08);
 
@@ -13517,7 +18223,28 @@ INCLUDE_ASM(const s32, "core/main", func_001CC090);
 
 INCLUDE_ASM(const s32, "core/main", func_001CC150);
 
-INCLUDE_ASM(const s32, "core/main", func_001CC1F8);
+s32 func_001CC1F8(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6, s32 a7, s32 a8)
+{
+    extern s32 D_00378BF0[];
+    extern u8 D_0038DF88[];
+    extern u8 D_003EA2E0[];
+    s32 func_001C3378();
+    s32 func_00211918();
+    s32 v8;
+    s32 result;
+
+    result = 0;
+    if (a1 == 0) {
+        if (D_00378BF0[0] > 0)
+            func_00211918((s32)D_0038DF88, a2, a3, a4, a5, a6, a7, a8);
+        do {
+            v8 = func_001C3378((s32)D_003EA2E0) != 0;
+        } while (v8);
+    } else {
+        return func_001C3378((s32)D_003EA2E0);
+    }
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001CC260);
 
@@ -13587,11 +18314,35 @@ s32 func_001CD138(void)
 
 INCLUDE_ASM(const s32, "core/main", func_001CD170);
 
-INCLUDE_ASM(const s32, "core/main", func_001CD2E0);
+s32 func_001CD2E0(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6, s32 a7, s32 a8)
+{
+    extern s32 D_00378BF0[];
+    extern s32 D_00378C38[];
+    extern u8 D_00378C48[];
+    extern u8 D_0038E138[];
+    s32 func_001CD3D0();
+    s32 func_00211918();
+
+    D_00378C38[0] = 0;
+    if (D_00378BF0[0] > 0) {
+        func_00211918((s32)D_0038E138, a2, a3, a4, a5, a6, a7, a8);
+    }
+    return func_001CD3D0(0, 0, 0, 7, (s32)&D_00378C48);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001CD330);
 
-INCLUDE_ASM(const s32, "core/main", func_001CD388);
+s32 func_001CD388(void)
+{
+    extern s32 D_00378BF0[];
+    extern u8 D_00378C48[];
+    extern u8 D_0038E168[];
+    s32 func_001CD3D0();
+    if (D_00378BF0[0] > 0) {
+        func_00211918((s32)D_0038E168);
+    }
+    return func_001CD3D0(0, 0, 0, 6, (s32)&D_00378C48);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001CD3D0);
 
@@ -13632,7 +18383,22 @@ s32 func_001CD980(s32 *p) { return ((s32 *)p[0x40 / 4])[1] == 0; }
 
 INCLUDE_ASM(const s32, "core/main", func_001CD990);
 
-INCLUDE_ASM(const s32, "core/main", func_001CD9D0);
+s32 func_001CD9D0(void)
+{
+    extern s32 D_00378C80[];
+    extern s32 D_00378C84[];
+    extern s32 D_00378C8C[];
+    extern s32 D_00378C90[];
+    extern s32 D_00378C98[];
+    extern s32 D_00378C9C[];
+    if (D_00378C80[0] != 0) ((s32 *)D_00378C80[0])[10] = 0;
+    if (D_00378C8C[0] != 0) ((s32 *)D_00378C8C[0])[10] = 0;
+    if (D_00378C98[0] != 0) ((s32 *)D_00378C98[0])[10] = 0;
+    if (D_00378C84[0] != 0) ((s32 *)D_00378C84[0])[10] = 0;
+    if (D_00378C90[0] != 0) ((s32 *)D_00378C90[0])[10] = 0;
+    if (D_00378C9C[0] != 0) ((s32 *)D_00378C9C[0])[10] = 0;
+    return 1;
+}
 
 void func_001CDA38(u8 *p, s32 idx, s32 a, s32 b)
 {
@@ -13772,7 +18538,39 @@ INCLUDE_ASM(const s32, "core/main", func_001CE9C0);
 
 INCLUDE_ASM(const s32, "core/main", func_001CEA80);
 
-INCLUDE_ASM(const s32, "core/main", func_001CEBE8);
+s32 func_001CEBE8(void)
+{
+    extern s32 D_00378DDC[];
+    extern s32 D_00378DE0[];
+    extern s32 D_00378DE4[];
+    extern s32 D_00378DE8[];
+    extern s32 D_00378DEC[];
+    extern s32 D_00378DF0[];
+    extern s32 D_00378DF4[];
+    s32 *p = D_00378DDC;
+    s32 *q = D_00378DE0;
+    s32 v;
+
+    *p = func_001D2258(3);
+    v = func_001D2258(1);
+    *q = v;
+    if (v != 0)
+    {
+        p = D_00378DE4;
+        *p = func_001D2258(8);
+        q = D_00378DE8;
+        *q = func_001D2258(8);
+        p = D_00378DEC;
+        *p = func_001D2258(8);
+    }
+    p = D_00378DF0;
+    *p = func_001D2258(14);
+    func_001D2258(1);
+    q = D_00378DF4;
+    v = func_001D2258(14);
+    *q = v;
+    return v;
+}
 
 extern u8 D_0038E2E8[];
 extern u8 D_0038E318[];
@@ -13965,7 +18763,20 @@ INCLUDE_ASM(const s32, "core/main", func_001D3338);
 
 INCLUDE_ASM(const s32, "core/main", func_001D33D8);
 
-INCLUDE_ASM(const s32, "core/main", func_001D35C8);
+s32 func_001D35C8(void)
+{
+    extern s32 D_00378D84[];
+    extern s32 D_00379500[];
+    u8 *q = *(u8 **)(*(u32 *)D_00378C6C + 0x40);
+    if (*(s32 *)(q + 8) != 2)
+    {
+        s32 v = *(s32 *)D_00378D84;
+        *(s32 *)(q + 8) = 2;
+        *(s32 *)(q + 0xAC) = v;
+    }
+    *(s32 *)D_00379500 = 1;
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001D3600);
 
@@ -13989,7 +18800,35 @@ INCLUDE_ASM(const s32, "core/main", func_001D4268);
 
 INCLUDE_ASM(const s32, "core/main", func_001D42D0);
 
-INCLUDE_ASM(void, "core/main", func_001D4568);
+extern s32 D_003939C8;
+extern s8 D_003939E9;
+extern s32 D_003939F8;
+extern s32 D_00393A00;
+extern u32 D_003939D4;
+extern s32 D_003939DC;
+extern f32 D_00393A04;
+extern s8 D_003939D0;
+extern s8 D_003939E0;
+extern s32 D_003939E4;
+s32 func_001D4568(void)
+{
+    s32 result;
+
+    D_003939C8 = 0;
+    D_003939E9 = 1;
+    D_003939F8 = 0;
+    D_00393A00 = 0;
+    D_003939D4 = 0;
+    D_003939DC = 0;
+    D_00393A04 = 0.0f;
+    D_003939D0 = 0;
+    func_001D4D58();
+    func_001D4DC0();
+    result = func_001DC6E8();
+    D_003939E0 = 0;
+    D_003939E4 = 0;
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001D45C0);
 
@@ -13997,7 +18836,35 @@ INCLUDE_ASM(const s32, "core/main", func_001D46A0);
 
 INCLUDE_ASM(const s32, "core/main", func_001D4C70);
 
-INCLUDE_ASM(const s32, "core/main", func_001D4D58);
+extern u8 D_00380B48[];
+extern u8 D_00380C08[];
+
+void func_001D4D58(void)
+{
+    s32 i;
+    u32 base;
+    u32 *p;
+
+    base = (u32)D_00380B48;
+    p = (u32 *)(base + 0x18);
+    i = 5;
+    do {
+        p[1] = 0;
+        i--;
+        p[0] = 0;
+        p += 8;
+    } while (i >= 0);
+
+    base = (u32)D_00380C08;
+    p = (u32 *)(base + 0x18);
+    i = 5;
+    do {
+        p[1] = 0;
+        i--;
+        p[0] = 0;
+        p += 8;
+    } while (i >= 0);
+}
 
 extern u8 D_00380800[];
 
@@ -14024,7 +18891,26 @@ INCLUDE_ASM(const s32, "core/main", func_001D4FA8);
 
 INCLUDE_ASM(const s32, "core/main", func_001D5140);
 
-INCLUDE_ASM(const s32, "core/main", func_001D54F0);
+void func_001D54F0(void)
+{
+    extern s32 D_003939CC;
+    f32 func_0011A818();
+    void func_0011B0A0();
+    void func_001D5568(s32);
+    void func_0011B0C0();
+    f32 func_0011A788(f32);
+    f32 v1;
+    s32 i = 0;
+
+    D_003939CC = (D_003939CC == 0);
+    v1 = func_0011A818();
+    func_0011B0A0();
+    if (D_003939C8 > 0) {
+        do { func_001D5568(i); i++; } while (i < D_003939C8);
+    }
+    func_0011B0C0();
+    func_0011A788(v1);
+}
 
 /* Proposed behavioural reconstruction of func_001D5568 (5552 bytes, 0x1D5568).
  *
@@ -14708,7 +19594,19 @@ INCLUDE_ASM(const s32, "core/main", func_001D9430);
 
 INCLUDE_ASM(const s32, "core/main", func_001D95B8);
 
-INCLUDE_ASM(const s32, "core/main", func_001D9618);
+void func_001D9618(f32 *a1)
+{
+    f32 x = a1[0];
+    f32 y = a1[1];
+    f32 sum = x * x + y * y;
+    f32 r;
+
+    if (sum == 0.0f)
+        return;
+    __asm__ volatile("li.s $f0, 1.0\n\trsqrt.s $f0, $f0, %1" : "=f"(r) : "f"(sum));
+    a1[0] = x * r;
+    a1[1] = y * r;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001D9660);
 
@@ -15230,11 +20128,41 @@ INCLUDE_ASM(const s32, "core/main", func_001DB8E0);
 
 INCLUDE_ASM(const s32, "core/main", func_001DC458);
 
-INCLUDE_ASM(const s32, "core/main", func_001DC5B0);
+void func_001DC5B0(u8 *dst, u8 *src)
+{
+    s32 i = 0;
 
-INCLUDE_ASM(const s32, "core/main", func_001DC5F8);
+    if (*src != 0) {
+        do {
+            dst[i] = src[i];
+        } while (src[++i] != 0);
+    }
+    dst[i] = 0;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001DC640);
+void func_001DC5F8(u8 *dst, s8 *src)
+{
+    s32 i = 0;
+
+    if (*src != 0) {
+        do {
+            dst[i] = (u8)src[i];
+        } while (src[++i] != 0);
+    }
+    dst[i] = 0;
+}
+
+void func_001DC640(void *dst, s32 src)
+{
+    s32 i = 0;
+
+    if (((u8 *)src)[0] != 0) {
+        do {
+            ((u8 *)dst)[i] = ((u8 *)src)[i];
+        } while (((u8 *)src)[++i] != 0);
+    }
+    ((u8 *)dst)[i] = 0;
+}
 
 /* Byte-matching.  String length with boundary re-tested each step. */
 s32 func_001DC688(u8 *arg0)
@@ -15263,7 +20191,22 @@ void func_001DC6C0(s32 arg0)
 
 INCLUDE_ASM(const s32, "core/main", func_001DC6E8);
 
-INCLUDE_ASM(const s32, "core/main", func_001DC728);
+extern s32 D_00380CD8[];
+
+s32 func_001DC728(void)
+{
+    u32 base = (u32)D_00380CD8;
+    s32 i = 0x14;
+    s32 *p = (s32 *)(base + 0x370);
+
+    do {
+        if (*p == 0)
+            return i;
+        i++;
+        p = (s32 *)((u8 *)p + 0x2C);
+    } while (i < 0x28);
+    return -1;
+}
 
 extern s32 D_00380CD8[];
 
@@ -15351,9 +20294,33 @@ void func_001DD748(s32 arg1)
     D_00393AE7 = 1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001DD760);
+s32 func_001DFB48();
 
-INCLUDE_ASM(const s32, "core/main", func_001DD7B0);
+s32 func_001DD760(void *arg0)
+{
+    u8 *a1 = (u8 *)arg0;
+    u8 *p = *(u8 **)(a1 + 4);
+    u8 *q = *(u8 **)(p + 0xC);
+    u8 *r = *(u8 **)q;
+    s32 v = *(s32 *)(r + 4);
+
+    *(u8 *)(r + 0x10) = 1;
+    if (v != 0)
+        return func_001DFB48(a1, v);
+    return 0;
+}
+
+s32 func_001DD7B0(u8 *arg0)
+{
+    s32 A = *(s32 *)(arg0 + 4);
+    s32 B = *(s32 *)(A + 0xC);
+    s32 C = *(s32 *)B;
+    s32 D = *(s32 *)(C + 8);
+    *(u8 *)(C + 0x10) = 0;
+    if (D != 0)
+        return func_001DFB48(arg0, D);
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001DD7F8);
 
@@ -15370,13 +20337,39 @@ INCLUDE_ASM(const s32, "core/main", func_001DDEB8);
 void func_001DDF78(void) {
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001DDF80);
+void func_001DDF80(a1)
+s32 *a1;
+{
+    func_001F2F70(0, 0);
+    if (a1 != 0)
+    {
+        if (a1[1] != 0)
+            func_001DFC00((u8 *)a1[1]);
+        if (a1[2] != 0)
+            func_001DFC00((u8 *)a1[2]);
+    }
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001DDFE0);
+s32 func_001DDFE0(s32 a1) {
+if ( a1 != 0 )
+{
+func_001DDF80(a1);
+func_001DD980(a1);
+}
+}
 
 void func_001DE020(void) { func_001DDF80(); }
 
-INCLUDE_ASM(const s32, "core/main", func_001DE028);
+void func_001DE028(s32 a1, u8 a2)
+{
+    void func_001DE020();
+
+    if (a1 != 0)
+    {
+        func_001DE020(a1, a2);
+        func_001DD7F8(a1, a2);
+    }
+}
 
 s32 func_001DE080(s32 *a1, s32 a2)
 {
@@ -15388,11 +20381,38 @@ s32 func_001DE080(s32 *a1, s32 a2)
 
 INCLUDE_ASM(const s32, "core/main", func_001DE0C8);
 
-INCLUDE_ASM(const s32, "core/main", func_001DE148);
+s32 func_001DE148(s32 *a1, u8 a2)
+{
+    s32 func_00224B88();
+    u32 v2;
+    s32 v4;
+
+    v2 = 104 * a2;
+    v4 = *a1;
+    func_00224B88(v4, 0, v2);
+    *a1 += v2;
+    return v4;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001DE1A8);
 
-INCLUDE_ASM(const s32, "core/main", func_001DE258);
+s32 func_001DE258(s32 *a1, u32 a2, u8 a3)
+{
+
+
+    s32 v4;
+v4 = 0;
+if ( *(u32 *)(*(u32 *)a2 + 4) != 0 )
+{
+v4 = *a1;
+func_00224B88(v4, 0, 0x18u);
+*a1 += 24;
+*(u32 *)v4 = a2;
+*(u32 *)(v4 + 20) = *(u32 *)(*(u32 *)a2 + 8);
+*(u32 *)(v4 + 16) = func_001DE1A8(a1, a3);
+}
+return v4;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001DE2F0);
 
@@ -15594,9 +20614,12 @@ void func_001DE8A8(s32 *out, s32 unused, s32 *list)
 
 void func_001DE8D0(s32 *out, s32 unused, s32 *list)
 {
-    s32 v = *(s32 *)list;
+    s32 v = *list;
+
     if (v != 0) {
         *out = *(s32 *)(*(s32 *)(v + 4) + 0x18);
+    } else {
+        *out = 0;
     }
 }
 
@@ -15731,7 +20754,12 @@ u8 *func_001DEF30(s32 arg0, u8 *arg1)
     return arg1 + 8;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001DEF60);
+u8 *func_001DEF60(u8 *arg0, u8 *arg1, s32 arg2)
+{
+    s32 func_001DE818();
+    func_001DE818(arg1[0], 0, *(s32 *)*(s32 **)((u8 *)*(s32 **)(arg0 + 4) + 0xC), arg2);
+    return arg1 + 8;
+}
 
 u8 *func_001DEFA0(u8 *unused, u8 *src, u8 *out)
 {
@@ -15930,7 +20958,18 @@ u8 *func_001DF310(u8 *arg0, u16 *arg1)
     return (u8 *)handler(arg0, (u8 *)arg1 + 8);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001DF348);
+s32 func_001DF348(s32 a1, u16 *a2, u32 a3)
+{
+    extern s32 D_003825C8[];
+    s32 v7[4];
+    s32 result, b;
+    v7[0] = 0;
+    result = ((s32 (*)(s32, s32, s32))D_003825C8[*a2])(a1, (s32)(a2 + 4), (s32)v7);
+    b = v7[0] != 0;
+    *(u8 *)(a3 + 12) = 6;
+    *(u32 *)a3 = b;
+    return result;
+}
 
 extern s32 D_003828F8[];
 
@@ -15952,17 +20991,78 @@ u8 *func_001DF3E0(u8 *arg0, u16 *arg1)
     return (u8 *)handler(arg0, (u8 *)arg1 + 8);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001DF418);
+s64 func_001DF418(s64 a1, u16 *a2, u8 *a3)
+{
+    extern u8 D_00393A30;
+    extern s32 D_00382F30[];
+    s32 v4 = *a2;
+    s64 (*fp)(s64, s64);
+    s64 result;
+    u8 v6;
 
-INCLUDE_ASM(const s32, "core/main", func_001DF470);
+    D_00393A30 = 0;
+    fp = (s64 (*)(s64, s64))D_00382F30[v4];
+    result = fp(a1, (s64)(a2 + 4));
+    v6 = D_00393A30;
+    a3[0xC] = 0x14;
+    *(s32 *)a3 = v6 & 0xFB;
+    return result;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001DF4C0);
+u8 *func_001DF470(u8 *a1)
+{
+    u8 v = *(u8 *)(a1 + 6);
+    u8 *i = a1 + 8;
 
-INCLUDE_ASM(const s32, "core/main", func_001DF510);
+    if (*(u8 *)(i + 6) >= v && *(u8 *)(i + 7) != 8) {
+        do {
+            i += 8;
+        } while (*(u8 *)(i + 6) >= v && *(u8 *)(i + 7) != 8);
+    }
+    return i;
+}
+
+u8 *func_001DF4C0(u8 *a1)
+{
+    u8 v = *(u8 *)(a1 - 2);
+    u8 *i = a1;
+
+    if (v < *(u8 *)(i + 6) && *(u8 *)(i + 7) != 8) {
+        do {
+            i += 8;
+        } while (v < *(u8 *)(i + 6) && *(u8 *)(i + 7) != 8);
+    }
+    return i;
+}
+
+u8 *func_001DF510(u8 *a1)
+{
+    u8 v = *(u8 *)(a1 + 6);
+    u8 *i = a1 + 8;
+
+    if (v < *(u8 *)(i + 6) && *(u8 *)(i + 7) != 8) {
+        do {
+            i += 8;
+        } while (v < *(u8 *)(i + 6) && *(u8 *)(i + 7) != 8);
+    }
+    return i;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001DF560);
 
-INCLUDE_ASM(const s32, "core/main", func_001DF598);
+/* Byte-matching: indirect dispatch through D_003824D8[5*u16_index], then a
+   second call whose result is stored to *a4 plus a type byte at +0xC. */
+extern s32 D_003824D8[];
+
+s32 func_001DF598(s32 a1, s32 a2, u16 a3, u8 *a4)
+{
+    s32 func_001DF560();
+    s32 v = ((s32 (*)(void)) D_003824D8[5 * a3])();
+
+    *(s32 *)a4 = func_001DF560(a1, a3);
+    *(u8 *)(a4 + 0xC) = 0x14;
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001DF618);
 
@@ -15998,9 +21098,31 @@ void func_001DFC00(u8 *arg0)
     *(u32 *)(arg0 + 0xC) = *(u32 *)(arg0 + 8);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001DFC30);
+s32 func_001DFC30(u32 *a1, s32 a2) {
+s32 v4;
+s32 result;
+v4 = a1[2];
+a1[2] = a2;
+a1[3] = v4;
+func_00200D50((s32)a1);
+result = *(s32 *)(a2 + 4);
+a1[1] = result;
+return result;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001DFC78);
+u8 func_001DFC78(u8 *a1)
+{
+    u8 v1 = a1[-2];
+    u8 v2 = 0;
+    if (v1 < a1[6] && a1[7] != 8) {
+        while (1) {
+            if (a1[6] == v1 + 1) v2 = (u8)(v2 + 1);
+            a1 += 8;
+            if (!(v1 < a1[6] && a1[7] != 8)) break;
+        }
+    }
+    return v2;
+}
 
 void func_001DFCD8(void)
 {
@@ -16017,7 +21139,20 @@ INCLUDE_ASM(const s32, "core/main", func_001DFD08);
 
 INCLUDE_ASM(const s32, "core/main", func_001DFDD8);
 
-INCLUDE_ASM(const s32, "core/main", func_001DFED8);
+s32 func_001DFED8(s32 *arg0, s32 arg1, s32 arg2)
+{
+    s32 *i = *arg0;
+
+    while (i != 0) {
+        if (i[3] == arg1) {
+            i[4] = arg2;
+            i[5] = arg2;
+            return 0;
+        }
+        i = *i;
+    }
+    return -1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001DFF08);
 
@@ -16067,7 +21202,17 @@ s32 func_001E0AD0(u8 *arg0, s32 arg1, u32 *arg2)
 
 INCLUDE_ASM(const s32, "core/main", func_001E0B08);
 
-INCLUDE_ASM(const s32, "core/main", func_001E0B80);
+void func_001E0B80(u8 *p)
+{
+    s32 func_00201F80();
+    void func_0014CBE8();
+
+    if (p != 0) {
+        func_00201F80(*(s32 *)(p + 0x18));
+        func_0014CBE8(D_0039347C, (s32)p);
+        __asm__ volatile("" ::: "memory");
+    }
+}
 
 /* Byte-matching.  The third and fourth arguments are deliberately swapped for
    the tail call; that is what retail passes. */
@@ -16132,9 +21277,34 @@ s32 func_001E0CA0(s32 a1, s32 a2, s32 a3, s32 a4)
     return result;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001E0CD8);
+s32 func_001E0CD8(u8 *a1)
+{
+    s32 v = a1[12];
+    s32 result = 0;
 
-INCLUDE_ASM(const s32, "core/main", func_001E0D20);
+    if (v == 0x24) {
+        result = func_00115AA8(*(s32 *)a1);
+    } else if (v == 9) {
+        result = *(s32 *)a1;
+    }
+    return result;
+}
+
+void func_001E0D20(u8 *arg0, u8 *arg1)
+{
+    void func_00121278();
+    u32 flag;
+    u8 *p;
+
+    flag = *(u32 *)(arg0 + 0x38);
+    if (flag == 0)
+    {
+        p = *(u8 **)(arg0 + 0x24);
+        *(S12 *)arg1 = *(S12 *)(p + 0x30);
+        return;
+    }
+    func_00121278(arg1, *(u32 *)(arg0 + 0x24), flag);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001E0D60);
 
@@ -16223,7 +21393,19 @@ INCLUDE_ASM(const s32, "core/main", func_001E3020);
 
 INCLUDE_ASM(const s32, "core/main", func_001E3088);
 
-INCLUDE_ASM(const s32, "core/main", func_001E3608);
+s32 func_001E3608(s32 a1, s32 a2)
+{
+    extern s32 D_00393BEC;
+    extern s32 D_0025362C[];
+    u8 *p;
+    s32 result;
+    p = (u8 *)D_00393BEC;
+    D_00393BEC = (s32)(p + 0x10);
+    result = func_001DF760(a1, a2, (s32)p);
+    *(u8 *)D_0025362C = *p;
+    D_00393BEC = (s32)p;
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001E3648);
 
@@ -16233,9 +21415,39 @@ INCLUDE_ASM(const s32, "core/main", func_001E37B8);
 
 INCLUDE_ASM(const s32, "core/main", func_001E38C8);
 
-INCLUDE_ASM(const s32, "core/main", func_001E3978);
+s32 func_001E3978(u8 *a1, f32 *a2)
+{
+    extern f32 D_00253F30[];
+    u8 *p1, *p2, *p3;
+    f32 v6;
+    if (a2 != 0) *a2 = 0.0f;
+    p1 = *(u8 **)(*(u32 *)(a1 + 4) + 8);
+    if (p1 == 0) return 0;
+    p2 = *(u8 **)(p1 + 0x1C);
+    if (p2 == 0) return 0;
+    p3 = *(u8 **)(p2 + 0x148);
+    if (p3 == 0) return 0;
+    v6 = *(f32 *)(p3 + 0x120);
+    if (D_00253F30[0] < v6) {
+        if (a2 != 0) *a2 = v6;
+        return 1;
+    }
+    return 0;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001E39E0);
+s32 func_001E39E0(u8 *a1, u8 *a2)
+{
+    u8 *p2, *v2, *v3;
+    p2 = *(u8 **)(*(u32 *)(a1 + 4) + 8);
+    if (p2 == 0) return 0;
+    v2 = *(u8 **)(p2 + 0x1C);
+    if (v2 == 0) return 0;
+    v3 = *(u8 **)(v2 + 0x148);
+    if (v3 == 0) return 0;
+    if ((*(u32 *)(v3 + 4) & 1) == 0) return 0;
+    *(S12 *)a2 = *(S12 *)(v3 + 0x34);
+    return 1;
+}
 
 /* Byte-matching.  Follows three links, then checks the flag word. */
 s32 func_001E3A40(s32 a)
@@ -16266,7 +21478,16 @@ INCLUDE_ASM(const s32, "core/main", func_001E3D68);
 
 INCLUDE_ASM(const s32, "core/main", func_001E3DC8);
 
-INCLUDE_ASM(const s32, "core/main", func_001E3E48);
+void func_001E3E48(s32 a1, f32 *a2, f32 *a3, f32 *a4, f32 *a5, f32 *a6)
+{
+    f32 func_00127BB8(f32 *, f32 *, f32 *);
+    f32 func_00127E10(u32, u32, f32 *);
+    void func_001E3DC8();
+
+    *a4 = func_00127BB8(a2, a3, a6);
+    *a5 = func_00127E10((u32)a2, (u32)a3, a6);
+    func_001E3DC8(a1, a4, a5);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001E3ED8);
 
@@ -16351,7 +21572,18 @@ INCLUDE_ASM(const s32, "core/main", func_001E66F8);
 
 INCLUDE_ASM(const s32, "core/main", func_001E67B0);
 
-INCLUDE_ASM(const s32, "core/main", func_001E6870);
+s32 func_001E6870(u8 *arg0, s32 arg1)
+{
+    s32 func_001E67B0();
+    s32 old;
+    s32 result;
+
+    old = *(s32 *)(arg0 + 0xC);
+    *(s32 *)(arg0 + 0xC) = *(s32 *)(arg0 + 0x10);
+    result = func_001E67B0(arg0, arg1);
+    *(s32 *)(arg0 + 0xC) = old;
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001E68B0);
 
@@ -16361,19 +21593,42 @@ INCLUDE_ASM(const s32, "core/main", func_001E6BC0);
 
 INCLUDE_ASM(const s32, "core/main", func_001E6CF0);
 
-ASM_FUNC(const s32, func_001E6E00);
+/* Byte-matching.  Returns the address of record `arg` in the 20-byte table. */
+s32 func_001E6E00(u16 arg)
+{
+    extern u8 D_003824E0[];
+    return (s32)(D_003824E0 + arg * 20);
+}
 
 s32 func_001E6E20(void) { return 148; }
 
-ASM_FUNC(const s32, func_001E6E28);
+/* Byte-matching.  Field +4 of a 12-byte record; typing the table as an array
+   of 12-byte records keeps `lw $2,4($3)` instead of folding +4 into the base. */
+s32 func_001E6E28(u16 arg)
+{
+    typedef struct { s32 a, b, c; } Rec12;
+    extern Rec12 D_00382818[];
+    return D_00382818[arg].b;
+}
 
-ASM_FUNC(const s32, func_001E6E48);
+/* Byte-matching.  Field +8 of the same 12-byte record table. */
+s32 func_001E6E48(u16 arg)
+{
+    typedef struct { s32 a, b, c; } Rec12;
+    extern Rec12 D_00382818[];
+    return D_00382818[arg].c;
+}
 
 s32 func_001E6E68(void) { return 30; }
 
 s32 func_001E6E70(void) { return 532; }
 
-ASM_FUNC(const s32, func_001E6E78);
+/* Byte-matching.  Byte at +0 of a 12-byte record, zero-extended (lbu). */
+s32 func_001E6E78(u8 arg)
+{
+    extern u8 D_00383780[];
+    return *(u8 *)(D_00383780 + arg * 12);
+}
 
 s32 func_001E6E98(void) { return 3; }
 
@@ -16419,16 +21674,11 @@ void func_001E6F28(s32 p, s32 out)
     *(u8 *)(out + 0xC) = 0x22;
 }
 
-/* Behavior-faithful, not byte-matching: copies the same 8+4 bytes from the
-   object at arg0->0x24 (+0x30 and +0x38) through the same ldl/ldr access and
-   writes the same 0x15 tag, size exact at 0x28; only the register allocation
-   differs ($2/$3 here against retail's $3/$2). */
 void func_001E6F50(u8 *arg0, u8 *dst)
 {
     u8 *src = *(u8 **)(arg0 + 0x24);
 
-    *(UnalignedPair *)dst = *(UnalignedPair *)(src + 0x30);
-    *(u32 *)(dst + 8) = *(u32 *)(src + 0x38);
+    *(S12 *)dst = *(S12 *)(src + 0x30);
     *(u8 *)(dst + 0xC) = 0x15;
 }
 
@@ -16518,11 +21768,39 @@ INCLUDE_ASM(const s32, "core/main", func_001E8198);
 
 INCLUDE_ASM(const s32, "core/main", func_001E8318);
 
-INCLUDE_ASM(const s32, "core/main", func_001E83A8);
+s32 func_001E83A8(s32 a1, s32 a2, s32 *a3)
+{
+    f32 v4;
+    s32 v5;
+
+    v4 = 0.0f;
+    v5 = func_001DF760(a1, a2, a3);
+    if (*(s32 *)a3 != 0) v4 = *(f32 *)((u8 *)*(s32 *)a3 + 12);
+    *(f32 *)a3 = v4;
+    *(u8 *)((u8 *)a3 + 12) = 8;
+    return v5;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001E83F8);
 
-INCLUDE_ASM(const s32, "core/main", func_001E8450);
+void func_001E8450(s32 arg0)
+{
+    extern s32 D_00393A64;
+    u8 *p = (u8 *)D_00393A64;
+
+    if (p == 0)
+        return;
+    for (;;) {
+        s32 i = *(s32 *)(p + 0x25C);
+        if (i == arg0) {
+            *p = 0;
+            *(s32 *)(p + 0x25C) = 0;
+        }
+        p = *(u8 **)(p + 0x260);
+        if (p == 0)
+            break;
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001E8488);
 
@@ -16558,7 +21836,18 @@ INCLUDE_ASM(const s32, "core/main", func_001EB9A0);
 
 INCLUDE_ASM(const s32, "core/main", func_001EBA28);
 
-INCLUDE_ASM(const s32, "core/main", func_001EBBF8);
+s32 func_001EBBF8(s32 a1, s32 a2, s32 *a3)
+{
+    s32 v5;
+    s32 *v7;
+
+    func_001F2F88(a1, &v7);
+    v5 = 0;
+    if (*v7 == 2) v5 = v7[1];
+    *a3 = func_00213918((s32 *)v5);
+    *(u8 *)((u8 *)a3 + 12) = 44;
+    return a2;
+}
 
 u8 *func_001EBC60(u8 *arg0, u8 *arg1, u8 *arg2)
 {
@@ -16571,7 +21860,13 @@ u8 *func_001EBC60(u8 *arg0, u8 *arg1, u8 *arg2)
 
 INCLUDE_ASM(const s32, "core/main", func_001EBCA0);
 
-INCLUDE_ASM(const s32, "core/main", func_001EBD10);
+s32 func_001EBD10(s32 a1, s32 a2, u32 a3) {
+s32 v6[4];
+func_001F2F88(a1, v6);
+*(u32 *)a3 = func_0010EDF8(v6[0]);
+*(u8 *)(a3 + 12) = 6;
+return a2;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001EBD60);
 
@@ -16585,7 +21880,21 @@ u8 *func_001EBF88(u8 *arg0, u8 *arg1, u8 *arg2)
     return arg1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001EBFC8);
+s32 func_001EBFC8(s32 a1, s32 a2, u8 *a3)
+{
+    s32 *p;
+    s32 v;
+    u8 b;
+
+    func_001F2F88(a1, &p);
+    v = 0;
+    if (*p == 2)
+        v = p[1];
+    b = *(u8 *)(*(s32 *)(v + 4) + 0x28);
+    a3[12] = 3;
+    *a3 = b;
+    return a2;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001EC030);
 
@@ -16608,7 +21917,14 @@ INCLUDE_ASM(const s32, "core/main", func_001EC7B0);
 
 INCLUDE_ASM(const s32, "core/main", func_001EC828);
 
-INCLUDE_ASM(const s32, "core/main", func_001ECA60);
+s32 func_001ECA60(s32 a1, s32 a2, u8 *a3)
+{
+    f32 v = func_0014B900();
+
+    a3[12] = 8;
+    *(f32 *)a3 = v * 1000.0f;
+    return a2;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001ECAB0);
 
@@ -16624,7 +21940,27 @@ INCLUDE_ASM(const s32, "core/main", func_001ED4C0);
 
 INCLUDE_ASM(const s32, "core/main", func_001ED530);
 
-INCLUDE_ASM(const s32, "core/main", func_001ED8F8);
+s32 func_001ED8F8(s32 a1, s32 a2, u8 *a3)
+{
+    s32 func_00101908();
+    s32 func_001DF760();
+    s32 v4;
+    s32 v5;
+    s32 v6;
+
+    v4 = func_001DF760(a1, a2);
+    v5 = func_00101908(*(u32 *)(*(u32 *)(*(u32 *)a3 + 4) + 24));
+    if (v5 != 0) {
+        v6 = 0;
+        if (*(u32 *)v5 == 2)
+            v6 = *(u32 *)(v5 + 4);
+    } else {
+        v6 = 0;
+    }
+    *(u32 *)a3 = v6;
+    a3[12] = 11;
+    return v4;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001ED970);
 
@@ -16687,7 +22023,17 @@ s32 func_001EED88(void)
     return func_001DF760();
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001EEDA8);
+u8 *func_001EEDA8(u8 *a1, u8 *a2, u8 *a3)
+{
+    s32 func_001DF760();
+    s32 func_002220A0();
+    s32 v = func_001DF760(a1, a2);
+    u8 *p = (u8 *)func_001E0CD8(a3);
+
+    *(s32 *)a3 = func_002220A0(p);
+    a3[12] = 6;
+    return (u8 *)v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001EEDF8);
 
@@ -16748,7 +22094,18 @@ INCLUDE_ASM(const s32, "core/main", func_001EF4C0);
 
 INCLUDE_ASM(const s32, "core/main", func_001EF5D8);
 
-INCLUDE_ASM(const s32, "core/main", func_001EF6C0);
+s32 func_001EF6C0(s32 a1, s32 a2, u8 *a3)
+{
+    s32 v8[4];
+    s32 *v6;
+
+    func_001F2F88(a1, v8);
+    v6 = (s32 *)(*(s32 *)v8 + 0x24);
+    v6 = (s32 *)*v6;
+    *(S12 *)a3 = *(S12 *)((u8 *)v6 + 0x30);
+    *(a3 + 12) = 21;
+    return a2;
+}
 
 /* Behavior-faithful, not byte-matching: same 8+4 byte copy from
    (*(arg0+0x24))+0x30 and +0x38 into arg2, same 0x15 tag and same return of
@@ -16757,8 +22114,7 @@ u8 *func_001EF720(u8 *arg0, u8 *arg1, u8 *arg2)
 {
     u8 *src = *(u8 **)(arg0 + 0x24);
 
-    *(UnalignedPair *)arg2 = *(UnalignedPair *)(src + 0x30);
-    *(u32 *)(arg2 + 8) = *(u32 *)(src + 0x38);
+    *(S12 *)arg2 = *(S12 *)(src + 0x30);
     *(u8 *)(arg2 + 0xC) = 0x15;
     return arg1;
 }
@@ -16794,7 +22150,16 @@ INCLUDE_ASM(const s32, "core/main", func_001F0460);
 
 INCLUDE_ASM(const s32, "core/main", func_001F0A08);
 
-INCLUDE_ASM(const s32, "core/main", func_001F0B70);
+s32 func_001F0B70(s32 a1, s32 a2, u8 *a3)
+{
+    s32 result;
+    u8 v;
+    result = func_001DF760(a1, a2);
+    v = *(u8 *)(*(s32 *)(*(s32 *)a3 + 4) + 0xC);
+    a3[0xC] = 6;
+    *(s32 *)a3 = v & 0x7F;
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001F0BB0);
 
@@ -16853,9 +22218,27 @@ s32 func_001F14B0(s32 arg0, s32 arg1, u8 *arg2)
     return result;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001F14E0);
+s32 func_001F14E0(s32 a1, s32 a2, u8 *a3)
+{
+    s32 func_001F1420();
+    s32 func_001F1450();
+    s32 func_001F1480();
+    s32 v5, v6, result;
 
-INCLUDE_ASM(const s32, "core/main", func_001F1540);
+    a3[3] = 0;
+    v5 = func_001F1420(a1, a2, a3);
+    v6 = func_001F1450(a1, v5, a3);
+    result = func_001F1480(a1, v6, a3);
+    a3[12] = 40;
+    return result;
+}
+
+s32 func_001F1540(s32 arg0, s32 arg1, u8 *arg2)
+{
+    s32 func_001F14E0();
+    s32 v = func_001F14E0(arg0, arg1, arg2);
+    return func_001F14B0(arg0, v, arg2);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001F1580);
 
@@ -16872,9 +22255,64 @@ u8 *func_001F1A18(u8 *arg0, u8 *arg1, u8 *arg2)
     return arg1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001F1A58);
+s32 func_001F1A58(u32 *a1)
+{
 
-INCLUDE_ASM(const s32, "core/main", func_001F1AE0);
+
+    s32 v1;
+s32 i;
+if ( *a1 == 2 )
+{
+if ( *(u32 *)(a1[1] + 12) != 0 )
+func_001DE028(**(s32 **)(a1[1] + 12), 0);
+}
+else
+{
+v1 = (s32)a1[2];
+for ( i = func_0014ABD8((s32)a1[2]); v1 != 0; i = func_0014ABD8(i) )
+{
+func_001F1A58(v1);
+v1 = i;
+}
+}
+}
+
+s32 func_001F1AE0(s32 a1, s32 a2, u32 a3)
+{
+    extern s32 D_00393A98[];
+    extern s32 D_00393AA0[];
+    extern s32 D_00393AA8[];
+    s32 func_00111568();
+    s32 func_001124E0();
+    s32 func_00112610();
+    s32 func_00112620();
+
+    s32 v5;
+    u32 v6;
+    s32 v7;
+    u32 v8;
+    s32 v9;
+    u8 v11[64];
+    if (*(u16 *)(a2 - 8) == 103) {
+        v5 = func_001124E0();
+        func_00226A34((u32)v11, v5);
+        v6 = func_00112610();
+        if (func_00226580((u8 *)v6, (u8 *)D_00393A98) != 0) {
+            func_00211A20((u32)v11, (u32)D_00393AA0);
+            v7 = func_00112610();
+            func_00211A20((u32)v11, v7);
+        }
+        v8 = func_00112620();
+        if (func_00226580((u8 *)v8, (u8 *)D_00393A98) != 0) {
+            func_00211A20((u32)v11, (u32)D_00393AA8);
+            v9 = func_00112620();
+            func_00211A20((u32)v11, v9);
+        }
+        *(u32 *)a3 = func_00111568(v11);
+        *(u8 *)(a3 + 12) = 6;
+    }
+    return a2;
+}
 
 u8 *func_001F1BD0(u8 *unused, u8 *base, u8 *out)
 {
@@ -17019,7 +22457,22 @@ INCLUDE_ASM(const s32, "core/main", func_001F2048);
 
 INCLUDE_ASM(const s32, "core/main", func_001F2298);
 
-INCLUDE_ASM(const s32, "core/main", func_001F24B0);
+s32 func_001F24B0(s32 a1, s32 a2, s32 *a3)
+{
+    extern s32 D_00393BEC;
+    s32 func_001DF760();
+    s32 old = D_00393BEC;
+    s32 *out = a3;
+    s32 result;
+    s32 v;
+
+    D_00393BEC = old + 0x10;
+    result = func_001DF760(a1, a2, old);
+    v = *(s32 *)(*(s32 *)(*(s32 *)old + 4) + 0x18);
+    D_00393BEC = old;
+    *out = v;
+    return result;
+}
 
 void func_001F2500(u32 value) { func_00200FA0((u16)value); }
 
@@ -17045,9 +22498,41 @@ INCLUDE_ASM(const s32, "core/main", func_001F25C8);
 
 INCLUDE_ASM(const s32, "core/main", func_001F2690);
 
-INCLUDE_ASM(const s32, "core/main", func_001F2728);
+void func_001F2728(s32 a1, u8 a2, u8 a3, u8 a4, u16 a5, s32 a6)
+{
+    void func_001F2510();
+    void func_001F2500();
 
-INCLUDE_ASM(const s32, "core/main", func_001F2778);
+    if (a2 == 11)
+    {
+        func_001F2510(a3, a4, a1, a6);
+        return;
+    }
+    if (a2 == 9)
+    {
+        func_001F2500(a5, a1, a6);
+        return;
+    }
+    return 9;
+}
+
+void func_001F2778(s32 a1, u8 a2, u8 a3, u8 a4, u16 a5, s32 a6)
+{
+    void func_001F2528();
+    void func_001F2508();
+
+    if (a2 == 11)
+    {
+        func_001F2528(a3, a4, a1, a6);
+        return;
+    }
+    if (a2 == 9)
+    {
+        func_001F2508(a5, a1, a6);
+        return;
+    }
+    return 9;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001F27C8);
 
@@ -17074,7 +22559,13 @@ void func_001F2F88(s32 def, s32 *out)
     }
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001F2FA8);
+s32 func_001F2FA8(u8 *arg0, s32 arg1, s32 arg2)
+{
+    s32 v[4];
+    s32 r = func_001F24B0(arg0, arg1, v);
+    func_001F2F70(arg0, v[0]);
+    return func_001DF760(arg0, r, arg2);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001F3008);
 
@@ -17146,15 +22637,56 @@ INCLUDE_ASM(const s32, "core/main", func_001F5508);
 
 s32 func_001F5580(s32 unused, s32 value) { return value; }
 
-INCLUDE_ASM(const s32, "core/main", func_001F5588);
+s32 func_001F5588(u32 *a1, s32 a2, u8 a3)
+{
+    extern s32 D_00393AE0;
+    extern u8 D_00393A30;
+    s32 r = a1[2];
+    u8 flag = a3;
+
+    if (r != a2) {
+        s32 eight = 8;
+        r = func_001DFC30(a1, a2);
+        if (flag == 0) {
+            D_00393AE0 = 0;
+            D_00393A30 = eight;
+            r = eight;
+        }
+    }
+    return r;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001F55D0);
 
 INCLUDE_ASM(const s32, "core/main", func_001F5668);
 
-INCLUDE_ASM(const s32, "core/main", func_001F5700);
+s32 func_001F5700(u8 *a1, u8 *a2)
+{
+    s32 func_001F5588();
+    s32 func_001DF760();
+    u8 *p = *(u8 **)(a1 + 4);
+    u8 *q = *(u8 **)(p + 12);
+    u8 *r = *(u8 **)q;
+    s32 v5;
+    s32 v;
+    v = func_001DF760(a1, a2, &v5);
+    func_001F5588(*(s32 *)(r + 4), v5, r[16] == 0);
+    return v;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001F5758);
+s32 func_001F5758(u8 *a1, u8 *a2)
+{
+    s32 func_001F5588();
+    s32 func_001DF760();
+    u8 *p = *(u8 **)(a1 + 4);
+    u8 *q = *(u8 **)(p + 12);
+    u8 *r = *(u8 **)q;
+    s32 v5;
+    s32 v;
+    v = func_001DF760(a1, a2, &v5);
+    func_001F5588(*(s32 *)(r + 8), v5, r[16]);
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001F57A8);
 
@@ -17170,13 +22702,741 @@ INCLUDE_ASM(const s32, "core/main", func_001F5C40);
 
 INCLUDE_ASM(const s32, "core/main", func_001F5CF8);
 
-INCLUDE_ASM(const s32, "core/main", func_001F5EE0);
+void func_001F5EE0(u32 *a1, s32 a2, s32 a3, u8 a4)
+{
+  s32 v6; 
+  s32 v7; 
+
+  v6 = a4;
+  func_0014AD50(a1);
+  if ( v6 != 0 && a2 != 0 )
+  {
+    v7 = *(u32 *)(a1[1] + 8);
+    if ( v7 != 0 )
+      func_0012D750(*(u32 *)(v7 + 28), (f32 *)a2);
+  }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001F5F58);
 
 INCLUDE_ASM(const s32, "core/main", func_001F6C40);
 
-INCLUDE_ASM(const s32, "core/main", func_001F6EA8);
+/* ---------------------------------------------------------------------------
+ * func_001F6EA8 - entity command executor ("comport op" apply/commit).
+ *
+ * Behavioural reconstruction from asm/nonmatchings/core/main/func_001F6EA8.s.
+ * $4 = evaluation context, $5 = first operand node of the command; the opcode
+ * is the u16 stored 8 bytes before that node.  Returns the operand cursor the
+ * caller continues from.
+ *
+ * Two passes over the same opcode: pass 1 walks the operand list through
+ * func_001DF760 (which fills the shared value slot at D_00393BEC and returns
+ * the next operand), pass 2 applies the decoded values to ctx->[0x24]: rotate,
+ * look-at, copy another entity, scale, or commit a position.
+ *
+ * Retail frame offsets map onto these locals:
+ *   sp+0x00 -> frame   0x54-byte snapshot of the entry entity
+ *   sp+0x60 -> v60     decoded value (vector / position)
+ *   sp+0x70 -> v70     second vector / accumulation helper
+ *   sp+0x80 -> v80     third vector
+ *   sp+0x90 -> v90     scratch vector handed to func_00127330
+ *   sp+0xA0/0xB0/0xC0 -> rowA/rowB/rowC   rotation rows for func_00126868
+ *   sp+0xD0 -> mtx     0x54-byte node built by func_001275C0
+ *   sp+0x130/0x140/0x150 -> basis/vecV/vecU   look-at basis vectors
+ * ------------------------------------------------------------------------- */
+
+typedef struct
+{
+    f32 x, y, z;
+} CmdVec3;
+
+/* The 0x54-byte transform node: 3x3 basis (rows 0x10 apart), pos at +0x30,
+   1.0 at +0x3C, scale at +0x40, kind at +0x50.  Only copied whole here. */
+typedef struct
+{
+    u32 w[0x54 / 4];
+} CmdNode54;
+
+/* One 0x10-byte entry of the operand value pool (D_00393BEC). */
+typedef struct
+{
+    union
+    {
+        f32 f;    /* +0x00 float value */
+        s32 i;    /* +0x00 integer value */
+        f32 v[3]; /* +0x00 vector value */
+        u8 *ptr;  /* +0x00 reference value (opcode 0x96) */
+        u8 b[12]; /* +0x00 raw bytes (object name, did-work byte) */
+    } p;
+    u8 kind; /* +0x0C: 8 = float, otherwise s32 / pointer */
+    u8 pad0D[3];
+} CmdVal;
+
+/* a*b - c*d, fused like retail's mula.s / msub.s pair. */
+#define F_MULSUB(a, b, c, d)                                       \
+    ({                                                             \
+        float r_;                                                  \
+        __asm__ volatile("mula.s %1,%2\n\t"                        \
+                         "msub.s %0,%3,%4"                         \
+                         : "=&f"(r_)                               \
+                         : "f"(a), "f"(b), "f"(c), "f"(d));        \
+        r_;                                                        \
+    })
+
+/* Bit pattern of a float, through the FPU move rather than a memory round
+   trip (retail uses mfc1/mtc1 for every one of these tests). */
+#define F_BITS(x)                                                  \
+    ({                                                             \
+        u32 b_;                                                    \
+        __asm__("mfc1 %0,%1" : "=r"(b_) : "f"(x));                \
+        b_;                                                        \
+    })
+
+/* Opcode groups: computed once in pass 1, reused by pass 2 so neither pass
+   walks the whole tag chain (retail does the same with its jump tables). */
+#define GRP_ROT_VEC   0 /* D7, 9F: vector + negative angle + vector */
+#define GRP_ROT       1 /* D6, 9E: vector + negative angle */
+#define GRP_CTX       2 /* 96: switch evaluation context, copy the object */
+#define GRP_VEC       3 /* A5, DD: vector only (aim / scale) */
+#define GRP_ANGLE_VEC 4 /* A0-A2, D8-DA: positive angle + vector */
+#define GRP_ANGLE     5 /* 9B-9D, D3-D5: angle only */
+#define GRP_LOOKAT    6 /* 99, 9A, CF, D2: build a look-at basis */
+#define GRP_FRAME     7 /* 98, D1: convert the vector into the node frame */
+#define GRP_SCALE     8 /* D0: uniform scale */
+#define GRP_POS       9 /* 95: commit a position */
+#define GRP_NONE     10 /* no-op tag */
+
+/* 1.0f with the sign of the given bit pattern. */
+#define SIGN1_BITS(b)                                              \
+    ({                                                             \
+        f32 r_;                                                    \
+        u32 v_ = ((b) & 0x80000000u) | 0x3F800000u;                 \
+        __asm__("mtc1 %1,%0" : "=f"(r_) : "r"(v_));               \
+        r_;                                                        \
+    })
+
+/* copysign(1.0f, x): retail keeps the 1.0 exponent and copies x's sign. */
+#define CMD_SIGN1(x) SIGN1_BITS(F_BITS(x))
+
+/* t = ctx->[4]->[0]->[0x88], entry idx, first word: the named-object lookup
+   repeated five times in the listing. */
+#define CMD_LOOKUP(dst, c, idx)                                     \
+    ({                                                             \
+        u8 *tbl_ = *(u8 **)(*(u8 **)((c) + 4));                     \
+        tbl_ = *(u8 **)(tbl_ + 0x88);                               \
+        (dst) = (tbl_ != 0) ? *(u8 **)(tbl_ + (u32)(idx) * 0x20) : 0; \
+    })
+
+/* The value of the current operand slot: 8 means float, anything else is an
+   s32 (lwc1 + cvt.s.w in retail). */
+#define CMD_NUM(s) (((s)->kind == 8) ? (s)->p.f : (f32)(s)->p.i)
+
+/* 0x54-byte node copy, word by word (retail uses ldl/ldr/sdl/sdr pairs). */
+#define CMD_COPY54(dst, src)                                       \
+    ({                                                             \
+        u32 i_;                                                    \
+        for (i_ = 0; i_ < 0x54 / 4; i_++)                           \
+            ((u32 *)(dst))[i_] = ((u32 *)(src))[i_];                \
+    })
+
+u8 *func_001F6EA8(u8 *arg0, u8 *arg1)
+{
+    extern s32 D_00393BEC; /* 0x00393BEC: value-slot bump pointer */
+    extern f32 D_00392DDC; /* 0.0174532925f */
+    extern f32 D_00392DE0; /* 0.0174532925f */
+    extern f32 D_00392DE4; /* 0.0174532925f */
+    extern f32 D_00392DE8; /* 0.0174532925f */
+    extern f32 D_00392DEC; /* 0.15915494f = 1/2pi */
+    extern f32 D_00392DF0; /* 6.2831855f = 2pi */
+    extern f32 D_00392DF4; /* 3.1415927f = pi */
+    extern f32 D_00392DF8; /* 0.001f */
+    u8 *func_001DF470(u8 *node);
+    void func_00121480(f32 *dst, u8 *node, f32 *src);
+    void func_00121278(f32 *dst, u8 *node, f32 *src);
+    void func_001255C8(u8 *node, f32 *axis, f32 angle);
+    void func_001262F8(u8 *node, f32 *a, f32 *b, f32 *c);
+    void func_00126868(u8 *node, f32 *a, f32 *b, f32 *c);
+    s32 func_00127330(u8 *node, f32 *v);
+    void func_001275C0(f32 *out, u8 *node);
+    void func_0012D750(u8 *node, u8 *ent);
+    void func_0012D900(u8 *node, f32 *v);
+    void func_0014AF20(u8 *ctx);
+    /* 0x10C9F0 is a 4-instruction accessor: ctx->[4]->[4]->[0x2C].  It reads
+       $a0 even though it takes nothing that looks like an argument, and retail
+       leaves the context there (0x1F7EE8 reloads it and 0x1F7EFC does not
+       re-set $a0 before the call) ??? do not call it empty. */
+    s32 func_0010C9F0(u8 *ctx);
+
+    CmdVal *slot;
+    CmdVec3 v60;
+    CmdVec3 v70;
+    CmdVec3 v80;
+    CmdVec3 v90; /* sp+0x90: scratch vector handed to func_00127330 */
+    CmdVec3 rowA;
+    CmdVec3 rowB;
+    CmdVec3 rowC;
+    CmdVec3 basis;
+    CmdVec3 vecV;
+    CmdVec3 vecU;
+    CmdVec3 cvec;
+    u32 frame[0x54 / 4];
+    u32 mtx[0x54 / 4];
+    u8 *cur;
+    u8 *echo;
+    u8 *ctx;
+    u8 *other;
+    u8 *saved;
+    u8 *w;
+    u8 *ent;
+    u8 *entryEnt;
+    u8 *p;
+    u32 nameByte;
+    s32 grp;
+    s32 tag;
+    s32 flagA;
+    s32 flagB;
+    s32 didWork;
+    s32 n;
+    s32 r;
+    f32 f20;
+    f32 f0;
+    f32 f1;
+    f32 cosv;
+    f32 sinv;
+    f32 wrapped;
+
+    /* ---------------- entry (0x1F6EA8) ---------------- */
+    slot = (CmdVal *)D_00393BEC;
+    D_00393BEC = (s32)((u8 *)slot + 0x10);
+
+    nameByte = 0xFF;
+    didWork = 0;
+    other = 0;
+    echo = arg0;
+    cur = arg1;
+    f20 = 0.0f;
+    flagA = 0;
+    flagB = 0;
+
+    tag = *(u16 *)(cur - 8);
+    ctx = arg0;
+    func_001F2F88((s32)arg0, (s32 *)&ctx);
+    saved = ctx;
+    entryEnt = *(u8 **)(ctx + 0x24);
+    w = *(u8 **)(*(u8 **)(ctx + 4) + 8);
+    cur = (u8 *)func_001DF760(echo, cur, slot);
+
+    /* ---------------- pass 1: decode the operand list ---------------- */
+    grp = GRP_NONE;
+    if (tag < 0xCF)
+    {
+        if (tag < 0xA5)
+        {
+            if (tag < 0x9B)
+            {
+                if (tag < 0x98)                     /* 95, 96, 97 */
+                {
+                    if (tag == 0x96)
+                    {
+                        /* Switch the evaluation context to slot->[0]->[4]->[0x18]
+                           and resolve a name there.  On a miss, tail-return the
+                           next cursor from func_001DF470 (see below). */
+                        p = *(u8 **)slot->p.b;
+                        echo = *(u8 **)(*(u8 **)(p + 4) + 0x18);
+                        cur = (u8 *)func_001DF760(echo, cur, slot);
+                        nameByte = slot->p.b[0];
+                        CMD_LOOKUP(other, echo, nameByte);
+                        if (other == 0)
+                        {
+                            /* retail tail-returns func_001DF470's result ($v0 from
+                               the jal); it branches to .L001F7FC8, skipping the
+                               daddu $2,$21 at 0x1F7FC0 that would reload $v0 with
+                               the cursor. */
+                            D_00393BEC = (s32)slot;
+                            return func_001DF470(cur);
+                        }
+                        nameByte = 0xFF;
+                        flagA = 1;
+                        didWork = 1;
+                        grp = GRP_CTX;
+                    }
+                    else if (tag == 0x95)
+                    {
+                        flagA = 1;
+                        v60 = *(CmdVec3 *)slot->p.v;
+                        didWork = 1;
+                        grp = GRP_POS;
+                    }
+                }
+                else if (tag == 0x98)
+                {
+                    v60 = *(CmdVec3 *)slot->p.v;
+                    cur = (u8 *)func_001DF760(echo, cur, slot);
+                    flagA = 1;
+                    didWork = slot->p.b[0];
+                    grp = GRP_FRAME;
+                }
+                else                                /* 99, 9A */
+                {
+                    v60 = *(CmdVec3 *)slot->p.v;
+                    didWork = 1;
+                    grp = GRP_LOOKAT;
+                    if (tag == 0x9A)
+                    {
+                        flagA = 1;
+                        cur = (u8 *)func_001DF760(echo, cur, slot);
+                        v80 = *(CmdVec3 *)slot->p.v;
+                    }
+                }
+            }
+            else if (tag < 0x9E)                    /* 9B, 9C, 9D */
+            {
+                f20 = CMD_NUM(slot) * D_00392DE8;
+                didWork = 1;
+                grp = GRP_ANGLE;
+            }
+            else if (tag < 0xA0)                    /* 9E, 9F */
+            {
+                v60 = *(CmdVec3 *)slot->p.v;
+                cur = (u8 *)func_001DF760(echo, cur, slot);
+                if (tag == 0x9F)
+                {
+                    f20 = -CMD_NUM(slot) * D_00392DDC;
+                    flagA = 1;
+                    cur = (u8 *)func_001DF760(echo, cur, slot);
+                    v80 = *(CmdVec3 *)slot->p.v;
+                    grp = GRP_ROT_VEC;
+                }
+                else
+                {
+                    f20 = -CMD_NUM(slot) * D_00392DE0;
+                    grp = GRP_ROT;
+                }
+                didWork = 1;
+            }
+            else if (tag < 0xA3)                    /* A0, A1, A2 */
+            {
+                f20 = CMD_NUM(slot) * D_00392DE4;
+                flagA = 1;
+                didWork = 1;
+                cur = (u8 *)func_001DF760(echo, cur, slot);
+                v60 = *(CmdVec3 *)slot->p.v;
+                grp = GRP_ANGLE_VEC;
+            }
+            /* 0xA3, 0xA4: no operation */
+        }
+        else if (tag == 0xA5)
+        {
+            v60 = *(CmdVec3 *)slot->p.v;
+            didWork = 1;
+            grp = GRP_VEC;
+        }
+        /* 0xA6..0xCE: no operation */
+    }
+    else if (tag < 0xD3)                            /* CF..D2: named variants */
+    {
+        v60 = *(CmdVec3 *)slot->p.v;
+        cur = (u8 *)func_001DF760(echo, cur, slot);
+        nameByte = slot->p.b[0];
+        CMD_LOOKUP(other, ctx, nameByte);
+        cur = (u8 *)func_001DF760(echo, cur, slot);
+        didWork = slot->p.b[0];
+        if (tag == 0xD0)
+            grp = GRP_SCALE;
+        else if (tag == 0xD1)
+            grp = GRP_FRAME;
+        else
+        {
+            grp = GRP_LOOKAT;
+            if (tag == 0xD2)
+            {
+                flagA = 1;
+                cur = (u8 *)func_001DF760(echo, cur, slot);
+                v80 = *(CmdVec3 *)slot->p.v;
+            }
+        }
+    }
+    else if (tag < 0xD6)                            /* D3..D5: named angle */
+    {
+        nameByte = slot->p.b[0];
+        CMD_LOOKUP(other, ctx, nameByte);
+        cur = (u8 *)func_001DF760(echo, cur, slot);
+        f20 = CMD_NUM(slot) * D_00392DE8;
+        didWork = 1;
+        grp = GRP_ANGLE;
+    }
+    else if (tag < 0xD8)                            /* D6, D7: named rotation */
+    {
+        nameByte = slot->p.b[0];
+        CMD_LOOKUP(other, ctx, nameByte);
+        cur = (u8 *)func_001DF760(echo, cur, slot);
+        v60 = *(CmdVec3 *)slot->p.v;
+        cur = (u8 *)func_001DF760(echo, cur, slot);
+        if (tag == 0xD7)
+        {
+            f20 = -CMD_NUM(slot) * D_00392DDC;
+            flagA = 1;
+            cur = (u8 *)func_001DF760(echo, cur, slot);
+            v80 = *(CmdVec3 *)slot->p.v;
+            grp = GRP_ROT_VEC;
+        }
+        else
+        {
+            f20 = -CMD_NUM(slot) * D_00392DE0;
+            grp = GRP_ROT;
+        }
+        didWork = 1;
+    }
+    else if (tag < 0xDB)                            /* D8..DA: named angle+vec */
+    {
+        nameByte = slot->p.b[0];
+        CMD_LOOKUP(other, ctx, nameByte);
+        cur = (u8 *)func_001DF760(echo, cur, slot);
+        f20 = CMD_NUM(slot) * D_00392DE4;
+        flagA = 1;
+        didWork = 1;
+        cur = (u8 *)func_001DF760(echo, cur, slot);
+        v60 = *(CmdVec3 *)slot->p.v;
+        grp = GRP_ANGLE_VEC;
+    }
+    else if (tag == 0xDD)                           /* DD: named vector */
+    {
+        nameByte = slot->p.b[0];
+        CMD_LOOKUP(other, ctx, nameByte);
+        cur = (u8 *)func_001DF760(echo, cur, slot);
+        v60 = *(CmdVec3 *)slot->p.v;
+        didWork = 1;
+        grp = GRP_VEC;
+    }
+    /* 0xDB, 0xDC: no operation */
+
+    /* ---------------- join (0x1F7480) ---------------- */
+    if (nameByte != 0xFF)
+    {
+        if (other == 0)
+        {
+            D_00393BEC = (s32)slot;
+            return cur;
+        }
+        ctx = other;
+    }
+    ent = *(u8 **)(ctx + 0x24);
+    if (didWork == 0)
+        CMD_COPY54(frame, entryEnt);
+
+    /* ---------------- pass 2: apply (0x1F7574) ---------------- */
+    if (grp == GRP_NONE)
+        goto L7FA0;
+
+    if (grp < GRP_CTX)                              /* ROT_VEC, ROT */
+    {
+        if (grp == GRP_ROT_VEC)
+            func_00121480(&v70.x, ent, &v80.x);
+
+        /* 0x1F75AC: normalise the axis, then rotate the entity about it */
+        f0 = F_LEN2(v60.x, v60.y, v60.z);
+        f1 = sqrtf(f0);
+        if (f1 != 0.0f)
+        {
+            f0 = 1.0f / f1;
+            v60.z = f0 * v60.z;
+            v60.x = f0 * v60.x;
+            v60.y = f0 * v60.y;
+        }
+        func_001255C8(ent, &v60.x, f20);
+        if (flagA == 0)
+            goto L7ED4;
+        func_00121480(&v60.x, ent, &v80.x);
+        goto L7988;
+    }
+
+    if (grp == GRP_CTX)
+    {
+        /* copy the resolved object's whole transform block */
+        CMD_COPY54(ent, *(u8 **)(other + 0x24));
+        goto L7ED4;
+    }
+
+    if (grp == GRP_VEC)                             /* A5, DD: aim / scale */
+    {
+        if (tag == 0xA5)
+            flagB = 1;
+        if ((*(u32 *)(ctx + 0x30) & 8) != 0)
+        {
+            f0 = v60.x;
+            v60.z = f0;
+            v60.y = f0;
+        }
+        if (!(nameByte == 0xFF && w != 0))
+        {
+            v90 = v60;
+            func_00127330(ent, &v90.x);
+        }
+        goto L7ED4;
+    }
+
+    if (grp < GRP_LOOKAT)                           /* ANGLE_VEC, ANGLE */
+    {
+        if (grp == GRP_ANGLE_VEC)
+            func_00121480(&v70.x, ent, &v60.x);
+
+        /* 0x1F7780: cos / sin of the angle, then the rotation rows */
+        f0 = f20 * D_00392DEC;
+        n = (s32)f0;
+        wrapped = f20 - (f32)n * D_00392DF0;
+        cosv = func_00217AC0(f20);
+        f0 = (wrapped < 0.0f) ? -1.0f : 1.0f;
+        f1 = fabsf(wrapped);
+        if (!(f1 < D_00392DF4))
+            f0 = -f0;
+        if (f1 == 0.0f)
+            f0 = 0.0f;
+        sinv = sqrtf(1.0f - cosv * cosv) * f0;
+
+        if (tag == 0x9B || tag == 0xA0 || tag == 0xD8 || tag == 0xD3)
+        {
+            rowA.x = 1.0f;
+            rowA.y = 0.0f;
+            rowA.z = 0.0f;
+            rowB.x = 0.0f;
+            rowB.y = cosv;
+            rowB.z = sinv;
+            rowC.x = 0.0f;
+            rowC.y = -sinv;
+            rowC.z = cosv;
+        }
+        else if (tag == 0x9C || tag == 0xA1 || tag == 0xD9 || tag == 0xD4)
+        {
+            rowA.x = cosv;
+            rowA.y = 0.0f;
+            rowA.z = sinv;
+            rowB.x = 0.0f;
+            rowB.y = 1.0f;
+            rowB.z = 0.0f;
+            rowC.x = -sinv;
+            rowC.y = 0.0f;
+            rowC.z = cosv;
+        }
+        else
+        {
+            rowA.x = cosv;
+            rowA.y = sinv;
+            rowA.z = 0.0f;
+            rowB.x = -sinv;
+            rowB.y = cosv;
+            rowB.z = 0.0f;
+            rowC.x = 0.0f;
+            rowC.y = 0.0f;
+            rowC.z = 1.0f;
+        }
+
+        /* 0x1F7914: rotate the entity's own matrix by the rows just built */
+        func_001275C0((f32 *)mtx, ent);
+        func_00121480(&rowA.x, (u8 *)mtx, &rowA.x);
+        func_00121480(&rowB.x, (u8 *)mtx, &rowB.x);
+        func_00121480(&rowC.x, (u8 *)mtx, &rowC.x);
+        func_00126868(ent, &rowA.x, &rowB.x, &rowC.x);
+        if (flagA == 0)
+            goto L7ED4;
+        func_00121480(&v60.x, ent, &v60.x);
+        goto L7988;
+    }
+
+    if (grp == GRP_LOOKAT)                          /* 99, 9A, CF, D2 */
+    {
+        if (flagA != 0)
+            func_00121480(slot->p.v, ent, &v80.x);
+
+        /* 0x1F79D4: build a basis whose first vector points at -v60 */
+        func_001262F8(ent, &basis.x, &v70.x, &vecU.x);
+
+        if (v60.x == 0.0f && v60.y == 0.0f && v60.z == 0.0f)
+        {
+            vecV = v70;
+        }
+        else
+        {
+            v60.x = -v60.x;
+            v60.y = -v60.y;
+            v60.z = -v60.z;
+            if (didWork == 0)
+                func_00121480(&v60.x, (u8 *)frame, &v60.x);
+            f0 = F_LEN2(v60.x, v60.y, v60.z);
+            f1 = sqrtf(f0);
+            if (f1 == 0.0f)
+            {
+                vecV = v60;
+            }
+            else
+            {
+                f0 = 1.0f / f1;
+                vecV.x = f0 * v60.x;
+                vecV.y = f0 * v60.y;
+                vecV.z = f0 * v60.z;
+            }
+        }
+
+        /* 0x1F7AEC: the up vector; reuse the previous one when both
+           horizontal components of V and W are degenerate. */
+        if (fabsf(vecV.x) < D_00392DF8 && fabsf(vecV.y) < D_00392DF8)
+        {
+            if (fabsf(v70.x) < D_00392DF8 && fabsf(v70.y) < D_00392DF8)
+                v70 = vecU;
+        }
+        else
+        {
+            v70.x = -vecV.x;
+            v70.y = -vecV.y;
+            v70.z = vecV.z + 2.0f;
+        }
+
+        /* 0x1F7BA8: secondary vector, perpendicular to V with z = 0.
+           The reference direction for the handedness test is *not* vecV: retail
+           reads 0x158($sp), i.e. the third row func_001262F8 wrote into vecU
+           (still intact here, before the cross products overwrite it). */
+        n = (vecU.z > 0.0f);
+
+        cvec.x = F_MULSUB(v70.y, vecV.z, v70.z, vecV.y);
+        cvec.y = F_MULSUB(v70.z, vecV.x, v70.x, vecV.z);
+        cvec.z = 0.0f;
+        vecU.x = cvec.y * vecV.z;
+        vecU.y = -(cvec.x * vecV.z);
+        vecU.z = F_MULSUB(cvec.x, vecV.y, cvec.y, vecV.x);
+
+        if ((vecU.z > 0.0f) != n)
+        {
+            vecU.x = -vecU.x;
+            vecU.y = -vecU.y;
+            vecU.z = -vecU.z;
+        }
+
+        basis.x = F_MULSUB(vecV.y, vecU.z, vecV.z, vecU.y);
+        basis.y = F_MULSUB(vecV.z, vecU.x, vecV.x, vecU.z);
+        basis.z = F_MULSUB(vecV.x, vecU.y, vecV.y, vecU.x);
+
+        f0 = F_LEN2(basis.x, basis.y, basis.z);
+        f1 = sqrtf(f0);
+        if (f1 != 0.0f)
+        {
+            f0 = 1.0f / f1;
+            basis.x = f0 * basis.x;
+            basis.y = f0 * basis.y;
+            basis.z = f0 * basis.z;
+        }
+        f0 = F_LEN2(vecU.x, vecU.y, vecU.z);
+        f1 = sqrtf(f0);
+        if (f1 != 0.0f)
+        {
+            f0 = 1.0f / f1;
+            vecU.x = f0 * vecU.x;
+            vecU.y = f0 * vecU.y;
+            vecU.z = f0 * vecU.z;
+        }
+
+        func_00126868(ent, &basis.x, &vecV.x, &vecU.x);
+
+        /* Retail branches to .L001F7ED4 (the tail) at 0x1F7D98 when flagA is
+           clear, i.e. for the plain 0x99/0xCF look-at: it has just written the
+           basis into ent and must NOT commit v60 as a new position.  Only the
+           0x9A/0xD2 variants carry a second vector and fall through to the
+           commit.  Going to L7DDC unconditionally here moves the entity by the
+           look vector instead of just orienting it. */
+        if (flagA == 0)
+            goto L7ED4;
+
+        func_00121480(&v80.x, ent, &v80.x);
+        v60.x = slot->p.v[0] - v80.x;
+        v60.y = slot->p.v[1] - v80.y;
+        v60.z = slot->p.v[2] - v80.z;
+        goto L7DDC;
+    }
+
+    if (grp < GRP_SCALE)                            /* FRAME: 98, D1 */
+        goto L7DDC;
+
+    if (grp == GRP_SCALE)                           /* D0 */
+    {
+        if (didWork == 0)
+            func_00121278(&v60.x, (u8 *)frame, &v60.x);
+        goto L7E50;
+    }
+
+    goto L7E50;                                     /* POS: 95 */
+
+    /* ---------------- shared tails ---------------- */
+    /* 0x1F7988 is a single call site in retail whose arguments are set by the
+       caller (rotate: v60 = ent*v80, rotation rows: v60 = ent*v60).  Each path
+       above performs that call itself, so the label starts after it. */
+L7988:
+    v60.x = v70.x - v60.x;
+    v60.y = v70.y - v60.y;
+    v60.z = v70.z - v60.z;
+
+L7DDC:
+    if (didWork == 0)
+        func_00121480(&v60.x, (u8 *)frame, &v60.x);
+    v70 = *(CmdVec3 *)(ent + 0x30);
+    v60.x += v70.x;
+    v60.y += v70.y;
+    v60.z += v70.z;
+
+L7E50:
+    if (*(u8 *)(ent + 0x50) == 1)
+        *(u8 *)(ent + 0x50) = 2;
+    *(CmdVec3 *)(ent + 0x30) = v60;
+    *(f32 *)(ent + 0x3C) = 1.0f;
+    if ((tag == 0x95 || tag == 0x98) && w != 0)
+        func_0012D900(*(u8 **)(w + 0x1C), &v60.x);
+
+L7ED4:
+    *(u32 *)(ctx + 0x28) = D_003932D0;
+    func_0014AD50(ctx);
+    if (*(s32 *)ctx == 2)
+    {
+        r = func_0010C9F0(ctx);
+        if ((r & 2) != 0 && (w == 0 || (r & 0x8000) != 0))
+            func_0014AF20(ctx);
+        else
+            func_0014B050(ctx);
+    }
+    else
+    {
+        func_0014AF20(ctx);
+    }
+
+    if (nameByte != 0xFF)
+        goto L7FAC;
+    if (w != 0)
+    {
+        p = *(u8 **)(w + 0x1C);
+        if (flagB != 0 && p != 0)
+        {
+            *(u32 *)(p + 0x0C) |= 0x1000;
+            *(f32 *)(p + 0x48) = v60.x;
+            *(f32 *)(p + 0x4C) = v60.y;
+            *(f32 *)(p + 0x50) = v60.z;
+        }
+        func_0012D750(*(u8 **)(w + 0x1C), ent);
+    }
+    goto L7FBC;
+
+L7FA0:
+    if (nameByte == 0xFF)
+        goto L7FBC;
+L7FAC:
+    *(u8 *)(*(u8 **)(*(u8 **)(saved + 4)) + 0xF0) = 1;
+
+L7FBC:
+    D_00393BEC = (s32)slot;
+    return cur;
+}
+
+#undef F_MULSUB
+#undef F_BITS
+#undef CMD_SIGN1
+#undef CMD_LOOKUP
+#undef CMD_NUM
+#undef CMD_COPY54
 
 INCLUDE_ASM(const s32, "core/main", func_001F8000);
 
@@ -17216,7 +23476,22 @@ INCLUDE_ASM(const s32, "core/main", func_001FA268);
 
 INCLUDE_ASM(const s32, "core/main", func_001FA2F0);
 
-INCLUDE_ASM(const s32, "core/main", func_001FA3F8);
+extern s32 D_00393BEC;
+extern f32 D_00393198;
+s32 func_001FA3F8(s32 a1, s32 a2)
+{
+    s32 v5[4];
+    s32 v;
+    s32 result;
+
+    v = D_00393BEC;
+    D_00393BEC = v + 0x10;
+    func_001F2F88(a1, v5);
+    result = func_001DF760(a1, a2, v);
+    D_00393198 = *(f32 *)v;
+    D_00393BEC = v;
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001FA460);
 
@@ -17240,7 +23515,26 @@ INCLUDE_ASM(const s32, "core/main", func_001FCAA8);
 
 INCLUDE_ASM(const s32, "core/main", func_001FCB20);
 
-INCLUDE_ASM(const s32, "core/main", func_001FCC50);
+s32 func_001FCC50(s32 a1, s32 a2)
+{
+    void func_00104A10(f32, f32, f32);
+    f32 tmp;
+    f32 f1;
+    f32 f2;
+    f32 f3;
+    s32 v2;
+    s32 v4;
+    s32 v5;
+
+    v2 = func_001DF760(a1, a2, &tmp);
+    f1 = tmp;
+    v4 = func_001DF760(a1, v2, &tmp);
+    f2 = tmp;
+    v5 = func_001DF760(a1, v4, &tmp);
+    f3 = tmp;
+    func_00104A10(f1, f2, f3);
+    return v5;
+}
 
 void func_001FCCC8(s32 arg1, s32 arg2)
 {
@@ -17312,9 +23606,32 @@ void func_001FD1B8(s32 a, s32 b)
     D_00393ADC = buffer[0];
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001FD1E0);
+s32 func_001FD1E0(s32 a1, s32 a2)
+{
+    extern s32 D_00383DD8[];
+    s32 func_001DF760();
+    s32 v7, v5, v2, result;
+    v2 = func_001DF760(a1, a2, &v7);
+    v5 = v7;
+    result = func_001DF760(a1, v2, &v7);
+    if (v5 >= 10) v5 = 9;
+    D_00383DD8[v5] = v7;
+    return result;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_001FD240);
+s32 func_001FD240(s32 a1, s32 a2)
+{
+    extern f32 D_00383E00[];
+    s32 func_001DF760();
+    union { s32 i; f32 f; } v7;
+    s32 v5, v2, result;
+    v2 = func_001DF760(a1, a2, &v7);
+    v5 = v7.i;
+    result = func_001DF760(a1, v2, &v7);
+    if (v5 >= 10) v5 = 9;
+    D_00383E00[v5] = v7.f;
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001FD2A0);
 
@@ -17418,7 +23735,16 @@ INCLUDE_ASM(const s32, "core/main", func_001FE8E0);
 
 INCLUDE_ASM(const s32, "core/main", func_001FE9E0);
 
-INCLUDE_ASM(const s32, "core/main", func_001FEAC0);
+s32 func_001FEAC0(s32 a1, s32 a2)
+{
+    s32 func_001DF760();
+    f32 f;
+    s32 v;
+
+    v = func_001DF760(a1, a2, &f);
+    func_0015BAC8((s32)(f * 65536.0f));
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001FEB10);
 
@@ -17440,7 +23766,13 @@ u8 *func_001FEDF8(s32 arg0, s32 arg1)
     return p;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001FEE30);
+s32 func_001FEE30(s32 a1, s32 a2) {
+if ( *(u16 *)(a2 - 8) == 445 )
+func_0011B4F8();
+else
+func_0011B5B8();
+return a2;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001FEE80);
 
@@ -17452,7 +23784,15 @@ INCLUDE_ASM(const s32, "core/main", func_001FF298);
 
 INCLUDE_ASM(const s32, "core/main", func_001FF380);
 
-INCLUDE_ASM(const s32, "core/main", func_001FF410);
+s32 func_001FF410(s32 a1, s32 a2) {
+s32 v4;
+u32 v5[4];
+func_001F2F88(a1, v5);
+v4 = *(u32 *)(v5[0] + 44) | 8;
+*(u32 *)(**(u32 **)(v5[0] + 4) + 220) = v4;
+*(u32 *)(v5[0] + 44) = v4;
+return a2;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001FF460);
 
@@ -17460,7 +23800,25 @@ INCLUDE_ASM(const s32, "core/main", func_001FF748);
 
 INCLUDE_ASM(const s32, "core/main", func_001FF9C8);
 
-INCLUDE_ASM(const s32, "core/main", func_001FFA80);
+s32 func_001FFA80(s32 a1, s32 a2)
+{
+    typedef struct { UnalignedU64 v; u32 w; } S12;
+    extern f32 D_00392E34;
+    s32 func_001DF760();
+    S12 src;
+    S12 dst;
+    f32 scale;
+    s32 result;
+
+    result = func_001DF760(a1, a2, (s32)&src);
+    dst = src;
+    scale = D_00392E34;
+    ((f32 *)&dst)[0] *= scale;
+    ((f32 *)&dst)[1] *= scale;
+    ((f32 *)&dst)[2] *= scale;
+    func_0011B320((s32)&dst);
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001FFAF8);
 
@@ -17483,7 +23841,24 @@ INCLUDE_ASM(const s32, "core/main", func_001FFFE8);
 /* func_00200048 through func_0020FAA0; retail address range 0x00200000-0x00210000. */
 
 
-INCLUDE_ASM(const s32, "core/main", func_00200048);
+s32 func_00200048(s32 a1, s32 a2)
+{
+    s32 v7;
+    u8 v3;
+    u8 i;
+    s32 result;
+
+    v3 = *(u8 *)(a2 - 2);
+    func_001F2F88(a1, &v7);
+    for (i = *(u8 *)(a2 + 6); ; i = *(u8 *)(a2 + 6)) {
+        if (v3 >= i) {
+            result = a2;
+            break;
+        }
+        a2 = func_001DF510(a2);
+    }
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_002000A0);
 
@@ -17497,7 +23872,15 @@ s32 func_002001A8(s32 arg0, s32 arg1)
     return result;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_002001D8);
+s32 func_002001D8(s32 arg0, s32 arg1) {
+    typedef struct { s32 out; char pad[12]; s32 buf[4]; } L;
+    L l;
+    s32 result;
+    func_001F2F88(arg0, l.buf);
+    result = func_001DF760(arg0, arg1, &l.out);
+    *(u8 *)(l.out + 0x164) &= 0xFE;
+    return result;
+}
 
 /* Byte-matching. */
 s32 func_00200230(s32 arg0, s32 arg1)
@@ -17509,7 +23892,15 @@ s32 func_00200230(s32 arg0, s32 arg1)
     return result;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00200260);
+s32 func_00200260(s32 arg0, s32 arg1) {
+    typedef struct { s32 out; char pad[12]; s32 buf[4]; } L;
+    L l;
+    s32 result;
+    func_001F2F88(arg0, l.buf);
+    result = func_001DF760(arg0, arg1, &l.out);
+    *(u8 *)(l.out + 0x164) |= 1;
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_002002B8);
 
@@ -17521,21 +23912,98 @@ INCLUDE_ASM(const s32, "core/main", func_00200550);
 
 s32 func_002006F0(void) { return 4; }
 
-INCLUDE_ASM(const s32, "core/main", func_002006F8);
+s32 func_002006F8(u8 a1, s32 a2, f32 a3)
+{
+    s32 v3;
+    s32 v4;
+    s32 result;
+    v3 = **(u32 **)(*(u32 *)(a2 + 4) + 12);
+    if (*(u8 *)(v3 + 16) != 0)
+        v4 = *(u32 *)(v3 + 4);
+    else
+        v4 = *(u32 *)(v3 + 8);
+    result = 104 * *(u8 *)(*(u32 *)(v4 + 16) + 6) + **(u32 **)(v4 + 16);
+    *(f32 *)(12 * a1 + result) = a3;
+    return result;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00200748);
+f32 func_00200748(u8 a1, s32 a2)
+{
+    s32 v2;
+    s32 v3;
+    v2 = **(u32 **)(*(u32 *)(a2 + 4) + 12);
+    if (*(u8 *)(v2 + 16) != 0)
+        v3 = *(u32 *)(v2 + 4);
+    else
+        v3 = *(u32 *)(v2 + 8);
+    return *(f32 *)(104 * *(u8 *)(*(u32 *)(v3 + 16) + 6) + **(u32 **)(v3 + 16) + 12 * a1);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00200798);
+s32 func_00200798(u8 a1, s32 a2, s32 a3) {
+s32 v3;
+s32 v4;
+s32 result;
+v3 = **(u32 **)(*(u32 *)(a2 + 4) + 12);
+if ( *(u8 *)(v3 + 16) != 0 )
+v4 = *(u32 *)(v3 + 4);
+else
+v4 = *(u32 *)(v3 + 8);
+result = 104 * *(u8 *)(*(u32 *)(v4 + 16) + 6) + **(u32 **)(v4 + 16);
+*(u32 *)(12 * a1 + result) = a3;
+return result;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_002007F0);
+s32 func_002007F0(u8 a1, s32 a2)
+{
+    s32 v2;
+    s32 v3;
+    v2 = **(u32 **)(*(u32 *)(a2 + 4) + 12);
+    if (*(u8 *)(v2 + 16) != 0)
+        v3 = *(u32 *)(v2 + 4);
+    else
+        v3 = *(u32 *)(v2 + 8);
+    return *(s32 *)(104 * *(u8 *)(*(u32 *)(v3 + 16) + 6) + **(u32 **)(v3 + 16) + 12 * a1);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00200840);
+s32 func_00200840(u8 a1, s32 a2, s32 a3) {
+s32 v3;
+s32 v4;
+s32 result;
+v3 = **(u32 **)(*(u32 *)(a2 + 4) + 12);
+if ( *(u8 *)(v3 + 16) != 0 )
+v4 = *(u32 *)(v3 + 4);
+else
+v4 = *(u32 *)(v3 + 8);
+result = 104 * *(u8 *)(*(u32 *)(v4 + 16) + 6) + **(u32 **)(v4 + 16);
+*(u32 *)(12 * a1 + result) = a3;
+return result;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00200898);
+s32 func_00200898(u8 a1, s32 a2)
+{
+    s32 v2;
+    s32 v3;
+    v2 = **(u32 **)(*(u32 *)(a2 + 4) + 12);
+    if (*(u8 *)(v2 + 16) != 0)
+        v3 = *(u32 *)(v2 + 4);
+    else
+        v3 = *(u32 *)(v2 + 8);
+    return *(s32 *)(104 * *(u8 *)(*(u32 *)(v3 + 16) + 6) + **(u32 **)(v3 + 16) + 12 * a1);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_002008E8);
 
-INCLUDE_ASM(const s32, "core/main", func_00200950);
+s32 func_00200950(u8 a1, s32 a2)
+{
+    s32 v2;
+    s32 v3;
+    v2 = **(u32 **)(*(u32 *)(a2 + 4) + 12);
+    if (*(u8 *)(v2 + 16) != 0)
+        v3 = *(u32 *)(v2 + 4);
+    else
+        v3 = *(u32 *)(v2 + 8);
+    return **(u32 **)(v3 + 16) + 104 * *(u8 *)(*(u32 *)(v3 + 16) + 6) + 12 * a1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_002009A0);
 
@@ -17549,13 +24017,75 @@ INCLUDE_ASM(const s32, "core/main", func_00200B28);
 
 INCLUDE_ASM(const s32, "core/main", func_00200B90);
 
-INCLUDE_ASM(const s32, "core/main", func_00200BF8);
+s32 func_00200BF8(s32 a1, u8 a2)
+{
+    u32 v3;
+    s32 result;
+    u64 v5;
+    s32 v6;
+    s32 v7;
+    s32 v8;
+    v3 = *(u32 *)(a1 + 16);
+    result = *(u8 *)(v3 + 5);
+    v5 = a2;
+    if (*(u8 *)(v3 + 5) != 0) {
+        v6 = *(u8 *)(v3 + 4);
+        v7 = 0;
+        v8 = *(u32 *)v3;
+        if (*(u8 *)(v3 + 4) != 0) {
+            do {
+                if (*(u8 *)(v8 + 100) != 0) {
+                    if (v5 < *(u8 *)(v8 + 101)) {
+                        func_00200AA8(a1, (u8)v7, 0, 0, 0);
+                        --*(u8 *)(*(u32 *)(a1 + 16) + 5);
+                    }
+                    v7 = v7 + 1;
+                } else {
+                    v7 = v7 + 1;
+                }
+                result = v7 < v6;
+                v8 += 104;
+            } while (v7 < v6);
+        }
+    }
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00200CA8);
 
-INCLUDE_ASM(const s32, "core/main", func_00200D50);
+s32 func_00200D50(s32 a1)
+{
+    s32 func_00200AA8();
 
-INCLUDE_ASM(const s32, "core/main", func_00200DD0);
+    s32 result;
+    s32 v3;
+    s32 v4;
+    *(u8 *)(*(u32 *)(a1 + 16) + 5) = 0;
+    *(u8 *)(*(u32 *)(a1 + 16) + 6) = 0;
+    result = *(s32 *)(a1 + 16);
+    v3 = *(u8 *)(result + 4);
+    v4 = 0;
+    if (v3 != 0)
+    {
+        do
+        {
+            func_00200AA8(a1, (u8)v4, 0, 0, 0);
+            v4 = v4 + 1;
+            result = v4 < v3;
+        }
+        while (v4 < v3);
+    }
+    return result;
+}
+
+u32 func_00200DD0(u8 *a1, u8 idx)
+{
+    u32 v = idx * 104;
+
+    D_00393AE7 = *(u8 *)(v + (u32)**(u32 **)(a1 + 0x10) + 0x66);
+    D_00393AE6 = *(u8 *)(v + (u32)**(u32 **)(a1 + 0x10) + 0x67);
+    return *(u32 *)(v + (u32)**(u32 **)(a1 + 0x10) + 0x60);
+}
 
 void func_00200E18(void) {
 }
@@ -17640,9 +24170,26 @@ INCLUDE_ASM(const s32, "core/main", func_002019B0);
 
 INCLUDE_ASM(const s32, "core/main", func_00201A48);
 
-INCLUDE_ASM(const s32, "core/main", func_00201AE0);
+extern u8 D_00383EA0[];
+extern s32 func_00115620();
 
-INCLUDE_ASM(const s32, "core/main", func_00201B18);
+s32 func_00201AE0(s32 arg0, u8 arg1)
+{
+    u16 v[8];
+    v[0] = 1;
+    func_00115620(arg0, arg1, (s32)D_00383EA0, v);
+    return v[0] != 0;
+}
+
+s32 func_00201B18(s32 a1, u8 a2, u16 a3)
+{
+    s32 func_001146D8();
+    extern u8 D_00383EA0[];
+    u16 v4;
+    v4 = 1;
+    func_001146D8(a1, a2, (s32)D_00383EA0, &v4, a3);
+    return v4 != 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00201B58);
 
@@ -17667,19 +24214,59 @@ INCLUDE_ASM(const s32, "core/main", func_00202050);
 
 INCLUDE_ASM(const s32, "core/main", func_00202180);
 
-INCLUDE_ASM(const s32, "core/main", func_00202218);
+s32 func_00202218(s32 *a1, s32 a2, s32 *a3)
+{
+    s32 *i;
 
-INCLUDE_ASM(const s32, "core/main", func_00202258);
+    if (a1 != 0 && a2 != 0) {
+        for (i = (s32 *)*a1; i != 0; i = (s32 *)*i) {
+            if (i[3] == a2) {
+                *a3 = i[4];
+                return 0;
+            }
+        }
+    }
+    return -1;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00202298);
+s32 func_00202258(s32 *a1, s32 a2, s32 a3)
+{
+    s32 *i;
+
+    if (a1 != 0 && a2 != 0) {
+        for (i = (s32 *)*a1; i != 0; i = (s32 *)*i) {
+            if (i[3] == a2) {
+                i[6] = a3;
+                return 0;
+            }
+        }
+    }
+    return -1;
+}
+
+s32 func_00202298(s32 *a1, s32 a2, s32 *a3)
+{
+    s32 *i;
+
+    if (a1 != 0 && a2 != 0) {
+        for (i = (s32 *)*a1; i != 0; i = (s32 *)*i) {
+            if (i[3] == a2) {
+                *a3 = i[6];
+                return 0;
+            }
+        }
+    }
+    return -1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_002022D8);
 
 void func_00202340(s32 arg)
 {
-    if (arg != 0) {
+    s32 dummy = 0;
+    if (arg != 0)
         func_0014CBE8(D_0039347C, arg);
-    }
+    dummy = 1;
 }
 
 void func_00202368(void) {
@@ -17697,14 +24284,54 @@ f32 func_00202390(const f32 *p) { return p[3]; }
 void func_00202398(void) {
 }
 
-INCLUDE_ASM(const s32, "core/main", func_002023A0);
+void func_002023A0(u8 *a1, u32 a2)
+{
+    void func_00121278();
+    S12 tmp;
+
+    if (*(s32 *)(a1 + 0x10) != 0) {
+        *(S12 *)&tmp = *(S12 *)a1;
+        func_00121278(a2, *(s32 *)(*(s32 *)(a1 + 0x10) + 0x24), (s32)&tmp);
+    } else {
+        *(S12 *)a2 = *(S12 *)a1;
+    }
+}
 
 void func_00202408(void) {
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00202410);
+s32 func_00202410(s32 a1, s32 a2)
+{
+    s32 func_0010E970();
 
-INCLUDE_ASM(const s32, "core/main", func_002024A0);
+    s32 v3;
+s32 v4;
+s32 v5;
+s32 v6;
+v3 = func_00200550(a1, a2);
+v4 = func_00200898(0, a1);
+v5 = v4;
+*(u32 *)(**(u32 **)(a1 + 4) + 8) = 0;
+v6 = func_0010E970(a1, v4, 0, 0, 0);
+func_00200798(0, a1, v6);
+func_00200840(1u, a1, v5);
+return v3;
+}
+
+/* Byte-matching: 4-call chain; the final ternary must be written
+   `v != 0 ? 4 : 1` so GCC emits movz (not movn) with 1 in $4 and 4 in $3. */
+s32 func_002024A0(s32 a1)
+{
+    s32 func_00200898();
+    s32 func_002007F0();
+    s32 func_0010EF58();
+    s32 func_0010F2E8();
+    s32 v2 = func_00200898(1, a1);
+
+    if (func_002007F0(0, a1) == 0 || func_0010EF58(a1, v2) == 0)
+        return 4;
+    return func_0010F2E8(a1) != 0 ? 4 : 1;
+}
 
 s32 func_0010F2E8(void);
 
@@ -17718,9 +24345,31 @@ s32 func_00202550(void)
     return func_0010F318() ? 4 : 1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00202580);
+s32 func_00202580(s32 a1, s32 a2)
+{
+    s32 func_00200550();
+    s32 func_0014B8F0();
+    s32 func_002007F0();
+    s32 func_00200798();
+    s32 v3 = func_00200550(a1, a2);
+    s32 v4 = func_0014B8F0();
+    s32 v5 = func_002007F0(0, a1);
+    func_00200798(0, a1, v4 + v5);
+    return v3;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_002025E0);
+s32 func_002025E0(s32 a1)
+{
+    u64 v2;
+    s64 v3;
+    s32 r;
+    v2 = func_0014B8F0();
+    v3 = v2 < func_002007F0(0, a1);
+    r = 4;
+    if (v3 != 0)
+        r = 1;
+    return r;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00202630);
 
@@ -17732,7 +24381,24 @@ INCLUDE_ASM(const s32, "core/main", func_00202F28);
 
 INCLUDE_ASM(const s32, "core/main", func_002030C8);
 
-INCLUDE_ASM(const s32, "core/main", func_002033D8);
+s32 func_002033D8(s32 a1)
+{
+u32 v2;
+  s32 v3;
+  s32 v4;
+  s32 result;
+
+  v2 = func_0014B8F0();
+  v3 = func_002007F0(3u, a1);
+  v4 = v2 < (s32)(v3 + func_002007F0(2u, a1));
+  result = 1;
+  if ( v4 == 0 )
+  {
+    *(u32 *)(*(u32 *)(*(u32 *)(a1 + 4) + 4) + 44) &= ~0x8000u;
+    return 4;
+  }
+  return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00203460);
 
@@ -17762,7 +24428,23 @@ INCLUDE_ASM(const s32, "core/main", func_00204690);
 
 INCLUDE_ASM(const s32, "core/main", func_00204998);
 
-INCLUDE_ASM(const s32, "core/main", func_00204BA0);
+s32 func_00204BA0(u8 *arg0, u8 *arg1)
+{
+    u8 *p = *(u8 **)(arg0 + 0xC);
+    f32 v = *(f32 *)(arg1 + 8);
+    f32 lo = *(f32 *)(p + 0x64);
+    f32 hi;
+
+    if (lo < v) {
+        *(f32 *)(arg1 + 8) = lo;
+        __asm__ volatile("" ::: "memory");
+        p = *(u8 **)(arg0 + 0xC);
+    }
+    hi = *(f32 *)(p + 0x60);
+    if (v < hi)
+        *(f32 *)(arg1 + 8) = hi;
+    return (s32)p;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00204BE0);
 
@@ -17774,7 +24456,15 @@ INCLUDE_ASM(const s32, "core/main", func_002055A0);
 
 INCLUDE_ASM(const s32, "core/main", func_00205810);
 
-INCLUDE_ASM(const s32, "core/main", func_00205A60);
+f32 func_00205A60(u8 *a1)
+{
+    extern f32 D_00253F78[];
+    f32 func_001E3F18(f32);
+    f32 v1 = D_00253F78[0] + D_00253F78[0];
+    if (*(f32 *)(a1 + 0x7C) > 0.0f)
+        v1 = -v1;
+    return func_001E3F18(v1 + *(f32 *)(a1 + 0x78));
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00205AA8);
 
@@ -17794,9 +24484,39 @@ INCLUDE_ASM(const s32, "core/main", func_00205DB0);
 
 INCLUDE_ASM(const s32, "core/main", func_002061E0);
 
-INCLUDE_ASM(const s32, "core/main", func_002063F8);
+f32 func_002063F8(s32 a1, f32 *a2, f32 *a3, f32 *a4, f32 *a5, s32 a6)
+{
+    if (a6 == 1)
+    {
+        if ((*(u8 *)(a1 + 0x71) & 1) != 0)
+            return *a4;
+        return *a3;
+    }
+    if (a6 == -1)
+        return *a2;
+    if ((*(u8 *)(a1 + 0x72) & 2) != 0)
+        return *a5;
+    return *a3;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00206450);
+s32 func_00206450(u8 *arg0, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6)
+{
+    s32 flag;
+
+    if (a6 == 1) {
+        flag = arg0[0x71] & 1;
+        if (flag == 0)
+            return a3;
+        return a4;
+    } else if (a6 == -1) {
+        return a2;
+    } else {
+        flag = arg0[0x72] & 2;
+        if (flag != 0)
+            return a5;
+        return a3;
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00206490);
 
@@ -17806,7 +24526,13 @@ INCLUDE_ASM(const s32, "core/main", func_00206980);
 
 INCLUDE_ASM(const s32, "core/main", func_00206A60);
 
-INCLUDE_ASM(const s32, "core/main", func_00206B20);
+s32 func_00206B20(s32 a1, s32 a2, u32 a3) {
+u32 v6[4];
+func_001F2F88(a1, v6);
+*(u32 *)a3 = func_00146740(**(u32 **)(*(u32 *)(v6[0] + 4) + 32));
+*(u8 *)(a3 + 12) = 6;
+return a2;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00206B78);
 
@@ -17852,7 +24578,18 @@ INCLUDE_ASM(const s32, "core/main", func_002082D0);
 
 INCLUDE_ASM(const s32, "core/main", func_002083A8);
 
-INCLUDE_ASM(const s32, "core/main", func_00208480);
+s32 func_00208480(s32 a1, s32 a2, s32 *a3)
+{
+    s32 *p;
+    s32 v;
+
+    func_001F2F88(a1, &p);
+    v = 0;
+    if (*p == 2)
+        v = p[1];
+    *a3 = (*(u8 *)(*(s32 *)(v + 4) + 0x34) >> 1) & 1;
+    return a2;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_002084E8);
 
@@ -17916,9 +24653,40 @@ s32 func_00209430(s32 arg0, s32 arg1, s32 *arg2)
     return arg1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00209468);
+s32 func_001DF760();
+s32 func_00209468(s32 a1, s32 a2, s32 *out)
+{
+    s32 stack[2];
+    s32 v = func_001DF760(a1, a2, stack);
+    s32 *p = *(s32 **)stack;
+    s32 flag = 0;
+    if (p != 0) flag = *p != 0;
+    *out = flag;
+    return v;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_002094B0);
+s32 func_002094B0(s32 a1, s32 a2, s32 *a3)
+{
+  s32 v5;
+  u32 v7[4];
+  func_001F2F88(a1, v7);
+  if (v7[0] == D_00252398[0])
+  {
+    *a3 = 0;
+  }
+  else
+  {
+    v5 = *(u32 *)(*(u32 *)(v7[0] + 4) + 4);
+    if (v5 != 0)
+    {
+      if ((*(u32 *)(v5 + 44) & 0x4C0000) != 0)
+        *a3 = *(u8 *)(v5 + 52) >> 7;
+      else
+        *a3 = 0;
+    }
+  }
+  return a2;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00209528);
 
@@ -17926,7 +24694,33 @@ INCLUDE_ASM(const s32, "core/main", func_002095C8);
 
 INCLUDE_ASM(const s32, "core/main", func_00209648);
 
-INCLUDE_ASM(const s32, "core/main", func_002096C8);
+void func_002096C8(f32 *a1, f32 *a2, f32 *a3)
+{
+    a1[0]  = a2[0];
+    a1[1]  = a2[1];
+    a1[2]  = a2[2];
+    a1[3]  = a2[0];
+    a1[4]  = a2[1];
+    a1[5]  = a3[2];
+    a1[6]  = a2[0];
+    a1[7]  = a3[1];
+    a1[8]  = a2[2];
+    a1[9]  = a2[0];
+    a1[10] = a3[1];
+    a1[11] = a3[2];
+    a1[12] = a3[0];
+    a1[13] = a2[1];
+    a1[14] = a2[2];
+    a1[15] = a3[0];
+    a1[16] = a2[1];
+    a1[17] = a3[2];
+    a1[18] = a3[0];
+    a1[19] = a3[1];
+    a1[20] = a2[2];
+    a1[21] = a3[0];
+    a1[22] = a3[1];
+    a1[23] = a3[2];
+}
 
 void func_00209790(f32 *lo, f32 *hi, f32 *c, f32 r)
 {
@@ -17940,7 +24734,15 @@ void func_00209790(f32 *lo, f32 *hi, f32 *c, f32 r)
 
 INCLUDE_ASM(const s32, "core/main", func_002097E0);
 
-INCLUDE_ASM(const s32, "core/main", func_00209860);
+/* Byte-matching: 6-condition float bound with nested final return. */
+s32 func_00209860(f32 *a1, f32 *a2, f32 *a3, f32 *a4)
+{
+    if (a3[0] > a2[0] && a4[0] < a1[0] && a3[1] > a2[1] && a4[1] < a1[1] && a3[2] > a2[2]) {
+        if (a4[2] < a1[2]) return 1;
+    }
+    return 0;
+}
+
 
 extern s32 D_00393AF4;
 extern s32 D_00393AF8;
@@ -17951,15 +24753,65 @@ INCLUDE_ASM(const s32, "core/main", func_002098F8);
 
 INCLUDE_ASM(const s32, "core/main", func_00209AF8);
 
-INCLUDE_ASM(const s32, "core/main", func_00209BE0);
+extern u8 D_00383F28[];
+s32 func_00209BE0(s32 p0, s32 p1, s32 p2, s32 p3, s32 p4)
+{
+    s32 r; void func_002098E8(); void func_0020AF68(); void func_002098F8();
+    func_002098E8((s32)&D_00383F28);
+    func_0020AF68(0, p0);
+    func_002098F8(p1, p2, p3);
+    r = ((s32 *)D_00383F28)[9];
+    *(s32 *)p4 = r;
+    return r;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00209C70);
+extern u8 D_00383F28[];
+s32 func_00209C70(s32 p0, s32 p1, s32 p2, s32 p3, s32 p4)
+{
+    s32 r; void func_002098E8(); void func_0020B398(); void func_002098F8();
+    func_002098E8((s32)&D_00383F28);
+    func_0020B398(0, p0);
+    func_002098F8(p1, p2, p3);
+    r = ((s32 *)D_00383F28)[9];
+    *(s32 *)p4 = r;
+    return r;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00209D00);
+extern u8 D_00383F50[];
+s32 func_00209D00(s32 p0, s32 p1, s32 p2, s32 p3, s32 p4)
+{
+    s32 r; void func_002098E8(); void func_0020B398(); void func_002098F8();
+    func_002098E8((s32)&D_00383F50);
+    func_0020B398(0, p0);
+    func_002098F8(p1, p2, p3);
+    r = ((s32 *)D_00383F50)[9];
+    *(s32 *)p4 = r;
+    return r;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00209D90);
+extern u8 D_00383F28[];
+s32 func_00209D90(s32 p0, s32 p1, s32 p2, s32 p3, s32 p4)
+{
+    s32 r; void func_002098E8(); void func_0020B6B8(); void func_002098F8();
+    func_002098E8((s32)&D_00383F28);
+    func_0020B6B8(0, p0);
+    func_002098F8(p1, p2, p3);
+    r = ((s32 *)D_00383F28)[9];
+    *(s32 *)p4 = r;
+    return r;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00209E20);
+extern u8 D_00383F50[];
+s32 func_00209E20(s32 p0, s32 p1, s32 p2, s32 p3, s32 p4)
+{
+    s32 r; void func_002098E8(); void func_0020B6B8(); void func_002098F8();
+    func_002098E8((s32)&D_00383F50);
+    func_0020B6B8(0, p0);
+    func_002098F8(p1, p2, p3);
+    r = ((s32 *)D_00383F50)[9];
+    *(s32 *)p4 = r;
+    return r;
+}
 
 extern u8 D_00383F28[];
 s32 func_00209EB0(s32 arg0)
@@ -18101,11 +24953,49 @@ INCLUDE_ASM(const s32, "core/main", func_0020C0D0);
 
 INCLUDE_ASM(const s32, "core/main", func_0020C360);
 
-INCLUDE_ASM(const s32, "core/main", func_0020C430);
+void func_0020C430(u8 *arg0)
+{
+    S12 tmp;
 
-INCLUDE_ASM(const s32, "core/main", func_0020C4A0);
+    if (arg0[0x244] != 0) {
+        f32 v = *(f32 *)(arg0 + 0x20);
+        *(f32 *)(arg0 + 0x20) = *(f32 *)(arg0 + 0x240);
+        *(f32 *)(arg0 + 0x240) = v;
+        *(S12 *)&tmp = *(S12 *)(arg0 + 0x14);
+        *(S12 *)(arg0 + 0x14) = *(S12 *)(arg0 + 0x22C);
+        *(S12 *)(arg0 + 0x22C) = *(S12 *)&tmp;
+        arg0[0x244] = 0;
+    }
+}
 
-INCLUDE_ASM(const s32, "core/main", func_0020C518);
+void func_0020C4A0(u8 *arg0)
+{
+    S12 tmp;
+
+    if (arg0[0x244] == 0) {
+        f32 v = *(f32 *)(arg0 + 0x20);
+        *(f32 *)(arg0 + 0x20) = *(f32 *)(arg0 + 0x240);
+        *(f32 *)(arg0 + 0x240) = v;
+        *(S12 *)&tmp = *(S12 *)(arg0 + 0x14);
+        *(S12 *)(arg0 + 0x14) = *(S12 *)(arg0 + 0x22C);
+        *(S12 *)(arg0 + 0x22C) = *(S12 *)&tmp;
+        arg0[0x244] = 1;
+    }
+}
+
+void func_0020C518(void)
+{
+    extern u32 D_00250C30[];
+    extern s32 D_00393B34;
+    void func_0014C280();
+    void func_0014C2B8();
+    s32 func_0014C320();
+
+    func_0014C280();
+    func_0014C2B8(D_00250C30);
+    while (func_0014C320() != 0) {}
+    D_00393B34 = 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0020C558);
 
@@ -18133,13 +25023,45 @@ INCLUDE_ASM(const s32, "core/main", func_0020D8E8);
 
 INCLUDE_ASM(const s32, "core/main", func_0020D940);
 
-INCLUDE_ASM(const s32, "core/main", func_0020D9E0);
+s32 func_0020D9E0(f32 *a1, f32 *a2, f32 *a3)
+{
+    if (*(f32 *)((u8 *)a1 + 0) < *(f32 *)((u8 *)a2 + 0)) return 0;
+    if (*(f32 *)((u8 *)a3 + 0) < *(f32 *)((u8 *)a1 + 0)) return 0;
+    if (*(f32 *)((u8 *)a1 + 0 + 4) < *(f32 *)((u8 *)a2 + 0 + 4)) return 0;
+    if (*(f32 *)((u8 *)a3 + 0 + 4) < *(f32 *)((u8 *)a1 + 0 + 4)) return 0;
+    return 1;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_0020DA40);
+s32 func_0020DA40(f32 *a1, f32 *a2, f32 *a3)
+{
+    if (*(f32 *)((u8 *)a1 + 4) < *(f32 *)((u8 *)a2 + 4)) return 0;
+    if (*(f32 *)((u8 *)a3 + 4) < *(f32 *)((u8 *)a1 + 4)) return 0;
+    if (*(f32 *)((u8 *)a1 + 4 + 4) < *(f32 *)((u8 *)a2 + 4 + 4)) return 0;
+    if (*(f32 *)((u8 *)a3 + 4 + 4) < *(f32 *)((u8 *)a1 + 4 + 4)) return 0;
+    return 1;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_0020DAA0);
+s32 func_0020DAA0(f32 *a1, f32 *a2, f32 *a3)
+{
+    if (*a1 < *a2) return 0;
+    if (*a3 < *a1) return 0;
+    if (a1[2] < a2[2]) return 0;
+    if (a3[2] < a1[2]) return 0;
+    return 1;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_0020DB00);
+/* Byte-matching: 6 float bounds checks, explicit < early-outs. */
+s32 func_0020DB00(f32 *a1, f32 *a2, f32 *a3)
+{
+    if (a1[0] < a2[0]) return 0;
+    if (a3[0] < a1[0]) return 0;
+    if (a1[1] < a2[1]) return 0;
+    if (a3[1] < a1[1]) return 0;
+    if (a1[2] < a2[2]) return 0;
+    if (a3[2] < a1[2]) return 0;
+    return 1;
+}
+
 
 INCLUDE_ASM(const s32, "core/main", func_0020DB88);
 
@@ -18248,7 +25170,27 @@ s32 func_00211948(u32 arg0)
     return 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00211980);
+u8 *func_00211980(u8 *s, s32 c)
+{
+    s8 ch;
+    u8 b;
+    u8 *p = s;
+
+    ch = *(s8 *)p;
+    b = *p;
+    if (ch != 0 && ch != (s8)c) {
+        for (;;) {
+            p++;
+            ch = *(s8 *)p;
+            b = *p;
+            if (ch == 0 || ch == (s8)c)
+                break;
+        }
+    }
+    if (b != 0)
+        return p;
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_002119C0);
 
@@ -18266,11 +25208,50 @@ INCLUDE_ASM(const s32, "core/main", func_00211B88);
 
 INCLUDE_ASM(const s32, "core/main", func_00211C38);
 
-INCLUDE_ASM(const s32, "core/main", func_00211D00);
+void func_00211D00(void)
+{
+    extern s32 D_003864C8[];
+    s32 result = D_00393B58;
 
-INCLUDE_ASM(const s32, "core/main", func_00211D50);
+    if (result != 0) {
+        result = D_003864C8[1];
+        if (result != 0) {
+            func_0014CBE8(D_0039347C, D_003864C8[0]);
+            D_003864C8[0] = 0;
+            D_003864C8[1] = 0;
+        }
+    }
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00211D88);
+s32 func_00211D50(void)
+{
+    s32 func_00211B88();
+    s32 five = 5;
+    u8 v = D_00393B58;
+    if (v == 0) {
+        if (func_00211B88() != 0)
+            D_00393B58 = 1;
+        D_00393B5C = five;
+        return five;
+    }
+    return v;
+}
+
+extern s32 D_003864D4[];
+extern s32 D_00393B60[];
+void func_00211D00();
+void func_00112408();
+void func_00112D80();
+void func_00211D88(void)
+{
+    if (D_00393B58 != 0) {
+        func_00211D00();
+        D_00393B58 = 0;
+        func_00112408(D_003864D4);
+        func_00112D80(D_00393B60);
+        D_00393B5C = 70;
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00211DD0);
 
@@ -18278,7 +25259,17 @@ INCLUDE_ASM(const s32, "core/main", func_00211EB8);
 
 s32 func_00211F18(void) { return D_00393B5C; }
 
-INCLUDE_ASM(const s32, "core/main", func_00211F20);
+extern s32 D_00386D18[];
+extern s32 D_0038FF48[];
+extern s32 D_0038FF58[];
+extern s32 func_00224B88();
+extern s32 func_00211F58();
+
+void func_00211F20(void)
+{
+    func_00224B88((s32)D_00386D18, 0, 0xF0);
+    func_00211F58((s32)D_0038FF48, (s32)D_0038FF58);
+}
 
 s32 func_002128A0(void);
 
@@ -18287,11 +25278,32 @@ s32 func_00211F58(void)
     return func_002128A0();
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00211F78);
+s32 func_00211F78(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6, s32 a7, s32 a8)
+{
+    s32 func_00212CA8();
+    s32 func_00213578();
+    s32 r = func_00212CA8(a1, a2, a3, a4, a5, a6, a7, a8);
+    if (r == 0) return func_00213578(a1, a2, a3);
+    return r;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00211FD0);
+s32 func_00211FD0(u8 *arg0, u8 *arg1) {
+    s32 func_00212E28();
+    u32 v;
+    v = func_00212950();
+    if (v >= 15) v = func_00212E28(arg0, arg1);
+    return v;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00212028);
+s32 func_00212028(s32 a1)
+{
+    s32 v = func_00212970(a1);
+
+    if ((u32)v >= 0xF) {
+        v = func_00213510(a1);
+    }
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00212070);
 
@@ -18319,7 +25331,18 @@ INCLUDE_ASM(const s32, "core/main", func_00212720);
 
 INCLUDE_ASM(const s32, "core/main", func_002127C8);
 
-INCLUDE_ASM(const s32, "core/main", func_00212860);
+extern u8 D_00390198[];
+
+s32 func_00212860(s32 a0)
+{
+    u32 v = func_00226B48(a0);
+    u32 limit = 0x3F3;
+    if (limit < v) {
+        func_00211918((s32)D_00390198);
+        return 0;
+    }
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_002128A0);
 
@@ -18332,7 +25355,13 @@ s32 func_00212950(void)
 
 INCLUDE_ASM(const s32, "core/main", func_00212970);
 
-INCLUDE_ASM(const s32, "core/main", func_00212B10);
+s32 func_00212B10(s32 arg0)
+{
+    s32 *p = &D_00386D18[4 * arg0];
+    func_00216978(*p);
+    *p = 0;
+    return func_002138B0(arg0);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00212B60);
 
@@ -18352,7 +25381,19 @@ s32 func_00212C48(s32 arg0)
     return func_00216AE0(D_00386D18[4 * arg0]);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00212C78);
+extern s32 D_00386D18[];
+
+s64 func_00212C78(s32 arg0)
+{
+    s32 v1 = D_00386D18[4 * arg0];
+    s64 a = *(s64 *)((u8 *)v1 + 0x10);
+    s64 b = (s64) * (s32 *)((u8 *)v1 + 0x18);
+    s64 av = (s64)(s32)a;
+
+    if (av < b)
+        return b;
+    return av;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00212CA8);
 
@@ -18395,7 +25436,15 @@ s32 func_00213510(s32 arg1)
     return func_00212E28(arg1, 1);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00213530);
+extern u8 D_00390550[];
+
+s32 func_00213530(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6, s32 a7, s32 a8)
+{
+    s32 *p = &D_00386D18[4 * a1];
+    if (p == 0)
+        func_00211918((s32)D_00390550, a2, a3, a4, a5, a6, a7, a8);
+    return *(s32 *)((u8 *)*p + 4);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00213578);
 
@@ -18406,7 +25455,27 @@ s32 func_00213848(s32 arg)
     return *(s32 *)D_00386D18[arg * 4];
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00213868);
+extern s32 D_00386D18[];
+
+s32 func_00213868(void)
+{
+    s32 v0 = 0;
+    s32 *p = D_00386D18;
+    if (p[3] != 0)
+    {
+        s32 *v1 = p + 4;
+        do
+        {
+            v0++;
+            if (v1[3] == 0)
+                break;
+            v1 += 4;
+        } while (v0 < 15);
+    }
+    if (v0 <= 14)
+        return v0;
+    return -1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_002138B0);
 
@@ -18432,7 +25501,20 @@ INCLUDE_ASM(const s32, "core/main", func_00213958);
 
 INCLUDE_ASM(const s32, "core/main", func_002139C8);
 
-INCLUDE_ASM(const s32, "core/main", func_00213AA8);
+s32 func_00213AA8(u8 *a1, s32 a2, u8 *a3, s32 a4, s32 a5)
+{
+    s32 func_002175B0();
+    s32 *p = *(s32 **)(a3 + 4);
+    s32 v = *(s32 *)((u8 *)p + 4);
+
+    if (v != 0) {
+        s32 x = *(u8 *)(a1 + 0x30) & 8;
+        s32 y = *(s32 *)(a3 + 0x24);
+        return func_002175B0(a2, a4, a5, v, y, (s32)a3, 1,
+                             *(u8 *)(a3 + 0x30) & 4, x);
+    }
+    return (s32)p;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00213B00);
 
@@ -18476,7 +25558,15 @@ void func_00214408(u8 *arg0)
 
 INCLUDE_ASM(const s32, "core/main", func_00214430);
 
-INCLUDE_ASM(const s32, "core/main", func_002144A0);
+u8 *func_002144A0(s16 a1)
+{
+    extern s32 D_0039347C;
+    s32 func_00157DE8();
+    u8 *v = (u8 *)func_00157DE8(D_0039347C, 8);
+    *(s32 *)v = (s32)func_00157DE8(D_0039347C, 16 * a1);
+    *(s16 *)(v + 4) = a1;
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_002144F8);
 
@@ -18529,7 +25619,13 @@ void func_00214F30(s32 arg)
     func_0014CBE8(D_0039347C, arg);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00214F40);
+s32 func_00214F40(s32 arg0)
+{
+    s32 func_0014C9A0();
+    s32 v = func_0014C9A0(D_0039347C, arg0);
+    func_00224B88(v, 0, arg0);
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00214F90);
 
@@ -18537,7 +25633,16 @@ INCLUDE_ASM(const s32, "core/main", func_002152C8);
 
 INCLUDE_ASM(const s32, "core/main", func_002153A8);
 
-INCLUDE_ASM(const s32, "core/main", func_002154D8);
+f32 func_002154D8(f32 a1, f32 a2, f32 a3)
+{
+    f32 result = a2;
+
+    if (a1 < a3)
+        a3 = a1;
+    if (result < a3)
+        return a3;
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00215508);
 
@@ -18545,7 +25650,23 @@ INCLUDE_ASM(const s32, "core/main", func_00215600);
 
 INCLUDE_ASM(const s32, "core/main", func_00215690);
 
-INCLUDE_ASM(const s32, "core/main", func_00215810);
+void func_00215810(void)
+{
+    extern s32 D_00386EF0[];
+    extern s32 D_00393BE0;
+    extern s32 D_00393BC0;
+    s32 func_001CD990();
+    s32 func_00223E80();
+    s32 func_00195CE0();
+
+    func_001CD990(D_00386EF0);
+    if (D_00393BE0 != 0)
+        func_00223E80(D_00393BE0);
+    if (D_00393BC0 != 0) {
+        func_00195CE0(D_00393BC0);
+        D_00393BC0 = 0;
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00215860);
 
@@ -18563,9 +25684,28 @@ INCLUDE_ASM(const s32, "core/main", func_00215BB8);
 
 INCLUDE_ASM(const s32, "core/main", func_00215E28);
 
-INCLUDE_ASM(const s32, "core/main", func_00215E78);
+void func_00215E78(s32 *a1, s64 a2, s32 a3, s32 a4, s32 a5, s32 a6, s32 a7, s32 a8)
+{
+    u64 m = 0xFFFFFFFFu;
 
-INCLUDE_ASM(const s32, "core/main", func_00215EC8);
+    a1[3] = (s32)(a2 >> 32);
+    a1[1] = (a6 << 14) | (a5 << 15) | (a4 << 26) | (a3 << 28);
+    a1[2] = (s32)(a2 & m);
+    a1[0] = (a7 << 15) | a8;
+}
+
+s32 func_00215EC8(s32 a1, s32 a2, s64 a3)
+{
+    u64 m = 0xFFFFFFFFu;
+    s32 lo = (s32)(a3 & m);
+    s32 hi = (s32)(a3 >> 32);
+
+    *(s32 *)(a1 + 8) = a2;
+    *(s32 *)(a1 + 0xC) = 0;
+    *(s32 *)(a1 + 4) = hi;
+    *(s32 *)(a1 + 0) = lo;
+    return;
+}
 
 s32 func_00215EC8(s32, s32, s64);
 void func_00215EF8(s32 a, s32 b, s32 c, s32 d)
@@ -18604,7 +25744,20 @@ void func_00215FA0(void) {
 
 INCLUDE_ASM(const s32, "core/main", func_00215FA8);
 
-INCLUDE_ASM(const s32, "core/main", func_002160A0);
+void func_002160A0(s32 arg0)
+{
+    void func_001497D8();
+    void func_0014AC40();
+    void func_00119150();
+    void func_00215FA8();
+    void func_00149810();
+
+    func_001497D8(arg0);
+    func_0014AC40();
+    func_00119150(1);
+    func_00215FA8(arg0);
+    func_00149810();
+}
 
 INCLUDE_ASM(const s32, "core/main", func_002160E0);
 
@@ -18639,11 +25792,65 @@ INCLUDE_ASM(const s32, "core/main", func_002164C0);
 
 INCLUDE_ASM(const s32, "core/main", func_00216588);
 
-INCLUDE_ASM(const s32, "core/main", func_00216648);
+s32 func_00216648(s32 *arg0)
+{
+    s32 v2, v3, v4;
+    u8 buf[128];
+    v2 = *arg0;
+    *arg0 = v2 + 1;
+    v3 = 0;
+    if (*(s8 *)(v2 + 1) != 44) {
+        do {
+            v4 = *arg0;
+            buf[v3++] = *(u8 *)(*arg0)++;
+        } while (*(s8 *)(v4 + 1) != 44);
+    }
+    buf[v3] = 0;
+    return func_002220C8((s32)buf);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_002166B8);
+s32 func_002166B8(s32 *arg0)
+{
+    s32 v2, v3, v4;
+    u8 buf[128];
+    v2 = *arg0;
+    *arg0 = v2 + 1;
+    v3 = 0;
+    if (*(s8 *)(v2 + 1) != 44) {
+        do {
+            v4 = *arg0;
+            buf[v3++] = *(u8 *)(*arg0)++;
+        } while (*(s8 *)(v4 + 1) != 44);
+    }
+    buf[v3] = 0;
+    return func_002220C8((s32)buf);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00216728);
+/* Byte-matching: string-copy-to-buffer with 0x5D delimiter (twin of 00216648). */
+s32 func_00216728(a1)
+s32 *a1;
+{
+    u8 buf[128];
+    s32 p;
+    s32 i = 0;
+    u8 c;
+
+    p = *a1;
+    *a1 = p + 1;
+    if (*(s8 *)(p + 1) != 93)
+    {
+        s32 q;
+        do
+        {
+            q = *a1;
+            c = *(u8 *)q;
+            *a1 = q + 1;
+            buf[i++] = c;
+        } while (*(s8 *)(q + 1) != 93);
+    }
+    buf[i] = 0;
+    return func_002220C8((s32)buf);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00216798);
 
@@ -18654,7 +25861,17 @@ s32 func_00216918(s32 *arg1)
     return func_00216DF0(arg1[0]);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00216938);
+s32 func_00216938(s32 *a1)
+{
+    s32 v = func_00216918(a1);
+    a1[1] = v;
+    if (v != 0) {
+        *(s32 *)(v + 0x28) = (s32)a1;
+        *(s64 *)(a1[1] + 0x20) = 0;
+    }
+    __asm__ volatile("" ::: "memory");
+    return a1[1];
+}
 
 s32 func_00216978(s32 *p) { *(u64 *)((u8 *)p + 0x20) = 0; return 0; }
 
@@ -18674,7 +25891,15 @@ s32 func_00216AE0(u8 *p)
 
 INCLUDE_ASM(const s32, "core/main", func_00216B00);
 
-INCLUDE_ASM(const s32, "core/main", func_00216BA0);
+s32 func_00216BA0(s32 a1, s32 a2)
+{
+    s32 *p = (s32 *)func_00223E58(0x10);
+    p[1] = a1;
+    p[0] = a2;
+    p[2] = 0;
+    p[3] = 0;
+    return (s32)p;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00216BE8);
 
@@ -18698,7 +25923,19 @@ INCLUDE_ASM(const s32, "core/main", func_00216DF0);
 
 INCLUDE_ASM(const s32, "core/main", func_00216EE0);
 
-INCLUDE_ASM(const s32, "core/main", func_00217000);
+s32 func_00217000(s32 a1, s32 a2, s64 a3, s64 a4, s64 a5)
+{
+    s32 result = func_00223E58(48);
+
+    *(s32 *)(result + 0) = a1;
+    *(s32 *)(result + 4) = a2;
+    *(s64 *)(result + 8) = a3;
+    *(s64 *)(result + 16) = a4;
+    *(s64 *)(result + 24) = a5;
+    *(s64 *)(result + 32) = 0;
+    *(s32 *)(result + 40) = 0;
+    return result;
+}
 
 /* Byte-matching.  Frees the object at +4, then the object itself, both through
    func_00223E80. */
@@ -18738,7 +25975,31 @@ INCLUDE_ASM(const s32, "core/main", func_00217388);
 
 INCLUDE_ASM(const s32, "core/main", func_002174C0);
 
-INCLUDE_ASM(const s32, "core/main", func_002175B0);
+void func_002175B0(u8 *a1, s32 a2, s32 a3, u8 *a4, s32 a5, s32 a6, s16 a7, u8 a8, u8 a9)
+{
+    extern u8 D_00385FF0[];
+    extern u8 D_00393B28;
+    void func_002174C0();
+    u8 *p = D_00385FF0;
+
+    D_00393B28 = 1;
+    p[0x68] = a8;
+    p[0x69] = a9;
+    *(s32 *)(p + 0x70) = a3;
+    *(s32 *)(p + 0x74) = a2;
+    *(s32 *)(p + 0x24) = a5;
+    *(s32 *)(p + 0x58) = 0x1FFFFFF;
+    *(s32 *)(p + 0x48) = a6;
+    *(s16 *)(p + 0x4C) = a7;
+    *(s32 *)(p + 0x6C) = (s32)a1;
+    *(s32 *)(p + 0x50) = (s32)a4;
+    if (a1 == 0 || a4 == 0) return;
+    if (*(s16 *)a1 == 0) return;
+    if (*(s16 *)a4 == 0) return;
+    if (*(s16 *)(a1 + 2) == 0) return;
+    if (*(s16 *)(a4 + 2) == 0) return;
+    func_002174C0(p);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00217640);
 
@@ -18833,9 +26094,18 @@ void func_0021AE88(void)
 
 INCLUDE_ASM(const s32, "core/main", func_0021AEA8);
 
+/* Stamper asm: calls the never-returning abort() wrapper func_00222048.  C
+   tail-calls it and emits an epilogue, so the frame+jal shape is kept in
+   src/asm/func_0021B598.s. */
 ASM_FUNC(const s32, func_0021B598);
 
-INCLUDE_ASM(const s32, "core/main", func_0021B5A8);
+/* Byte-matching: function-pointer wrapper; the void (*)(void) typedef is
+   required so the base lands in $2 and the loaded pointer in $3 (jalr $3). */
+s32 func_0021B5A8(void)
+{
+    extern s32 D_00386F3C[];
+    ((void (*)(void)) D_00386F3C[0])();
+}
 
 /* Byte-matching.  Returns arg2 unless the comparison found something. */
 s32 func_0021B5D0(s32 arg0, s32 arg1, s32 arg2)
@@ -18851,7 +26121,16 @@ s32 func_0021B5D0(s32 arg0, s32 arg1, s32 arg2)
 void func_0021B600(void) {
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0021B608);
+u8 *func_0021B608(void)
+{
+    s32 func_0021B5A8();
+    s32 func_00224B88();
+    u8 *v = (u8 *)func_00223E58(0x18);
+    if (v == 0) func_0021B5A8();
+    func_00224B88((s32)v, 0, 0x18);
+    *(s32 *)(v + 4) = (s32)(v + 16);
+    return v;
+}
 
 extern s32 D_00386F40[];
 
@@ -18875,7 +26154,21 @@ s32 func_0021B6B0(void)
     return ((s32 (*)(void)) D_00386F40[0])();
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0021B6D8);
+extern s32 D_00410CD8[];
+extern u8 D_00410CC8[];
+extern u8 D_00410CE0[];
+
+s32 func_0021B6D8(void)
+{
+    s32 func_00224B88();
+
+    if (D_00410CD8[0] == 0) {
+        D_00410CD8[0] = 1;
+        func_00224B88((s32)&D_00410CC8, 0, 0x10);
+        *(s32 *)(D_00410CC8 + 4) = (s32)&D_00410CE0;
+    }
+    return (s32)&D_00410CC8;
+}
 
 s32 func_0021B740(void)
 {
@@ -18929,7 +26222,29 @@ INCLUDE_ASM(const s32, "core/main", func_0021DB18);
 
 INCLUDE_ASM(const s32, "core/main", func_0021DD58);
 
-INCLUDE_ASM(const s32, "core/main", func_0021DDB0);
+u64 func_0021DDB0(u64 a1, u64 a2)
+{
+    typedef struct {
+        s32 v4[8];
+        s32 v5;
+        s32 v6;
+        s32 pad[6];
+        s32 v7[8];
+        u64 v8;
+        u64 v9;
+    } Stk;
+    void func_0021DA78(void *src, void *dst);
+    s32 func_0021DB18();
+    s32 func_0021D948();
+    Stk s;
+
+    s.v8 = a1;
+    s.v9 = a2;
+    func_0021DA78(&s.v8, s.v4);
+    func_0021DA78(&s.v9, &s.v5);
+    s.v6 ^= 1;
+    return func_0021D948(func_0021DB18(s.v4, &s.v5, s.v7));
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0021DE18);
 
@@ -18937,7 +26252,17 @@ INCLUDE_ASM(const s32, "core/main", func_0021E0C0);
 
 INCLUDE_ASM(const s32, "core/main", func_0021E228);
 
-INCLUDE_ASM(const s32, "core/main", func_0021E340);
+s32 func_0021E340(u64 a1, u64 a2)
+{
+    void func_0021E228();
+    s32 v3[8], v4[8];
+    u64 v5 = a1, v6 = a2;
+
+    func_0021DA78(&v5, v3);
+    func_0021DA78(&v6, v4);
+    func_0021E228(v3, v4);
+    return;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0021E390);
 
@@ -19031,7 +26356,13 @@ INCLUDE_ASM(const s32, "core/main", func_0021E7D8);
 
 INCLUDE_ASM(const s32, "core/main", func_0021E868);
 
-INCLUDE_ASM(const s32, "core/main", func_0021E930);
+void func_0021E930(void)
+{
+    s32 func_0021E640() __attribute__((noreturn));
+    s32 v = *(s32 *)func_0021B688();
+    if (v == 0) v = func_0021E640();
+    *(s32 *)(v + 20) = 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0021E960);
 
@@ -19062,7 +26393,7 @@ u8 *func_0021ECA8(u8 *p)
     return p;
 }
 
-void func_0021ED58(void);
+s32 *func_0021ED58(void);
 s32 func_00220C90(s32, s32, s32);
 
 s32 *func_0021ECC0(void)
@@ -19092,7 +26423,16 @@ u8 *func_0021ED40(u8 *p)
     return p;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0021ED58);
+s32 *func_0021ED58(void)
+{
+    extern s32 D_00393DD0[];
+    extern s32 D_00391110[];
+    void func_00220CB0();
+
+    if (D_00393DD0[0] == 0)
+        func_00220CB0(D_00393DD0, D_00391110);
+    return D_00393DD0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0021ED98);
 
@@ -19102,7 +26442,32 @@ INCLUDE_ASM(const s32, "core/main", func_0021EF38);
 
 INCLUDE_ASM(const s32, "core/main", func_0021F170);
 
-INCLUDE_ASM(const s32, "core/main", func_0021F1C8);
+s32 func_0021F1C8(f32 a1, f32 a2)
+{
+    void func_0021EEA8();
+    s32 func_0021EF38();
+    s32 func_0021ED98();
+    typedef struct {
+        s32 v4[4];
+        s32 v5;
+        s32 v6;
+        s32 pad0[2];
+        s32 v7[4];
+        f32 v8;
+        f32 v9;
+        s32 pad1[2];
+    } Stk;
+    Stk s;
+    s32 v2;
+
+    s.v8 = a1;
+    s.v9 = a2;
+    func_0021EEA8((s32 *)&s.v8, s.v4);
+    func_0021EEA8((s32 *)&s.v9, &s.v5);
+    s.v6 ^= 1;
+    v2 = func_0021EF38(s.v4, &s.v5, s.v7);
+    return func_0021ED98(v2);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0021F230);
 
@@ -19110,7 +26475,20 @@ INCLUDE_ASM(const s32, "core/main", func_0021F428);
 
 INCLUDE_ASM(const s32, "core/main", func_0021F588);
 
-INCLUDE_ASM(const s32, "core/main", func_0021F6A0);
+void func_0021EEA8();
+s32 func_0021F588();
+
+s32 func_0021F6A0(f32 a1, f32 a2)
+{
+    s32 v3[4];
+    s32 v4[4];
+    f32 v[2];
+    v[0] = a1;
+    v[1] = a2;
+    func_0021EEA8(&v[0], v3);
+    func_0021EEA8(&v[1], v4);
+    return func_0021F588(v3, v4);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0021F6F0);
 
@@ -19144,7 +26522,19 @@ void func_0021F908(s32 arg0, s32 arg1, s32 arg2, s32 arg3)
     func_0021ED98(args);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0021F938);
+void func_0021F938(f32 a1)
+{
+    void func_0021EEA8(void *, void *);
+    s32 v2[4];
+    f32 v3[4];
+    f32 *p;
+    __asm__ volatile("" ::: "memory");
+    p = v3;
+    __asm__ volatile("" : : "r"(p) : "memory");
+    *p = a1;
+    func_0021EEA8(p, v2);
+    func_0021E5B8(v2[0], v2[1], v2[2], (u64)v2[3] << 32 >> 2);
+}
 
 u8 *func_0021F978(u8 *p, u32 *out)
 {
@@ -19187,7 +26577,31 @@ INCLUDE_ASM(const s32, "core/main", func_0021FA10);
 
 INCLUDE_ASM(const s32, "core/main", func_0021FB10);
 
-INCLUDE_ASM(const s32, "core/main", func_0021FD78);
+s32 func_0021FD78(u8 *a1)
+{
+    s32 v1 = *(s32 *)a1;
+    s32 count = 0;
+    s32 i;
+    u8 *v4;
+
+    if (*(s32 *)a1 != 0)
+    {
+        i = *(s32 *)(a1 + 4);
+        for (;;)
+        {
+            if (i != 0 && *(s32 *)(a1 + 8) != 0)
+                count++;
+            v4 = a1 + v1;
+            a1 = v4 + 4;
+            if (*(s32 *)(v4 + 4) == 0)
+                break;
+            v1 = *(s32 *)(v4 + 4);
+            __asm__ volatile("" ::: "memory");
+            i = *(s32 *)(a1 + 4);
+        }
+    }
+    return count;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0021FDC0);
 
@@ -19279,7 +26693,7 @@ extern u8 D_003911F0[];
 
 u8 *func_002209C8(void) { return D_003911F0; }
 
-void func_0021ED58(void);
+s32 *func_0021ED58(void);
 s32 func_00220C90(s32, s32, s32);
 
 s32 *func_002209D8(void)
@@ -19307,7 +26721,18 @@ INCLUDE_ASM(const s32, "core/main", func_00220A58);
 
 INCLUDE_ASM(const s32, "core/main", func_00220AD0);
 
-INCLUDE_ASM(const s32, "core/main", func_00220BF8);
+s32 func_00220BF8(a, flag)
+s32 a, flag;
+{
+    extern s32 D_003912D8[];
+    s32 func_00220A58();
+    s32 *p = D_003912D8;
+
+    *(s32 *)(a + 4) = (s32)p;
+    if (flag & 1)
+        return func_00220A58();
+    return (s32)p;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00220C28);
 
@@ -19348,7 +26773,23 @@ s32 func_00220CD0(s32 arg0, s32 arg1, s32 arg2, s32 arg3)
     return arg3;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00220D00);
+s32 func_00220D00(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6)
+{
+    s32 func_00220C28();
+    s32 result;
+
+    if (func_00220C28(a1, a2) != 0) {
+        result = a4;
+    } else {
+        s32 *p = *(s32 **)(a1 + 8);
+        s32 *q = *(s32 **)((u8 *)p + 4);
+        s16 off = *(s16 *)((u8 *)q + 0x10);
+        s32 (*handler)(s32, s32, s32, s32, s32, s32) =
+            *(s32 (**)(s32, s32, s32, s32, s32, s32))((u8 *)q + 0x14);
+        result = handler((s32)((u8 *)p + off), a2, a3, a4, a5, a6);
+    }
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00220D98);
 
@@ -19374,7 +26815,7 @@ s32 *func_00220F90(void)
     return base;
 }
 
-s32 func_00220BF8(void);
+s32 func_00220BF8();
 
 s32 func_00220FE0(void)
 {
@@ -19402,7 +26843,7 @@ s32 *func_00221020(void)
     return base;
 }
 
-s32 func_00220BF8(void);
+s32 func_00220BF8();
 
 s32 func_00221070(void)
 {
@@ -19416,7 +26857,7 @@ u8 *func_00221090(u8 *p, s32 value)
     return p;
 }
 
-void func_00221288(void);
+s32 *func_00221288();
 s32 func_00220C90(s32, s32, s32);
 
 s32 *func_002210A8(void)
@@ -19430,7 +26871,7 @@ s32 *func_002210A8(void)
     return base;
 }
 
-s32 func_00220BF8(void);
+s32 func_00220BF8();
 
 s32 func_002210F8(void)
 {
@@ -19453,7 +26894,7 @@ u8 *func_00221148(u8 *p)
     return p;
 }
 
-void func_0021ED58(void);
+s32 *func_0021ED58(void);
 s32 func_00220C90(s32, s32, s32);
 
 s32 *func_00221160(void)
@@ -19483,7 +26924,7 @@ u8 *func_002211E0(u8 *p)
     return p;
 }
 
-void func_0021ED58(void);
+s32 *func_0021ED58(void);
 s32 func_00220C90(s32, s32, s32);
 
 s32 *func_002211F8(void)
@@ -19511,7 +26952,15 @@ u8 *func_00221270(u8 *p, s32 value)
     return p;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00221288);
+s32 *func_00221288(void)
+{
+    extern s32 D_00391350[];
+    void func_00220CB0();
+
+    if (D_00393DD8[0] == 0)
+        func_00220CB0(D_00393DD8, D_00391350);
+    return D_00393DD8;
+}
 
 /* Byte-matching.  Boolean test on the sign bit of the comparator result. */
 u32 func_002212C8(s32 *arg0, s32 *arg1)
@@ -19523,7 +26972,22 @@ u32 func_002212C8(s32 *arg0, s32 *arg1)
 
 INCLUDE_ASM(const s32, "core/main", func_002212F0);
 
-INCLUDE_ASM(const s32, "core/main", func_002217B8);
+s32 func_002217B8(s32 a1)
+{
+  s32 *func_00221FD8();
+  s32 v1;
+
+  v1 = 0;
+  if ( a1 != 0 )
+    v1 = func_002218D0(
+           (s32 (*)(void))*(u32 *)(*(u32 *)(a1 + 4) + 4),
+           func_00221FD8,
+           1,
+           (s32)a1 + **(s16 **)(a1 + 4),
+           func_00221288,
+           a1);
+  return v1 != 0;
+}
 
 void func_00221808(s32 *p, s32 a, s32 b)
 {
@@ -19611,7 +27075,7 @@ INCLUDE_ASM(const s32, "core/main", func_00221CC8);
 
 INCLUDE_ASM(const s32, "core/main", func_00221D00);
 
-void func_00221288(void);
+s32 *func_00221288();
 s32 func_00220C90(s32, s32, s32);
 
 s32 *func_00221D38(void)
@@ -19625,7 +27089,7 @@ s32 *func_00221D38(void)
     return base;
 }
 
-s32 func_00220BF8(void);
+s32 func_00220BF8();
 
 s32 func_00221D88(void)
 {
@@ -19644,7 +27108,7 @@ s32 *func_00221DA8(void)
     return base;
 }
 
-s32 func_00220BF8(void);
+s32 func_00220BF8();
 
 s32 func_00221DF8(void)
 {
@@ -19663,7 +27127,7 @@ s32 *func_00221E18(void)
     return base;
 }
 
-s32 func_00220BF8(void);
+s32 func_00220BF8();
 
 s32 func_00221E68(void)
 {
@@ -19682,7 +27146,7 @@ s32 *func_00221E88(void)
     return base;
 }
 
-s32 func_00220BF8(void);
+s32 func_00220BF8();
 
 s32 func_00221ED8(void)
 {
@@ -19701,7 +27165,7 @@ s32 *func_00221EF8(void)
     return base;
 }
 
-s32 func_00220BF8(void);
+s32 func_00220BF8();
 
 s32 func_00221F48(void)
 {
@@ -19720,7 +27184,7 @@ s32 *func_00221F68(void)
     return base;
 }
 
-s32 func_00220BF8(void);
+s32 func_00220BF8();
 
 s32 func_00221FB8(void)
 {
@@ -19739,7 +27203,7 @@ s32 *func_00221FD8(void)
     return base;
 }
 
-s32 func_00220BF8(void);
+s32 func_00220BF8();
 
 s32 func_00222028(void)
 {
@@ -19793,7 +27257,7 @@ INCLUDE_ASM(const s32, "core/main", func_00222340);
 
 /* Byte-matching.  Fills in an object header with its callback table. */
 void func_00226410(void);
-void func_00226478(void);
+s64 func_00226478(s32 a1, s32 *a2, s32 a3);
 void func_002264F8(void);
 s32 func_00226560(u8 *p);
 
@@ -19833,7 +27297,17 @@ void func_00222468(S222468 *s, s16 a, s16 b, u32 c)
     s->f1C = (u32)s;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_002224C0);
+u8 *func_002224C0(u8 *a1, s32 a2)
+{
+    s32 func_00224B88();
+    u8 *v = (u8 *)func_002240E8(a1, 88 * a2 + 12);
+    if (v == 0) return 0;
+    *(s32 *)(v + 4) = a2;
+    *(s32 *)v = 0;
+    *(s32 *)(v + 8) = (s32)(v + 12);
+    func_00224B88((s32)(v + 12), 0, 88 * a2);
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00222530);
 
@@ -19850,9 +27324,30 @@ void func_00222620(void)
     func_00222610(*(s32 *)D_0038857C);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00222630);
+s32 func_00222630(u32 *a1)
+{
 
-INCLUDE_ASM(const s32, "core/main", func_002226C0);
+
+    u32 *v2;
+v2 = a1 + 121;
+a1[15] = func_00222610;
+a1[14] = 1;
+func_00222468((u32)(a1 + 121), 4, 0, (s32)a1);
+func_00222468((u32)(a1 + 143), 9, 1, (s32)a1);
+func_00222468((u32)(a1 + 165), 10, 2, (s32)a1);
+a1[120] = v2;
+a1[119] = 3;
+a1[118] = 0;
+return 3;
+}
+
+s32 func_002226C0(void *a1, void *a2, ...)
+{
+    s32 func_00227750(s32, s32, s32);
+    char *va = (char *)__builtin_next_arg(a2) - 0x30;
+
+    return func_00227750((s32)a1, (s32)a2, (s32)va);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_002226F8);
 
@@ -19871,7 +27366,15 @@ INCLUDE_ASM(const s32, "core/main", func_00222C98);
 
 INCLUDE_ASM(const s32, "core/main", func_00222E08);
 
-INCLUDE_ASM(const s32, "core/main", func_00223298);
+s32 func_00223298(s32 *a1, s32 a2, s32 a3)
+{
+    extern s32 D_00393DE0[];
+    s32 v; s32 func_001C1318();
+    D_00393DE0[0] = 0;
+    v = func_001C1318(a2, a3);
+    if (v == -1 && D_00393DE0[0] != 0) *a1 = D_00393DE0[0];
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_002232F8);
 
@@ -19932,13 +27435,27 @@ void func_00224C48(void) {
 void func_00224C50(void) {
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00224C58);
+extern s32 D_00393DE0[];
+s32 func_00224C58(s32 *a1, s32 a2, s32 a3, s32 a4)
+{
+    s32 v; s32 func_001C1228();
+    D_00393DE0[0] = 0;
+    v = func_001C1228(a2, a3, a4);
+    if (v == -1 && D_00393DE0[0] != 0) *a1 = D_00393DE0[0];
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00224CB8);
 
 void func_002256E0(s32 value) { ((s32 *)*(u8 **)D_0038857C)[0x58 / 4] = value; }
 
-INCLUDE_ASM(const s32, "core/main", func_002256F0);
+s32 func_002256F0(void)
+{
+  s32 v0;
+  v0 = 1103515245 * ((s32 *) *(u8 **)D_0038857C)[0x58 / 4] + 12345;
+  ((s32 *) *(u8 **)D_0038857C)[0x58 / 4] = v0;
+  return v0 & 0x7FFFFFFF;
+}
 
 s32 func_00225720(s32 arg0, s32 arg1)
 {
@@ -19963,7 +27480,17 @@ s32 func_00225E58(void)
     return func_00227200();
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00225E78);
+s32 func_00225E78(s32 *a1, s32 a2)
+{
+    extern s32 D_00393DE0[];
+    s32 *g = D_00393DE0;
+    s32 v;
+    g[0] = 0;
+    v = func_001C1268(a2);
+    if ((u32)v == 0xFFFFFFFFu && g[0] != 0)
+        *a1 = g[0];
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00225ED8);
 
@@ -19993,7 +27520,15 @@ s32 func_00226200(s32 arg0)
     return func_002260C8(*(s32 *)D_0038857C, arg0);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00226228);
+extern s32 D_00393DE0[];
+s32 func_00226228(s32 *a1, s32 a2, s32 a3)
+{
+    s32 v; s32 func_001C1338();
+    D_00393DE0[0] = 0;
+    v = func_001C1338(a2, a3);
+    if (v == -1 && D_00393DE0[0] != 0) *a1 = D_00393DE0[0];
+    return v;
+}
 
 s32 func_001C1330(void);
 
@@ -20002,7 +27537,33 @@ s32 func_00226288(void)
     return func_001C1330();
 }
 
-INCLUDE_ASM(const s32, "core/main", func_002262A8);
+s32 func_002262A8(s32 a1, s32 a2, u8 *a3, ...)
+{
+    typedef struct {
+        s32 v4[3];
+        s16 v5;
+        s16 pad0;
+        s32 v6;
+        s32 v7;
+        s32 pad[15];
+        s32 v8;
+    } Blk;
+    s32 func_00228498();
+    Blk b;
+    char *va;
+    s32 r;
+
+    b.v8 = a1;
+    b.v5 = 520;
+    b.v4[0] = a2;
+    b.v4[2] = 0x7FFFFFFF;
+    b.v6 = a2;
+    b.v7 = 0x7FFFFFFF;
+    va = (char *)__builtin_next_arg(a3) - 0x28;
+    r = func_00228498((s32)b.v4, (s32)a3, (s32)va);
+    *(u8 *)b.v4[0] = 0;
+    return r;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00226310);
 
@@ -20012,7 +27573,24 @@ INCLUDE_ASM(const s32, "core/main", func_00226388);
 
 INCLUDE_ASM(const s32, "core/main", func_00226410);
 
-INCLUDE_ASM(const s32, "core/main", func_00226478);
+/* Byte-matching: u64 cast chain for post-epilogue sign extension. */
+s64 func_00226478(s32 a1, s32 *a2, s32 a3)
+{
+    s16 v6;
+    s32 *v7;
+    u16 flags;
+    u64 v;
+    flags = *(u16 *)((u8 *)a1 + 0xC);
+    if ((flags & 0x100) != 0)
+        func_0022C130(*(s32 **)((u8 *)a1 + 0x54), *(s16 *)((u8 *)a1 + 0xE), 0, 2);
+    v6 = *(s16 *)((u8 *)a1 + 0xE);
+    *(u16 *)((u8 *)a1 + 0xC) &= ~0x1000;
+    v7 = *(s32 **)((u8 *)a1 + 0x54);
+    v = (u64)func_0022A920(v7, v6, (s32)a2, a3);
+    
+    return (s64)(s32)v;
+}
+
 
 INCLUDE_ASM(const s32, "core/main", func_002264F8);
 
@@ -20076,7 +27654,20 @@ s32 func_002275C0(s32 arg0, s32 arg1, s32 arg2)
 
 INCLUDE_ASM(const s32, "core/main", func_002275F8);
 
-INCLUDE_ASM(const s32, "core/main", func_00227650);
+s32 func_00227650(s32 a1, s32 *a2)
+{
+    s32 result;
+
+    if (a2[2] != 0) goto call;
+    result = 0;
+    a2[1] = 0;
+    return result;
+call:
+    result = func_002232F8(a1, a2);
+    a2[2] = 0;
+    a2[1] = 0;
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00227698);
 
@@ -20084,7 +27675,20 @@ INCLUDE_ASM(const s32, "core/main", func_00227750);
 
 INCLUDE_ASM(const s32, "core/main", func_002277C8);
 
-INCLUDE_ASM(const s32, "core/main", func_00228398);
+s32 func_00228398(s32 a1, s32 *a2)
+{
+    s32 result;
+
+    if (a2[2] != 0) goto call;
+    result = 0;
+    a2[1] = 0;
+    return result;
+call:
+    result = func_002232F8(a1, a2);
+    a2[2] = 0;
+    a2[1] = 0;
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_002283E0);
 
@@ -20174,7 +27778,7 @@ extern u8 D_00391938[];  /* "0"                            */
 extern u8 D_00391940[];  /* "."                            */
 
 s32 func_0022A980(FmtStream *stream);
-s32 func_00228398(FmtStream *stream, FmtPieceList *list);
+s32 func_00228398();   /* definition takes raw s32 pointers; see func_00228398 body */
 s32 func_002283E0(FmtStream *stream, const char *fmt, u64 *args);
 u8 *func_0022C108(void);
 s32 func_0022C190(void *locale, u32 *out, const char *text, void *left,
@@ -20771,9 +28375,40 @@ INCLUDE_ASM(const s32, "core/main", func_00229CB8);
 
 INCLUDE_ASM(const s32, "core/main", func_0022A7C0);
 
-INCLUDE_ASM(const s32, "core/main", func_0022A8C8);
+s32 func_0022A8C8(s32 arg0, s32 arg1, s32 arg2) {
+    typedef struct {
+        s32 v4[3];
+        s16 v5;
+        s16 pad0;
+        s32 v6;
+        s32 v7;
+        s32 pad[15];
+        s32 v8;
+    } Blk;
+    s32 func_00228498();
+    Blk b;
+    s32 r;
 
-INCLUDE_ASM(const s32, "core/main", func_0022A920);
+    b.v5 = 520;
+    b.v4[0] = arg0;
+    b.v4[2] = 0x7FFFFFFF;
+    b.v6 = arg0;
+    b.v7 = 0x7FFFFFFF;
+    b.v8 = *(s32 *)D_0038857C;
+    r = func_00228498((s32)b.v4, (s32)arg1, (s32)arg2);
+    *(u8 *)b.v4[0] = 0;
+    return r;
+}
+
+extern s32 D_00393DE0[];
+s32 func_0022A920(s32 *a1, s32 a2, s32 a3, s32 a4)
+{
+    s32 v; s32 func_001C1130();
+    D_00393DE0[0] = 0;
+    v = func_001C1130(a2, a3, a4);
+    if (v == -1 && D_00393DE0[0] != 0) *a1 = D_00393DE0[0];
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0022A980);
 
@@ -20791,7 +28426,15 @@ s32 func_0022AB38(s32 arg1)
     return func_0022E1D0(arg1, 0);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0022AB58);
+extern s32 D_00393DE0[];
+s32 func_0022AB58(s32 *a1, s32 a2)
+{
+    s32 v; s32 func_001C1250();
+    D_00393DE0[0] = 0;
+    v = func_001C1250(a2);
+    if (v == -1 && D_00393DE0[0] != 0) *a1 = D_00393DE0[0];
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0022ABB0);
 
@@ -21405,7 +29048,15 @@ u8 *func_0022C108(void)
     return func_0022C0C8(*(s32 *)D_0038857C);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0022C130);
+extern s32 D_00393DE0[];
+s32 func_0022C130(s32 *a1, s32 a2, s32 a3, s32 a4)
+{
+    s32 v; s32 func_001C1260();
+    D_00393DE0[0] = 0;
+    v = func_001C1260(a2, a3, a4);
+    if (v == -1 && D_00393DE0[0] != 0) *a1 = D_00393DE0[0];
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0022C190);
 
@@ -21428,7 +29079,19 @@ INCLUDE_ASM(const s32, "core/main", func_0022C2A8);
 
 INCLUDE_ASM(const s32, "core/main", func_0022C3C0);
 
-INCLUDE_ASM(const s32, "core/main", func_0022C508);
+s32 func_0022C508(s32 x)
+{
+    s32 v = 0;
+    if ((x & 0xFFFF0000u) == 0) { v = 16; x <<= 16; }
+    if ((x & 0xFF000000u) == 0) { v += 8; x <<= 8; }
+    if ((x & 0xF0000000u) == 0) { v += 4; x <<= 4; }
+    if ((x & 0xC0000000u) == 0) { v += 2; x <<= 2; }
+    if (x < 0) goto done;
+    v += 1;
+    if ((x & 0x40000000u) == 0) return 32;
+done:
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0022C590);
 
@@ -21461,7 +29124,15 @@ INCLUDE_ASM(const s32, "core/main", func_0022D0C0);
 
 INCLUDE_ASM(const s32, "core/main", func_0022D180);
 
-INCLUDE_ASM(const s32, "core/main", func_0022D1F0);
+extern s32 D_00393DE0[];
+s32 func_0022D1F0(s32 *a1, s32 a2, s32 a3, s32 a4)
+{
+    s32 v; s32 func_001C11B0();
+    D_00393DE0[0] = 0;
+    v = func_001C11B0(a2, a3, a4);
+    if (v == -1 && D_00393DE0[0] != 0) *a1 = D_00393DE0[0];
+    return v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0022D250);
 

@@ -1,10 +1,24 @@
 
-/* Entry-point padding; func_00100008 starts at 0x00100008. */
+/* CRT entry point at 0x00100008 (funcs_00, -O2).
+ *
+ * Handwritten assembly is required here: the .bss clear uses the 128-bit
+ * `sq $0,0($2)` store that cc1 cannot emit, the thread/heap setup uses the
+ * R5900 `syscall` instruction with fixed $3 numbers (0x3C SetupThread,
+ * 0x3D SetupHeap), and `ei` has no C equivalent.  The two leading `nop`s
+ * pad the image up from the ELF header at 0x100000 to 0x100008.
+ *
+ * Flow:
+ *   clear .bss            from D_00393C00 to D_410DF4 (end of image)
+ *   SetupThread(gp, stack, stack_size, &args, func_001000B8)
+ *   SetupHeap(_end, -1)   build the malloc arena above the image
+ *   FlushCache(0)         func_001C0EA0
+ *   ei                    enable interrupts
+ *   main(args.argc, args.argv)   func_001002A0
+ *   Exit(status)          tail-call func_001C0840, keeping main's $2
+ */
 nop
 nop
 .align 3
-/* CRT entry point: clear .bss, start the main thread, initialize the heap,
-   enable interrupts, run main, and exit with its status. */
 glabel func_00100008
     /* Clear .bss from D_00393C00 up to _end. */
     lui $2, %hi(D_00393C00)
