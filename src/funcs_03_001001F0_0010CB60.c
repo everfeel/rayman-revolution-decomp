@@ -299,6 +299,49 @@ typedef struct StartupState {
 extern u8 D_00252274[5];
 extern s32 D_00392F10;
 
+// moved from block scope
+extern s32 func_00108A58();
+extern void func_00109140();
+extern s32 func_00109438();
+extern u8 func_00109C58();
+extern s32 func_00109C60();
+extern s32 func_0010A588();
+extern void func_0010AA48();
+extern void func_0010AA50();
+extern s32 func_0010B950();
+extern s32 func_0010BAC8();
+extern s32 func_001123F8(u8 state);
+extern s32 func_00119570();
+extern s32 func_00119958();
+extern s32 func_00119980();
+extern void func_00120D48(u32 record);
+extern s32 func_00125100();
+extern s32 func_001252F0();
+extern s32 func_0014A968();
+extern s32 func_001597B0();
+extern void func_0015C5A8(s32 handle);
+extern s32 func_001DFD08();
+extern s32 func_00224B88();
+
+extern u8 D_002523A8[];
+// existing: extern s32 D_002536F8[];
+extern s32 D_00253770[];
+extern s32 D_002539C8[];
+// existing: extern s32 D_00254018[];
+extern s32 D_00392F88;
+extern s32 D_00392F8C;
+extern s32 D_00392F90;
+extern s32 D_00392F94;
+
+// moved from block scope
+extern void func_00107180();
+extern void func_00117B28();
+extern void func_00118D58(f32 *, f32, f32);
+extern s32 func_00119680(u8 *p, f32 a, f32 b);
+extern void func_001196E8(u8 *p, f32 *a, f32 *b);
+extern void func_001463D0();
+extern void func_001465E0();
+
 s32 func_001001F0(void)
 {
     StartupConfig config;
@@ -1230,7 +1273,7 @@ extern s32 func_00112408(s8 *handle);
 extern void func_001126D0(void);
 extern void func_00103FE8(void);
 extern s32 func_00144C90(s32 mode);
-extern void func_001123F8(u8 state);
+extern s32 func_001123F8(u8 state);
 extern void func_00105EB0(void);
 extern void func_00102570(void);
 
@@ -1816,7 +1859,6 @@ s32 func_00103AF0(s32 index)
 
 void func_00103B08(u8 *a1)
 {
-    void func_0014A968();
     s32 v = *(s32 *)(a1 + 8);
     s32 i;
 
@@ -1881,15 +1923,6 @@ void func_00104058(void)
 
 void func_00104090(void)
 {
-    extern u8 D_002523A8[];
-    extern s32 D_00392F88;
-    extern s32 D_00392F8C;
-    extern s32 D_00392F90;
-    extern s32 D_00392F94;
-    void func_00120D48();
-    void func_001597B0();
-    void func_0015C5A8();
-    void func_001123F8();
     u8 *p = D_002523A8;
 
     func_00120D48((s32)p);
@@ -2039,10 +2072,6 @@ INCLUDE_ASM(const s32, "core/main", func_00105CE8);
 
 void func_00105EB0(void)
 {
-    extern s32 D_00253770[];
-    extern s32 D_002539C8[];
-    extern s32 D_002536F8[];
-    s32 func_00224B88();
     s32 *v2 = D_00253770;
     s32 *v0 = D_002539C8;
     s32 *v1 = D_002536F8;
@@ -2075,7 +2104,6 @@ s32 func_00105F40(s32 arg0)
 
 u8 func_00105F80(void)
 {
-    extern s32 D_002539C8[];
     u8 v0 = 0;
     s32 *p;
 
@@ -2139,9 +2167,9 @@ INCLUDE_ASM(void, "core/main", func_001062F8);
 
 void func_00106380(void)
 {
-    extern void func_00117B28(int **, s32);
-    extern void func_00118D58(f32 *, f32, f32);
-    void func_00107180();
+
+
+
     s32 v0;
     s32 *v1;
 
@@ -2541,7 +2569,6 @@ INCLUDE_ASM(const s32, "core/main", func_00108950);
 
 void func_001089F0(s32 a1)
 {
-    s32 func_00108A58();
     s32 v1;
     s32 v3;
     v1 = func_00108A38();
@@ -2651,11 +2678,6 @@ void *func_00109030(void)
 
 void func_001090A8(s32 a1, u8 a2)
 {
-    extern s32 func_00109140();
-    extern s32 func_001252F0();
-    extern s32 func_00125100();
-    extern s32 func_00109438();
-    extern s32 func_00119570();
     u8 buf[0x60];
     s32 *p;
     s32 *q;
@@ -2719,8 +2741,8 @@ void func_001092E8(s32 arg0, f32 arg1, f32 arg2)
 
 s32 func_00109328(s32 a1, f32 a2)
 {
-    void func_001196E8(u8 *p, f32 *a, f32 *b);
-    s32 func_00119680(u8 *p, f32 a, f32 b);
+
+
     struct { s32 v7; f32 v8[3]; } out;
     s32 v3 = func_00109438((const s32 *)a1);
     u8 *v5;
@@ -2732,8 +2754,8 @@ s32 func_00109328(s32 a1, f32 a2)
 
 s32 func_00109380(s32 a1, f32 a2)
 {
-    void func_001196E8(u8 *p, f32 *a, f32 *b);
-    s32 func_00119680(u8 *p, f32 a, f32 b);
+
+
     struct { f32 v7; f32 v8[3]; } out;
     s32 v3 = func_00109438((const s32 *)a1);
     u8 *v5;
@@ -2765,8 +2787,6 @@ s32 func_00109438(const s32 *p) { return *(const s32 *)((const u8 *)p + (44)); }
 
 void func_00109440(u8 *arg0, u8 arg1)
 {
-    void func_00119958();
-    void func_00119980();
     u8 v = arg1;
     s32 r;
 
@@ -2947,8 +2967,6 @@ u8 *func_00109BA8(void)
 
 s32 func_00109BE0(u8 *a1, u8 a2)
 {
-    s32 func_00109C58();
-    void func_0010A588();
     s32 result = 1;
 
     if (a2 == 1) {
@@ -3010,7 +3028,6 @@ s32 func_00109C60(s32 arg0)
 s32 func_00109C98(s32 a1)
 {
     s32 a, b, v1, i; Unaligned12 u; f32 f;
-    s32 func_00109C60();
     a = *(s32 *)(func_00109C60(a1) + 4);
     b = *(s32 *)(a + 0x18);
     v1 = *(s32 *)(b + 0x24);
@@ -3022,7 +3039,6 @@ s32 func_00109C98(s32 a1)
 s32 func_00109D18(s32 a1)
 {
     s32 a, b, v1, i; Unaligned12 u; f32 f;
-    s32 func_00109C60();
     a = *(s32 *)(func_00109C60(a1) + 4);
     b = *(s32 *)(a + 0x18);
     v1 = *(s32 *)(b + 0x24);
@@ -3034,7 +3050,6 @@ s32 func_00109D18(s32 a1)
 s32 func_00109D98(s32 a1)
 {
     s32 a, b, v1, i; Unaligned12 u; f32 f;
-    s32 func_00109C60();
     a = *(s32 *)(func_00109C60(a1) + 4);
     b = *(s32 *)(a + 0x18);
     v1 = *(s32 *)(b + 0x24);
@@ -3159,8 +3174,6 @@ void func_0010A9E8(s32 *p) { func_0010AA50(((s32 *)p)[6]); }
 
 void func_0010A9F0(u8 *a1, u8 *a2)
 {
-    void func_0010AA50();
-    void func_0010AA48();
     u8 *src, *dst;
 
     func_0010AA50(*(u8 **)(a1 + 0x18));
@@ -3176,7 +3189,6 @@ void func_0010AA48(void) { func_0010AA50(); }
    record: state byte at +8, the -1 at +4 and the id itself. */
 void func_0010AA50(u8 *arg0)
 {
-    void func_001DFD08(s32 id);
     s32 id;
 
     if (arg0 == 0)
@@ -3302,9 +3314,9 @@ INCLUDE_ASM(const s32, "core/main", func_0010B3D8);
 
 void func_0010B498(u8 *a1)
 {
-    void func_001463D0();
-    s32 func_00109248(const s32 *);
-    void func_001465E0();
+
+
+
     u8 *q;
 
     func_001463D0(*(u8 **)(*(u8 **)(*(u32 *)(a1 + 4) + 0x20) + 4));
@@ -3345,13 +3357,47 @@ s32 func_0010B850(void) { return D_00392FD8 != -1; }
 
 INCLUDE_ASM(const s32, "core/main", func_0010B860);
 
-INCLUDE_ASM(const s32, "core/main", func_0010B8A8);
+void func_0010B8A8(void)
+{
+    struct N { s32 next, prev, parent; } *node;
+    struct N *i;
+    struct N *p3;
+
+    node = *(struct N **)D_00254018;
+    while (node != 0)
+    {
+        i = (struct N *)node->next;
+        if (i != 0)
+            i->prev = node->prev;
+        if (node->prev != 0)
+            *(s32 *)node->prev = node->next;
+        if (node->parent != 0)
+        {
+            ((struct N *)node->parent)->parent = (s32)((struct N *)node->parent)->parent - 1;
+            p3 = (struct N *)node->parent;
+            if (p3->next == (s32)node)
+            {
+                p3->next = node->next;
+                p3 = (struct N *)node->parent;
+            }
+            if (p3->prev == (s32)node)
+                p3->prev = node->prev;
+            node->parent = 0;
+        }
+        else
+        {
+            node->parent = 0;
+        }
+        node->prev = 0;
+        node->next = 0;
+        node = i;
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0010B950);
 
 void func_0010BA78(void)
 {
-    extern void func_0010B950(void *);
     s32 *node;
 
     node = *(s32 **)D_00392FE0;
@@ -3369,8 +3415,6 @@ INCLUDE_ASM(const s32, "core/main", func_0010BAC8);
 
 void func_0010BBC8(void)
 {
-    extern s32 D_00254018[];
-    void func_0010BAC8();
     s32 v;
     v = D_00254018[0];
     while (v != 0) {

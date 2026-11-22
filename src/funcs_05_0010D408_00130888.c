@@ -119,6 +119,19 @@ extern s32 D_003930A4;
 extern void func_00112FF8(u8 *arg0, u8 arg1);
 extern s32 func_0010DD18();
 extern s32 func_0010E920();
+extern s32 func_0010C9F0();
+extern s32 func_00115BE0(f32 *, s16 *);
+extern s32 func_00115C60();
+extern s32 func_00103B70();
+extern s32 func_0014BA58();
+extern void func_00226A34();
+extern s32 func_00118DA0();
+extern s32 func_0011C680();
+extern s32 func_00154AF8();
+extern s32 func_001558C8();
+extern s32 func_00152200();
+extern s32 func_00151B38();
+extern s32 func_00157DE8();
 extern s32 func_001104A0();
 extern s32 func_00127330();
 extern s32 func_00158E60();
@@ -129,6 +142,59 @@ extern u8 *func_0010CB00();
 extern void func_00120D48();
 extern void func_0010DE30();
 extern void func_001106D0();
+
+extern s32 D_00252214[];
+// existing: extern u8 D_0026F220[];
+extern s32 D_00330A20[];
+extern s32 D_003890C8[];
+extern f32 D_00392500;
+extern f32 D_00392504;
+extern u8 D_00393018[];
+extern s32 D_003930AC;
+extern s32 D_00393134;
+extern s32 D_00393138;
+extern s32 D_00393148[];
+extern u8 D_0039343E;
+extern u8 D_0039343F;
+extern u8 D_00393440;
+
+// moved from block scope
+extern s32 func_00144D98();
+extern s32 func_00145168();
+extern s32 func_001451C0();
+extern s32 func_001454A0();
+extern s32 func_001454C8();
+extern s32 func_001454F8();
+extern s32 func_00145560();
+extern s32 func_00193038();
+extern u8 * func_00211980(u8 *s, s32 c);
+
+// moved from block scope (funcs)
+extern s32 func_0018C180();
+extern s32 func_0018C5B0();
+extern s32 func_0018C5E0();
+extern s32 func_0018C5F0();
+extern s32 func_0018C5F8();
+extern s32 func_0018C608();
+extern s32 func_0018C660();
+extern s32 func_0018C820(s32, f32);
+extern s32 func_0018C900(s32, f32);
+extern s32 func_0018DC88();
+
+// targeted extern var hoist
+f32 func_00217DA0(f32);
+void func_0014E7F8(s32 *);
+
+// moved from block scope
+extern void func_001224F8();
+extern void func_00124738();
+extern s32 func_0018FE28();
+extern s32 func_00190B80();
+extern s32 func_00192250();
+
+// targeted extern var hoist
+extern s32 func_00117B28();
+extern void func_00118D58(u8 *, f32, f32);
 
 INCLUDE_ASM(const s32, "core/main", func_0010D408);
 
@@ -198,8 +264,6 @@ INCLUDE_ASM(const s32, "core/main", func_0010E8B0);
 
 s32 func_0010E920(s32 a1)
 {
-    s32 func_0010C9F0();
-    s32 func_0010E8B0();
     s32 result;
     u8 *i;
 
@@ -312,8 +376,6 @@ s32 func_00110950(u16 *a1, u16 a2, u8 *a3)
 {
     f32 v6[4];
     s32 v4;
-    void func_00115BE0(f32 *, s32 *);
-    void func_00115C60(f32 *, f32 *);
 
     if (a2 >= a1[12])
         return 0;
@@ -376,7 +438,6 @@ void func_00110F00(u32 arg0)
 void func_00110F20(void)
 {
     typedef struct __attribute__((packed)) { u32 v; s8 b0, b1, b2; } S7;
-    extern u8 D_00393018[];
     u8 *p = (u8 *)D_0034A300;
 
     *(s32 *)D_0034A300 = 0;
@@ -484,13 +545,13 @@ INCLUDE_ASM(const s32, "core/main", func_001110B8);
 
 s32 func_00111128(void)
 {
-    extern s32 func_001454A0();
-    extern s32 func_001454C8();
-    extern s32 func_00145560();
-    extern s32 func_001451C0();
-    extern s32 func_00144D98();
-    extern s32 func_001454F8();
-    extern s32 func_00145168();
+
+
+
+
+
+
+
     s32 result = 0;
     u8 *p;
 
@@ -682,8 +743,6 @@ void func_00111910(void)
 
 void func_00111950(u8 a1)
 {
-    extern s32 D_00252214[];
-    s32 func_00103B70();
     u8 *v2;
     u8 *i;
 
@@ -742,9 +801,7 @@ INCLUDE_ASM(const s32, "core/main", func_001124F0);
 
 void func_001125B0(u8 *a1)
 {
-    s32 func_0014BA58();
     u64 func_0021D408();
-    void func_00226A34();
     s32 v1 = func_0014BA58();
     s32 v3 = (s32)func_0021D408(v1, D_00252230.unk0220[0x11D2]);
 
@@ -862,20 +919,17 @@ void func_00112D10(void)
 
 void func_00112D28(void)
 {
-    extern void func_00117B28(int **, s32);
-    extern void func_00118D58(f32 *, f32, f32);
-    void func_00118DA0();
     u8 *p = (u8 *)&D_00252230 + 0xB8;
 
-    func_00117B28((int **)p, 103);
+    ((void (*)(int **, s32))func_00117B28)((int **)p, 103);
     p -= 0xB8;
-    func_00118D58(*(f32 **)(p + 0xB8), 1.5f, 0.75f);
+    ((void (*)(f32 *, f32, f32))func_00118D58)(*(f32 **)(p + 0xB8), 1.5f, 0.75f);
     func_00118DA0(*(s16 *)(p + 0x44), *(s16 *)(p + 0x46), *(s32 *)(p + 0xB8));
 }
 
 s32 func_00112D80(u8 *arg0)
 {
-    extern u8 *func_00211980(u8 *s, s32 c);
+
     u8 buf[0x50];
     u8 *v2;
     u8 *v3;
@@ -1675,7 +1729,16 @@ void func_00119668(u8 *p, float *a, float *b)
     *b = *(f32 *)(p + 0x4);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00119680);
+void func_00119680(f32 *a1, f32 a2, f32 a3)
+{
+    f32 half = 0.5f;
+
+    a1[4] = a3;
+    a1[3] = a2;
+    a1[5] = func_00217DA0(a2 * half);
+    a1[6] = func_00217DA0(a3 * half);
+    func_0014E7F8((s32 *)a1);
+}
 
 void func_001196E8(u8 *p, float *a, float *b)
 {
@@ -1727,7 +1790,6 @@ void func_00119788(u8 *p, float a, float b)
    rebuilds the frame. */
 void func_00119798(u8 *arg0, Struct12 *arg1)
 {
-    void func_00119460(u8 *arg0);
     Struct12 tmp = *arg1;
 
     *(Struct12 *)(arg0 + 0x88) = tmp;
@@ -1738,7 +1800,6 @@ void func_00119798(u8 *arg0, Struct12 *arg1)
    rebuilds the frame. */
 void func_001197E8(u8 *arg0, Struct12 *arg1)
 {
-    void func_00119460(u8 *arg0);
     Struct12 tmp = *arg1;
 
     *(Struct12 *)(arg0 + 0xA0) = tmp;
@@ -1749,7 +1810,6 @@ void func_001197E8(u8 *arg0, Struct12 *arg1)
    rebuilds the frame. */
 void func_00119838(u8 *arg0, Struct12 *arg1)
 {
-    void func_00119460(u8 *arg0);
     Struct12 tmp = *arg1;
 
     *(Struct12 *)(arg0 + 0x94) = tmp;
@@ -1760,7 +1820,6 @@ void func_00119838(u8 *arg0, Struct12 *arg1)
    rebuilds the frame. */
 void func_00119888(u8 *arg0, Struct12 *arg1)
 {
-    void func_00119460(u8 *arg0);
     Struct12 tmp = *arg1;
 
     *(Struct12 *)(arg0 + 0xAC) = tmp;
@@ -2017,7 +2076,6 @@ INCLUDE_ASM(const s32, "core/main", func_0011A4B0);
 
 s32 func_0011A518(s32 a1)
 {
-    extern s32 D_003930AC;
     s32 *p;
     s32 *v1;
     s32 *v3;
@@ -2159,7 +2217,6 @@ void func_0011B308(s32 a, s32 b, s32 c)
 void func_0011B320(u8 *arg0)
 {
     typedef struct { UnalignedU64 v; u32 w; } S12;
-    extern u8 D_0026F220[];
 
     *(S12 *)D_0026F220 = *(S12 *)arg0;
 }
@@ -2211,10 +2268,7 @@ INCLUDE_ASM(const s32, "core/main", func_0011BC90);
 
 s32 func_0011C090(void)
 {
-    extern s32 func_00193038();
-    extern u8 D_0039343E;
-    extern u8 D_0039343F;
-    extern u8 D_00393440;
+
 
     if (D_0039343E != 0) {
         D_0039343E = 0;
@@ -2263,12 +2317,6 @@ extern s32 D_00393124;
 
 s32 func_0011C558(s32 a1, s32 a2, s32 a3, s32 a4)
 {
-    void func_0011C680();
-    void func_00154AF8();
-    void func_001558C8();
-    void func_00152200();
-    void func_0011C4D8();
-    void func_00151B38();
 
     func_0011C680(D_00393124);
     func_00154AF8();
@@ -2323,11 +2371,9 @@ INCLUDE_ASM(const s32, "core/main", func_0011C680);
 
 s32 func_0011C768(void)
 {
-    extern s32 D_00393148[];
-    extern s32 D_003890C8[];
-    s32 func_0018FE28();
-    s32 func_00192250();
-    s32 func_00190B80();
+
+
+
     if (func_0018FE28((s32)D_00393148, (s32)func_00192250, 0) == 0)
         return 0;
     func_00190B80((s32)D_003890C8);
@@ -2351,20 +2397,6 @@ INCLUDE_ASM(const s32, "core/main", func_0011CC68);
 
 void func_0011CE10(void)
 {
-    extern s32 D_00393134;
-    extern s32 D_00393138;
-    extern f32 D_00392500;
-    extern f32 D_00392504;
-    extern s32 func_0018C5F0();
-    extern s32 func_0018C608();
-    extern s32 func_0018C180();
-    extern s32 func_0018DC88();
-    extern s32 func_0018C5B0();
-    extern s32 func_0018C5E0();
-    extern s32 func_0018C5F8();
-    extern s32 func_0018C900(s32, f32);
-    extern s32 func_0018C820(s32, f32);
-    extern s32 func_0018C660();
     f32 v3[2];
     s32 v0;
     s32 v1;
@@ -2887,7 +2919,6 @@ s32 func_00120950(s32 index)
 
 s32 func_00120978(void)
 {
-    extern s32 D_00330A20[];
     s32 *p = D_00330A20;
     s32 i = 1;
 
@@ -4047,7 +4078,6 @@ INCLUDE_ASM(const s32, "core/main", func_0012A868);
 
 void func_0012ACF0(void *arg0, void *arg1)
 {
-    s32 func_0012A868();
     s32 result = 1;
     if (*(s32 *)arg1 == 1)
         result = func_0012A868(arg0, arg1);
@@ -4074,7 +4104,6 @@ s32 func_0012B698(const s32 *p) { return *(const s32 *)((const u8 *)p + (0)); }
 
 s32 func_0012B6A0(s32 a1)
 {
-    s32 func_00157DE8();
     s32 p;
 
     switch (a1)
@@ -4739,7 +4768,20 @@ INCLUDE_ASM(const s32, "core/main", func_0012D750);
 
 INCLUDE_ASM(const s32, "core/main", func_0012D810);
 
-INCLUDE_ASM(const s32, "core/main", func_0012D888);
+void func_0012D888(s32 a1, s32 a2)
+{
+
+
+
+    u8 v3[96];
+
+    if ((*(s32 *)(a1 + 0xC) & 0x80) == 0) {
+        func_00124738((s32)v3, 5, a2, a2 + 0xC, a2 + 0x18, 0);
+        func_001224F8(a1 + 0xCC, a1 + 0xCC, (s32)v3);
+        if ((*(s32 *)(a1 + 0xC) & 4) != 0)
+            func_00138030(a1);
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0012D900);
 
@@ -4774,7 +4816,417 @@ INCLUDE_ASM(const s32, "core/main", func_0012F518);
 
 INCLUDE_ASM(const s32, "core/main", func_0012F6F0);
 
-INCLUDE_ASM(const s32, "core/main", func_0012F8D8);
+/* ------------------------------------------------------------------------- */
+/* func_0012F8D8 - contact-constrained movement step, obj+0x08 bit 0x10 mode */
+/* (0xFB0 = 4016 bytes)                                                      */
+/* ------------------------------------------------------------------------- */
+/* Called by func_0012BA18 as (obj, ctx, step) when obj+0x08 has bit 0x10 set,
+ * i.e. this is the "mode 0x10" sibling of func_00130888 (bit 0x40).  It uses
+ * exactly the same contact machinery (func_00135530 fills D_003931B0 from the
+ * two probe nodes, func_00135CF8 re-queries, func_00136C08 folds the usable
+ * contacts' offsets, func_0012F180 snaps the result onto a plane) but the
+ * movement it resolves is different: a step along the *path* direction that
+ * the record attached to obj+0x148 provides, and it sub-steps by recursing
+ * until the correction comes out zero.
+ *
+ * Confirmed argument/return use: 2 pointer arguments + 1 float, no return
+ * value read by any caller (the last call leaves whatever the callee left in
+ * $2).  The probe nodes handed to func_00135530 are two 0x54-byte copies of
+ * node B (obj+0xCC): one at the substep start, one at its end.
+ */
+
+/* Callees (declared again before func_00130888 below; they must be declared
+ * here too because that block comes after this function in the file).  The
+ * float parameter of func_0012F180 fixes the register class of arg 7. */
+s32 func_00135530(s32 *, u8 *, u8 *, u8 *, u8 *, u8 *, s32);
+void func_0012F180(f32 *, u8 *, f32 *, f32 *, f32 *, s32, f32);
+s32 func_00136C08(f32 *, u8 *, s32, u8 *, s32);
+s32 func_00135CF8(u8 *, u8 *, s32, u8 *, s32);
+s32 func_00139760(u8 *, u8 *);
+s32 func_0013AB00(s32, u8 *, u8 *, f32 *);
+
+/* Contact-list pointer, the movement-sequence pass counter (already declared
+ * above), and the thresholds this handler reads from the literal pool. */
+extern u8 *D_003931B0;
+extern f32 D_0039269C;          /* 0.45   - minimum substep length          */
+extern f32 D_003926A0;          /* 0.707  - contact is "not facing" above   */
+extern f32 D_003926A4;          /* -0.01  - contact must not be behind us   */
+extern f32 D_003926A8;          /* 0.001  - points coincide epsilon         */
+extern f32 D_003926AC;          /* 0.001  - correction-is-zero epsilon (A)  */
+extern f32 D_003926B0;          /* 0.001  - correction-is-zero epsilon (B)  */
+
+#define MV_COPY54(d, s) (*(UBytes54 *)(d) = *(UBytes54 *)(s))
+#define MV_COPY12(d, s) (*(UBytes12 *)(d) = *(UBytes12 *)(s))
+/* A node written by this handler is either left alone or becomes a
+ * translation-only node (tag 1 -> 2) with a 1.0 homogeneous element. */
+#define MV_TAG2(p)                                                         \
+    do {                                                                   \
+        if (*(u8 *)((p) + 0x50) == 1)                                      \
+            *(u8 *)((p) + 0x50) = 2;                                       \
+    } while (0)
+
+void func_0012F8D8(u8 *obj, u8 *ctx, f32 step)
+{
+    u8  probeA[0x54];           /* sp+0xD4  substep start (node copy)      */
+    u8  probeB[0x54];           /* sp+0x80  substep end   (node copy)      */
+    f32 stepv[3];               /* sp+0x00  len * dir                      */
+    f32 probe[3];               /* sp+0x10  node A translation + tangent   */
+    f32 par[3];                 /* sp+0x20  parallel part (never read)      */
+    f32 tang[3];                /* sp+0x30  tangential part of the delta    */
+    f32 delta[3];               /* sp+0x40  node B translation - node A     */
+    f32 out[3];                 /* sp+0x50  func_0012F180 correction        */
+    f32 defdir[3];              /* sp+0x60  (0,0,1) used when obj+0x148 == 0 */
+    f32 zeropt[3];              /*          stand-in for the address-0 read  */
+    f32 off[3];                 /* sp+0x70  func_00136C08 folded offset     */
+    f32 tgt[3];                 /* sp+0x130 target translation              */
+    s32 count;                  /* sp+0x140 contact count                   */
+    s32 hit;                    /* sp+0x148 coincident-point counter        */
+    s32 stopFlag;               /* sp+0x14C first hit was not type 7/8      */
+    u8 *nodeA = obj + 0x78;
+    u8 *nodeB = obj + 0xCC;
+    u8 *attach;
+    f32 *dir;                   /* path direction (attach+0xD4 / (0,0,1))  */
+    f32 *point;                 /* reference point (attach+0xE0 / hit+0x10) */
+    f32 *nrm;                   /* dir, or the first hit's contact normal   */
+    u8 *firstHit;
+    u8 *best;
+    u8 *c;
+    f32 d;
+    f32 len;
+    u16 f6w;
+    u32 ctrl;
+    u8 *parent;
+    s32 scanEnd;
+    s32 i;
+
+    /* ---- two probe nodes, both seeded from node B ------------------------- */
+    MV_COPY54(probeA, nodeB);
+
+    delta[0] = *(f32 *)(nodeB + 0x30) - *(f32 *)(nodeA + 0x30);
+    delta[1] = *(f32 *)(nodeB + 0x34) - *(f32 *)(nodeA + 0x34);
+    delta[2] = *(f32 *)(nodeB + 0x38) - *(f32 *)(nodeA + 0x38);
+
+    MV_COPY54(probeB, nodeB);
+
+    /* ---- path direction taken from the attached record --------------------
+     * Retail tests `attach + 0xD0 == 0` (a pointer-biased null test, only true
+     * for attach == 0xFFFFFF30) and otherwise reads attach+0xD4 as the
+     * direction and attach+0xE0 as the reference point; the (0,0,1) fallback
+     * vector is built unconditionally in the prologue.  The fallback reference
+     * point is a zero vector here: retail would read low RAM (zeros) at
+     * address 0 in that never-taken case. */
+    defdir[0] = 0.0f;
+    defdir[1] = 0.0f;
+    defdir[2] = 1.0f;
+    zeropt[0] = 0.0f;
+    zeropt[1] = 0.0f;
+    zeropt[2] = 0.0f;
+
+    attach = *(u8 **)(obj + 0x148);
+    if ((u32)attach + 0xD0 == 0)
+    {
+        dir = defdir;
+        point = zeropt;
+    }
+    else
+    {
+        dir = (f32 *)(attach + 0xD4);
+        point = (f32 *)(attach + 0xE0);
+    }
+
+    /* ---- pass budget: the fourth pass of one movement sequence gives up --- */
+    D_003931A4 = D_003931A4 + 1;
+    if ((s32)D_003931A4 >= 4)
+    {
+        MV_TAG2(nodeB);
+        MV_COPY12(nodeB + 0x30, nodeA + 0x30);
+        *(f32 *)(obj + 0x108) = 1.0f;
+        *(f32 *)(obj + 0x3C) = 0.0f;
+        *(f32 *)(obj + 0x40) = 0.0f;
+        *(f32 *)(obj + 0x44) = 0.0f;
+        return;
+    }
+
+    /* ---- substep length: speed * distance, floored at 0.45 ---------------- */
+    len = *(f32 *)(obj + 0x14) * F_SQRT(F_DOT3(delta[0], delta[0],
+                                               delta[1], delta[1],
+                                               delta[2], delta[2]));
+    if (len < D_0039269C)
+        len = D_0039269C;
+
+    /* ---- split the delta into the part along the path and the rest -------- */
+    d = F_DOT3(delta[0], dir[0], delta[1], dir[1], delta[2], dir[2]);
+    par[0] = d * dir[0];
+    par[1] = d * dir[1];
+    par[2] = d * dir[2];
+    tang[0] = delta[0] - par[0];
+    tang[1] = delta[1] - par[1];
+    tang[2] = delta[2] - par[2];
+
+    stepv[0] = len * dir[0];
+    stepv[1] = len * dir[1];
+    stepv[2] = len * dir[2];
+
+    /* ---- substep end probe: node A translation + tangent + step ----------- */
+    probe[0] = *(f32 *)(nodeA + 0x30) + tang[0] + stepv[0];
+    probe[1] = *(f32 *)(nodeA + 0x34) + tang[1] + stepv[1];
+    probe[2] = *(f32 *)(nodeA + 0x38) + tang[2] + stepv[2];
+    MV_TAG2(probeB);
+    MV_COPY12(probeB + 0x30, probe);
+    *(f32 *)(probeB + 0x3C) = 1.0f;
+
+    /* ---- substep start probe: the same without the step ------------------- */
+    probe[0] = *(f32 *)(nodeA + 0x30) + tang[0];
+    probe[1] = *(f32 *)(nodeA + 0x34) + tang[1];
+    probe[2] = *(f32 *)(nodeA + 0x38) + tang[2];
+    MV_TAG2(probeA);
+    MV_COPY12(probeA + 0x30, probe);
+    *(f32 *)(probeA + 0x3C) = 1.0f;
+
+    firstHit = 0;
+    best = 0;
+    stopFlag = 0;
+    hit = 0;
+    scanEnd = 0;
+    count = 0;
+
+    /* ---- contact query over the substep segment --------------------------- */
+    if (func_00135530(&count, D_003931B0, obj, ctx, probeB, probeA, 1) == 0)
+        goto l_reset;                       /* no contacts at all          */
+
+    /* Drop the contacts that do not face the movement. */
+    func_0013AB00(count, D_003931B0, obj, delta);
+
+    /* ---- scan 1: first ceiling-like contact that belongs to this actor ----
+     * "Belongs to us" is bit 0x20 of the scene flags with 0x8000 clear; the
+     * scan stops at the first such contact whose type is not 7 or 8. */
+    for (i = 0; i < count; i++)
+    {
+        c = D_003931B0 + i * 0x68;
+        scanEnd = i + 1;
+        if (*(s16 *)(c + 0x2E) == 0x63)
+            continue;
+        f6w = *(u16 *)(*(u8 **)(c + 0x20) + 0x06);
+        if ((f6w & 0x20) == 0)
+            continue;
+        if ((f6w & 0x8000) != 0)
+            continue;
+        if ((func_00139760(obj, c) & 0xFF) == 0)
+            continue;
+        if (firstHit == 0)
+            firstHit = c;
+        if (*(u16 *)(c + 0x2E) != 7 && *(u16 *)(c + 0x2E) != 8)
+            stopFlag = 1;
+        if (stopFlag != 0)
+            break;
+    }
+
+    /* From here on the first hit supplies both the reference point and the
+     * direction every later dot product uses. */
+    if (firstHit != 0)
+    {
+        nrm = (f32 *)(firstHit + 0x04);
+        point = (f32 *)(firstHit + 0x10);
+    }
+    else
+    {
+        nrm = dir;
+    }
+
+    /* ---- scan 2: first contact ahead of us that is not wall-parallel ------ */
+    for (i = 0; i < count; i++)
+    {
+        c = D_003931B0 + i * 0x68;
+        if (*(s16 *)(c + 0x2E) == 0x63)
+            continue;
+        f6w = *(u16 *)(*(u8 **)(c + 0x20) + 0x06);
+        if ((f6w & 0x20) != 0 && (f6w & 0x8000) == 0)
+            continue;
+        d = F_DOT3(*(f32 *)(c + 0x04), nrm[0], *(f32 *)(c + 0x08), nrm[1],
+                   *(f32 *)(c + 0x0C), nrm[2]);
+        if (!(d < D_003926A0))
+            continue;
+        off[0] = *(f32 *)(c + 0x10) - point[0];
+        off[1] = *(f32 *)(c + 0x14) - point[1];
+        off[2] = *(f32 *)(c + 0x18) - point[2];
+        d = F_DOT3(off[0], nrm[0], off[1], nrm[1], off[2], nrm[2]);
+        if (d > D_003926A4)
+        {
+            best = c;
+            break;
+        }
+    }
+    if (best != 0 && scanEnd < i + 1)
+        scanEnd = i + 1;
+
+    func_00135CF8(obj, ctx, count, D_003931B0, scanEnd - 1);
+
+    /* ======================= no ceiling-like contact ====================== */
+    if (firstHit == 0)
+    {
+        if (best == 0)
+            goto l_reset;
+
+        if (*(f32 *)best < 0.0f && (s32)D_003931A4 >= 3)
+        {
+            /* Far enough into the sequence: fold the usable contacts into an
+             * offset and place the substep end there. */
+            func_00136C08(off, obj, count, D_003931B0, scanEnd);
+            MV_TAG2(probeB);
+            tgt[0] = *(f32 *)(nodeA + 0x30) + off[0];
+            tgt[1] = *(f32 *)(nodeA + 0x34) + off[1];
+            tgt[2] = *(f32 *)(nodeA + 0x38) + off[2];
+            MV_COPY12(probeB + 0x30, tgt);
+            *(f32 *)(obj + 0x108) = 1.0f;
+
+            delta[0] = delta[0] - (tgt[0] - *(f32 *)(nodeA + 0x30));
+            delta[1] = delta[1] - (tgt[1] - *(f32 *)(nodeA + 0x34));
+            delta[2] = delta[2] - (tgt[2] - *(f32 *)(nodeA + 0x38));
+
+            MV_TAG2(probeA);
+            MV_COPY12(nodeA + 0x30, nodeB + 0x30);
+            *(f32 *)(nodeA + 0x3C) = 1.0f;
+        }
+        else
+        {
+            MV_TAG2(probeB);
+            MV_COPY12(probeB + 0x30, nodeA + 0x30);
+            *(f32 *)(obj + 0x108) = 1.0f;
+        }
+
+        func_0012F180(out, obj, delta, nrm, (f32 *)(best + 0x04), 0, step);
+
+        if (fabsf(out[0]) < D_003926B0 && fabsf(out[1]) < D_003926B0 &&
+            fabsf(out[2]) < D_003926B0)
+        {
+            MV_TAG2(probeB);
+            MV_COPY12(probeB + 0x30, nodeA + 0x30);
+            *(f32 *)(obj + 0x108) = 1.0f;
+        }
+        else
+        {
+            /* Correction left over: run another substep. */
+            func_0012F8D8(obj, ctx, step);
+        }
+        func_0013A148(obj, step);
+        return;
+    }
+
+    /* ====================== a ceiling-like contact exists ================== */
+    /* Landing test: a type 7/8 contact, nothing ahead and nothing of ours
+     * beyond it, exactly one contact sharing its point, and bit 2 of the
+     * contact's +0x28 clear -> settle on node A and stop the movement. */
+    if ((*(u16 *)(firstHit + 0x2E) == 7 || *(u16 *)(firstHit + 0x2E) == 8) &&
+        best == 0 && stopFlag == 0)
+    {
+        hit = 0;
+        for (i = 0; i < count; i++)
+        {
+            c = D_003931B0 + i * 0x68;
+            if (*(s16 *)(c + 0x2E) == 0x63)
+                continue;
+            if (fabsf(point[0] - *(f32 *)(c + 0x10)) < D_003926A8 &&
+                fabsf(point[1] - *(f32 *)(c + 0x14)) < D_003926A8 &&
+                fabsf(point[2] - *(f32 *)(c + 0x18)) < D_003926A8)
+                hit = hit + 1;
+        }
+
+        if (hit == 1 && (*(u32 *)(firstHit + 0x28) & 4) == 0)
+        {
+            ctrl = *(u32 *)(obj + 0x0C);
+            if ((ctrl & 0x10) == 0)
+                *(u32 *)(obj + 0x0C) = ctrl | 0x10000;
+            MV_TAG2(probeB);
+            MV_COPY12(probeB + 0x30, nodeA + 0x30);
+            *(f32 *)(obj + 0x108) = 1.0f;
+            goto l_stop;
+        }
+    }
+
+    /* Nothing ahead: park the substep end on the contact's own offset. */
+    if (best == 0)
+    {
+        MV_TAG2(probeB);
+        tgt[0] = *(f32 *)(nodeA + 0x30) + *(f32 *)(firstHit + 0x30);
+        tgt[1] = *(f32 *)(nodeA + 0x34) + *(f32 *)(firstHit + 0x34);
+        tgt[2] = *(f32 *)(nodeA + 0x38) + *(f32 *)(firstHit + 0x38);
+        MV_COPY12(probeB + 0x30, tgt);
+        *(f32 *)(obj + 0x108) = 1.0f;
+        func_0013A148(obj, step);
+        return;
+    }
+
+    /* A contact ahead: fold the contacts' offsets once the sequence is deep
+     * enough, otherwise just snap the end probe back onto node A. */
+    if (*(f32 *)best < 0.0f && (s32)D_003931A4 >= 3)
+    {
+        func_00136C08(off, obj, count, D_003931B0, scanEnd);
+        MV_TAG2(probeB);
+        tgt[0] = *(f32 *)(nodeA + 0x30) + off[0];
+        tgt[1] = *(f32 *)(nodeA + 0x34) + off[1];
+        tgt[2] = *(f32 *)(nodeA + 0x38) + off[2];
+        MV_COPY12(probeB + 0x30, tgt);
+        *(f32 *)(obj + 0x108) = 1.0f;
+
+        delta[0] = delta[0] - (tgt[0] - *(f32 *)(nodeA + 0x30));
+        delta[1] = delta[1] - (tgt[1] - *(f32 *)(nodeA + 0x34));
+        delta[2] = delta[2] - (tgt[2] - *(f32 *)(nodeA + 0x38));
+
+        MV_TAG2(probeA);
+        MV_COPY12(nodeA + 0x30, nodeB + 0x30);
+        *(f32 *)(nodeA + 0x3C) = 1.0f;
+    }
+    else
+    {
+        MV_TAG2(probeB);
+        MV_COPY12(probeB + 0x30, nodeA + 0x30);
+        *(f32 *)(obj + 0x108) = 1.0f;
+    }
+
+    /* Two planes: the first hit's and the best contact's. */
+    func_0012F180(out, obj, delta, nrm, (f32 *)(best + 0x04), 0, step);
+
+    if (fabsf(out[0]) < D_003926AC && fabsf(out[1]) < D_003926AC &&
+        fabsf(out[2]) < D_003926AC)
+    {
+        MV_TAG2(probeB);
+        MV_COPY12(probeB + 0x30, nodeA + 0x30);
+        *(f32 *)(obj + 0x108) = 1.0f;
+        func_0013A148(obj, step);
+        return;
+    }
+
+    /* Correction left over: run another substep, then close the step. */
+    func_0012F8D8(obj, ctx, step);
+    func_0013A148(obj, step);
+    return;
+
+l_reset:
+    /* The substep never moved: node B becomes a copy of node A. */
+    MV_COPY54(nodeB, nodeA);
+
+l_stop:
+    *(f32 *)(obj + 0x3C) = 0.0f;
+    *(f32 *)(obj + 0x40) = 0.0f;
+    *(f32 *)(obj + 0x44) = 0.0f;
+    ctrl = *(u32 *)(obj + 0x0C);
+    if ((ctrl & 0x10) == 0)
+    {
+        ctrl = ctrl | 0x10000;
+        *(u32 *)(obj + 0x0C) = ctrl;
+    }
+    /* Bit 0x4000 keeps the attached record's transform in sync with its own
+     * first word (retail copies *(u32 *)attach into *(u32 *)(attach + 4)). */
+    if ((ctrl & 0x4000) != 0)
+    {
+        parent = *(u8 **)(obj + 0x148);
+        *(u32 *)(parent + 0x04) = *(u32 *)parent;
+    }
+}
+
+#undef MV_COPY54
+#undef MV_COPY12
+#undef MV_TAG2
 
 
 /* Source: math/region_0013.c */
