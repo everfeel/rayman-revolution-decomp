@@ -15,6 +15,7 @@ typedef struct __attribute__((packed)) {
     u64 value;
     u32 extra;
 } UnalignedU96;
+typedef struct { UnalignedU64 v; u32 w; } S12_flash;
 
 /* Plain 12-byte record; the codegen for copying it is the ldl/ldr + sdl/sdr
    doubleword pair plus a trailing word, which is what retail does. */
@@ -246,12 +247,14 @@ INCLUDE_ASM(const s32, "core/main", func_0010DD18);
 
 void func_0010DE30(s32 arg0)
 {
-    u8 *base = (u8 *)D_00393C00;
+    s32 base = D_00393C00;
     s32 *counter = (s32 *)((u8 *)&D_00393C00 + 8);
 
-    if (arg0 != (s32)(base + 0x8000))
-        ((s16 *)D_003947A8)[(arg0 - (s32)base) >> 6] = 0;
-    *counter = *counter - 1;
+    /* Test the offset, not base + 0x8000: identical result modulo 2^32 and one
+       instruction shorter, which keeps the function inside its retail slot. */
+    if (arg0 - base != 0x8000)
+        D_003947A8[(arg0 - base) >> 6] = 0;
+    counter[0] = counter[0] - 1;
 }
 
 INCLUDE_ASM(const s32, "core/main", func_0010DE70);
@@ -260,7 +263,25 @@ INCLUDE_ASM(const s32, "core/main", func_0010DED0);
 
 INCLUDE_ASM(const s32, "core/main", func_0010E638);
 
-INCLUDE_ASM(const s32, "core/main", func_0010E8B0);
+extern s32 D_003932D0;
+extern s32 func_0010E8B0();
+
+s32 func_0010E8B0(u32 *a1)
+{
+  s32 result;
+  s32 v3;
+
+  result = *a1 & 9LL;
+  if ( result != 0 )
+  {
+    func_001224F8((s32)a1[9], *(s32 *)(a1[7] + 36), (s32)a1[8]);
+    v3 = (s32)a1[2];
+    result = D_003932D0;
+    for ( a1[10] = result; v3 != 0; v3 = *(s32 *)(v3 + 20) )
+      result = func_0010E8B0(v3);
+  }
+  return result;
+}
 
 s32 func_0010E920(s32 a1)
 {
@@ -479,7 +500,21 @@ extern u8 D_003930E2;
 extern f32 D_003930F0;
 extern s32 D_00393130;
 
-INCLUDE_ASM(const s32, "core/main", func_00110F78);
+extern u8 D_0034A34B[];
+extern s32 func_00226B48();
+extern s32 func_00227040();
+extern void func_00226A34();
+
+void func_00110F78(s32 a1)
+{
+    if ((u32)func_00226B48(a1) < 7) {
+        func_00226A34(D_0034A34B, a1);
+        return;
+    }
+    func_00227040(D_0034A34B, a1, 6);
+    D_0034A34B[6] = 0;
+}
+
 
 /* Arrays (not scalars) so the compiler addresses them absolutely instead of
  * gp-relative, like the retail code does. */
@@ -521,7 +556,19 @@ u16 func_00111008(void)
     return D_0034A348[0];
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00111018);
+extern s32 func_00226B48(void *);
+extern s32 func_00227040(u8 *, s32, s32);
+
+void func_00111018(s32 a1)
+{
+    if ((u32)func_00226B48((void *)a1) < 0xC) {
+        func_00226A34(D_0034A35C, a1);
+        return;
+    }
+    func_00227040(D_0034A35C, a1, 0xB);
+    D_0034A35C[0xB] = 0;
+}
+
 
 /* Address of a byte-sized table. */
 u8 *func_00111088(void)
@@ -779,7 +826,25 @@ s32 func_00112370(s32 arg0, s32 arg1)
     return func_001123B0(arg0) == arg1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001123B0);
+extern s32 D_0025222C[];
+
+s32 func_001123B0(u8 *arg0)
+{
+    u8 *a;
+    u8 *b;
+    s32 idx;
+
+    if (arg0 == 0) goto zero;
+    a = *(u8 **)(arg0 + 4);
+    b = *(u8 **)(a + 4);
+    if (b == 0) goto zero;
+    if (a != 0) goto lookup;
+zero:
+    return 0;
+lookup:
+    idx = *(u16 *)(b + 0x12) - 0x8000;
+    return *(s32 *)(D_0025222C[0] + idx * 4);
+}
 
 /* Sets the startup state. */
 void func_001123F8(u8 state)
@@ -988,7 +1053,26 @@ INCLUDE_ASM(const s32, "core/main", func_00112E98);
 
 INCLUDE_ASM(const s32, "core/main", func_00112F10);
 
-INCLUDE_ASM(const s32, "core/main", func_00112F88);
+void func_00112F88(u32 *arg0, u16 arg1, s32 arg2)
+{
+    u8 *obj = (u8 *)*arg0;
+    u8 *base = (u8 *)*(u32 *)(obj + 0x88);
+    s32 count;
+    u8 v;
+    if (base == 0) return;
+    v = (u8)arg2;
+    count = *(s32 *)(obj + 0x8C);
+    if (arg1 == 0xFFFF) goto loop;
+    *(u8 *)(base + arg1 * 0x20 + 0x10) = v;
+    return;
+loop:
+    {
+        u8 *end = base + count * 0x20;
+        u8 *p;
+        for (p = base; (u32)p < (u32)end; p += 0x20)
+            *(u8 *)(p + 0x10) = v;
+    }
+}
 
 void func_00112FF8(u8 *arg0, u8 arg1)
 {
@@ -1178,7 +1262,23 @@ INCLUDE_ASM(const s32, "core/main", func_00114110);
 
 INCLUDE_ASM(const s32, "core/main", func_00114208);
 
-INCLUDE_ASM(const s32, "core/main", func_001143C8);
+extern void func_00121888(u8 *, u8 *);
+extern void func_00121278(f32 *, u8 *, f32 *);
+extern s32 func_00210940(f32 *, s32);
+
+s32 func_001143C8(s32 a1, s32 a2, s32 a3)
+{
+    u8 v6[96];
+    f32 v7[4];
+    s32 one = 1;
+
+    if (((*(u8 *)(*(s32 *)(*(s32 *)(a3 + 4) + 4) + 52) >> 2) & 1) != one)
+        return 0;
+    func_00121888(v6, (u8 *)a2);
+    func_00121278(v7, v6, (f32 *)(*(s32 *)(a3 + 36) + 48));
+    return func_00210940(v7, a1);
+}
+
 
 s32 func_00114448(u8 arg0, u8 *arg1)
 {
@@ -1244,7 +1344,22 @@ s32 func_001146B8(void)
     return func_00157DE8(D_0039347C, 0x8);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001146D8);
+extern s32 func_00114110(s32, u8, u8);
+extern s32 func_00114768(s32, s32, s32, s32, u16, u16, int *);
+
+u16 func_001146D8(s32 a1, u8 a2, s32 a3, u16 *a4, u16 a5)
+{
+    u16 v9 = *a4;
+    int st = 0;
+    s32 v10 = func_00114110(a1, 2, a2 - 1);
+    u16 r;
+
+    if (v10 != 0)
+        func_00114768(a1, v10, *(s32 *)((u8 *)a1 + 0x24), a3, a5, v9, &st);
+    r = (u16)st;
+    *a4 = r;
+    return r;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00114768);
 
@@ -1298,7 +1413,26 @@ INCLUDE_ASM(const s32, "core/main", func_001152E0);
 
 INCLUDE_ASM(const s32, "core/main", func_00115438);
 
-INCLUDE_ASM(const s32, "core/main", func_00115620);
+extern s32 func_00114110(s32, u8, u8);
+extern void func_00115438(s32, s32, s32, s32, u16, s32 *);
+
+s32 func_00115620(s32 a1, s32 a2, s32 a3, u16 *a4)
+{
+    s32 v10[4];
+    u8 c = a2 - 1;
+    s32 v8;
+    u16 v7 = *a4;
+    s32 result;
+
+    v10[0] = 0;
+    v8 = func_00114110(a1, 0, c);
+    if (v8 != 0)
+        func_00115438(a1, v8, *(s32 *)(a1 + 36), a3, v7, v10);
+    result = (u16)v10[0];
+    *a4 = v10[0];
+    return result;
+}
+
 
 extern u32 D_00392F38;
 
@@ -1474,7 +1608,17 @@ s32 func_00116ED0(s32 arg0, s32 arg1, s16 arg2)
 
 INCLUDE_ASM(const s32, "core/main", func_00116F00);
 
-INCLUDE_ASM(const s32, "core/main", func_00117000);
+typedef struct { UnalignedU64 a, b, c; u32 d; } S28;
+
+s32 func_00117000(s16 a1, u8 *out)
+{
+    u8 *p = (u8 *)func_00116E58(a1);
+
+    if (p == 0)
+        return 0;
+    *(S28 *)out = *(S28 *)p;
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00117078);
 
@@ -1515,9 +1659,44 @@ INCLUDE_ASM(const s32, "core/main", func_001176C0);
 
 INCLUDE_ASM(const s32, "core/main", func_00117900);
 
-INCLUDE_ASM(const s32, "core/main", func_001179A0);
+s32 func_001179A0(s16 a1)
+{
+    s32 v1 = a1;
+    s32 v2 = 0x10000;
+    s32 v3 = func_00116E58(a1);
+    s32 *v4 = (s32 *)(v3 + 28);
+    s32 cur;
+    s32 v5;
 
-INCLUDE_ASM(const s32, "core/main", func_00117A60);
+    do {
+        if (*v4 != 0) {
+            func_00224B88(*v4, 0xCCu, 0x74u);
+            *v4 = 0;
+        }
+        ++v4;
+        cur = v2;
+        v2 += 0x10000;
+        v5 = (cur >> 16) < 16;
+    } while (v5);
+    func_00224B88(v3, 0xCCu, 0x7Cu);
+    func_0014CBE8(D_0039347C, v3);
+    D_00258038[v1] = 0;
+    return 1;
+}
+
+s32 func_00117A60(s32 a1, s16 a2, s32 a3)
+{
+    s32 neg1 = -1;
+    s32 v4 = a2 + 15;
+    s32 v6;
+
+    if (neg1 < a2)
+        v4 = a2;
+    v6 = v4 >> 4;
+    func_00116E58(v6);
+    *(s32 *)(func_00116E28(v6, (s16)(a2 - 16 * v6)) + 0x68) = a3;
+    return 1;
+}
 
 s32 func_00117AD8(s16 arg0, s16 arg1)
 {
@@ -1681,7 +1860,12 @@ void func_00119260(s32 unused, s32 value)
 
 void func_00119280(void) { D_00393098 = 0; }
 
-INCLUDE_ASM(const s32, "core/main", func_00119288);
+void func_00119288(u8 arg0)
+{
+    s32 i;
+    for (i = 0; i < D_00393098; i++)
+        *(u8 *)(D_0026DFB8[i] + 0x84) = arg0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001192D0);
 
@@ -2101,7 +2285,25 @@ s32 func_0011A518(s32 a1)
     return 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0011A5A0);
+void func_0011A5A0(void)
+{
+    s32 pos = 0x10000;
+    s32 cur;
+    u8 *p = (u8 *)D_0026BEE8;
+    s32 count;
+
+    D_00393094 = 0;
+    do {
+        func_00120D48((s32)p);
+        p += 0x54;
+        cur = pos;
+        pos += 0x10000;
+    } while ((cur >> 16) < 100);
+
+    count = D_00393094;
+    D_00393094 = count + 1;
+    D_00393090 = (s32)(D_0026BEE8 + count * 0x54);
+}
 
 void func_0011A630(void)
 {
@@ -2175,10 +2377,10 @@ void func_0011B0D8(void)
 
 void func_0011B0E8(u8 *arg0, u8 *arg1, f32 arg2)
 {
-    *(u32 *)(D_0026F1E0 + 8) = *(u32 *)(arg1 + 8);
-    *(UnalignedU64 *)D_0026F1E0 = *(UnalignedU64 *)arg1;
+    *(S12_flash *)D_0026F1E0 = *(S12_flash *)arg1;
     D_003930F8 = arg2;
 }
+
 
 void func_0011B110(void) { D_003930F4 |= 1; }
 
@@ -2253,9 +2455,49 @@ INCLUDE_ASM(const s32, "core/main", func_0011B960);
 
 INCLUDE_ASM(const s32, "core/main", func_0011BA28);
 
-INCLUDE_ASM(const s32, "core/main", func_0011BB78);
+void func_0011BB78(void)
+{
+    if (D_0039343F == 0) {
+        func_00193038(8, 1);
+        D_0039343F = 1;
+    }
+    {
+        s32 four = 4;
+        if (D_0039343E != four) {
+            func_00193038(0xC, 0);
+            func_00193038(0xB, 1);
+            func_00193038(0xA, 2);
+            D_0039343E = four;
+        }
+    }
+}
 
-INCLUDE_ASM(const s32, "core/main", func_0011BBE8);
+extern s32 func_0018C450();
+extern void func_0011BB78();
+extern void func_0011B960();
+extern void func_0018C470();
+
+s32 func_0011BBE8(void)
+{
+    s32 result = 0;
+
+    if (func_0018C450(D_00393130) == 0)
+        return result;
+    func_0011BB78();
+    if (D_0039343E != 0)
+    {
+        s32 one = 1;
+        D_0039343E = 0;
+        func_00193038(6, 1);
+        D_00393440 = one;
+        func_00193038(8, 1);
+        D_0039343F = one;
+        D_0039343E = 0;
+    }
+    func_0011B960();
+    func_0018C470(D_00393130);
+    return 1;
+}
 
 s32 func_0011BC68(void)
 {
@@ -2438,7 +2680,28 @@ INCLUDE_ASM(const s32, "core/main", func_0011D320);
 
 INCLUDE_ASM(const s32, "core/main", func_0011D380);
 
-INCLUDE_ASM(const s32, "core/main", func_0011D4C0);
+extern s32 func_001C4128(s32 arg0, s32 arg1, s32 arg2);
+
+s32 func_0011D4C0(u32 arg0, s32 arg1, s32 arg2, s32 *arg3)
+{
+    s32 v;
+    s32 sum;
+    s32 result;
+
+    v = func_001C4128(*arg3, arg0, arg1 * arg2);
+    result = 0;
+    if (v != -1)
+    {
+        sum = arg3[1] + v;
+        arg3[1] = sum;
+        if (arg3[2] < sum)
+            arg3[2] = sum;
+        result = 0;
+        if (arg1 != 0)
+            return v / (u32)arg1;
+    }
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0011D550);
 
@@ -2508,7 +2771,17 @@ s32 func_0011DAE0(s32 arg0, u16 arg1)
     return func_0011DB90(p, arg1);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0011DB20);
+s32 func_0011DBC8(s32, u16);
+
+s32 func_0011DB20(s32 arg0, u16 arg1)
+{
+    u32 v;
+
+    if (arg1 == 0) return 1;
+    v = (u32)func_0011DAD8((u8 *)arg0);
+    if (v == 0 || v == 0xFFFFFFFFu) return 0;
+    return func_0011DBC8((s32)v, arg1);
+}
 
 void func_0011DB78(s16 *p, s16 value) { p[0] = value; }
 
@@ -2817,7 +3090,12 @@ INCLUDE_ASM(const s32, "core/main", func_00120130);
 
 INCLUDE_ASM(const s32, "core/main", func_001201B8);
 
-INCLUDE_ASM(const s32, "core/main", func_00120270);
+void func_00120270(void)
+{
+    u32 i;
+    for (i = 0; i < (u32)D_00330A18[18]; i++)
+        *(s32 *)((i * 24) + D_00330A18[19] + 12) = -2;
+}
 
 s32 func_001202B8(s32 *p)
 {
@@ -2853,9 +3131,53 @@ void func_00120388(u8 *p)
 
 void func_001203A0(s32 *p, s32 value) { p[3] = value; }
 
-INCLUDE_ASM(const s32, "core/main", func_001203A8);
+s32 func_001203A8(void)
+{
+    u8 *base;
+    u32 i;
+    s32 *p;
+    u8 *q;
 
-INCLUDE_ASM(const s32, "core/main", func_00120428);
+    base = (u8 *)D_00330A18;
+    i = 2;
+    p = (s32 *)(base + 8);
+    q = base + 0x59;
+    do {
+        i++;
+        if ((u32)(*q - 3) < 2) {
+            *q = 1;
+            func_0011DDE8(*p);
+        }
+        p++;
+        q++;
+    } while (i < 0x12);
+    return i < 0x12;
+}
+
+extern s32 func_0011DD60();
+
+s32 func_00120428(void)
+{
+    s32 one = 1;
+    s32 four = 4;
+    s32 i = 2;
+    u8 *base = D_00330A18;
+    s32 *v1 = (s32 *)(base + 8);
+    u8 *v2 = base + 0x59;
+    s32 r;
+
+    do {
+        i++;
+        if (*v2 == one) {
+            *v2 = four;
+            func_0011DD60(*v1);
+        }
+        v1++;
+        v2++;
+        r = (u32)i < 0x12;
+    } while ((u32)i < 0x12);
+    return r;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001204A8);
 
@@ -2879,7 +3201,42 @@ s32 func_00120748(void)
     return func_00157DE8(D_0039347C, 0x10);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00120768);
+extern s32 D_00393188;
+
+s32 func_00120768(arg0, arg1)
+u16 arg0;
+u8 arg1;
+{
+    s32 result = 0;
+    s32 count = 0;
+    u16 *base = (u16 *)D_00393188;
+    u16 *p;
+    u16 v;
+    u16 *q;
+
+    if (base[0] != 0xFFFF && arg0 != base[0])
+    {
+        p = base;
+        for (;;)
+        {
+            p += 6;
+            v = *p;
+            count++;
+            if (v == 0xFFFF) break;
+            if (arg0 == v) break;
+        }
+    }
+
+    q = (count * 6) + base;
+    if (*q != 0xFFFF)
+    {
+        if (arg1 == 0)
+            result = *(s32 *)((u8 *)q + 4);
+        else if (arg1 == 1)
+            result = *(s32 *)((u8 *)q + 8);
+    }
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001207E8);
 
@@ -2944,9 +3301,53 @@ s32 func_001209C0(s32 index, s32 mask)
     return (~*(u32 *)(field + 4) & mask) == 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001209F0);
+s32 func_00214F20(void *);
 
-INCLUDE_ASM(const s32, "core/main", func_00120A50);
+s32 func_001209F0(s32 arg0, s32 arg1)
+{
+    s32 idx = arg0 + 2;
+    u8 *e = *(u8 **)((u8 *)D_00330A18 + idx * 4);
+    s32 v = *(s32 *)(*(u8 **)(e + 8) + 4);
+    s32 m = v & arg1;
+    s32 r = 0;
+
+    if (m == arg1)
+    {
+        s32 t = func_00214F20((void *)e);
+        t &= m;
+        r = t != m;
+    }
+    return r;
+}
+
+s32 func_00120A50(void)
+{
+    s32 i = 1;
+    u32 base = (u32)D_00330A18;
+    s32 **p = (s32 **)(base + 0xC);
+    s32 val;
+
+    do
+    {
+        val = D_00393184 >> i;
+        if ((val & 1) != 0)
+        {
+            i = i - 1;
+        }
+        else if ((*(s32 *)(*(s32 *)((u8 *)*p + 8) + 4) & 8) != 0)
+        {
+            i = i - 1;
+        }
+        else
+        {
+            if ((func_00214F20(*p) & 8) != 0)
+                return i;
+            i = i - 1;
+        }
+        p = (s32 **)((u8 *)p - 4);
+    } while (i >= 0);
+    return -1;
+}
 
 s32 func_00120AD8(void)
 {
@@ -3007,7 +3408,27 @@ void func_00120C68(s32 index)
     func_0011E1E8(D_00330A18[index + 2]);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00120C88);
+s32 func_00120C88(void)
+{
+    s32 result = -1;
+    s32 i;
+    s32 mask;
+    s32 v;
+
+    for (i = D_00393180 - 1; i >= 0; i--)
+    {
+        mask = 1 << i;
+        if (func_00120950(i) == 0)
+        {
+            D_00393184 &= ~mask;
+            func_00120C68(i);
+        }
+        v = D_00393184 & mask;
+        if (v == 0)
+            result = i;
+    }
+    return result;
+}
 
 void func_00120D18(void)
 {
@@ -3300,7 +3721,33 @@ INCLUDE_ASM(const s32, "core/main", func_001224F8);
 
 INCLUDE_ASM(const s32, "core/main", func_001232E8);
 
-INCLUDE_ASM(const s32, "core/main", func_001241D8);
+void func_001241D8(u8 *arg0, f32 *arg1)
+{
+    s32 state;
+    f32 v3;
+    f32 v4;
+
+    state = arg0[0x50];
+    if (state == 1)
+        goto hy4x_case1;
+    if (state != 0)
+    {
+        if (state < 9)
+        {
+            v3 = *(f32 *)(arg0 + 52);
+            v4 = *(f32 *)(arg0 + 56);
+            *(f32 *)(arg0 + 48) = *(f32 *)(arg0 + 48) + arg1[0];
+            *(f32 *)(arg0 + 52) = v3 + arg1[1];
+            *(f32 *)(arg0 + 56) = v4 + arg1[2];
+            return;
+        }
+    }
+    return;
+hy4x_case1:
+    arg0[0x50] = 2;
+    *(S12_flash *)(arg0 + 48) = *(S12_flash *)arg1;
+    *(f32 *)(arg0 + 60) = 1.0f;
+}
 
 /* The matrix macros above are #undef'd before func_001224F8; the classifier
  * below needs the field accessor again. */
@@ -3646,7 +4093,29 @@ INCLUDE_ASM(const s32, "core/main", func_001278D0);
 
 INCLUDE_ASM(const s32, "core/main", func_001279E8);
 
-INCLUDE_ASM(const s32, "core/main", func_00127A68);
+static inline f32 hy4xI_sqrt(f32 x)
+{
+    __asm__ volatile ("sqrt.s %0,%0" : "+f"(x));
+    return x;
+}
+
+f32 func_00127A68(u8 *p)
+{
+    u8 m = p[0x50];
+
+    /* If-chain, not switch: gcc would emit a jump table into .rdata, which the
+       link script folds into .main and pushes it past its retail end. */
+    if ((u32)(m - 1) < 8) {
+        if ((u32)(m - 3) < 2)
+            return *(f32 *)(p + 0x44);
+        if (m >= 6)
+            return hy4xI_sqrt(*(f32 *)(p + 0x4) * *(f32 *)(p + 0x4)
+                            + *(f32 *)(p + 0x14) * *(f32 *)(p + 0x14)
+                            + *(f32 *)(p + 0x24) * *(f32 *)(p + 0x24));
+        return 1.0f;
+    }
+    return 0.0f;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00127AE8);
 
@@ -4808,7 +5277,474 @@ void func_0012E110(u8 *arg0, f32 arg1)
 
 INCLUDE_ASM(const s32, "core/main", func_0012E138);
 
-INCLUDE_ASM(const s32, "core/main", func_0012E260);
+/* ------------------------------------------------------------------------- */
+/* func_0012E260 - contact-constrained movement against a caller-given list   */
+/* (0xF20 = 3872 bytes)                                                      */
+/* ------------------------------------------------------------------------- */
+/* Called as (obj, ctx, count, contacts, step).  Same machinery as
+ * func_0012F8D8 / func_00130888 (contact records of 0x68 bytes, "type" word at
+ * +0x2E whose 0x63 value means "already handled", func_00139708 probe,
+ * func_00135CF8 re-query, func_00136C08 offset fold, func_0013A148 commit) but
+ * the contact list is the 4th argument instead of D_003931B0, and the motion
+ * resolved here is the pair of node translations the caller left behind:
+ *   delta = nodeB(translation obj+0xFC) - nodeA(translation obj+0xA8).
+ *
+ * Behaviour, in order:
+ *   1. D_003931A4++ (the contact-pass counter func_0012F8D8 limits to 4).
+ *   2. obj+0x0C bit 0x40 clear: find the first usable contact (skipping type
+ *      0x63 and the "both owners carry 0x4000" pair contacts) that
+ *      func_00139708 accepts -> probe/probeIdx.  Bit 0x40 set: instead mark
+ *      every contact func_00139708 accepts as type 0x63.
+ *   3. probe && obj+0x0C bit 0x100000 && !(D_00330ED0 bit 6): func_00131D78,
+ *      clear D_00330ED0 bit 6 and leave without touching the nodes.
+ *   4. first type!=0x63 contact -> first/firstIdx; across all live contacts
+ *      note the first pair contact (firstPair) and whether all of them are
+ *      type 7 or 8 (all78).  No live contact at all -> plain return.
+ *   5. firstIdx = min(firstIdx, probeIdx), then max(firstIdx, firstPair), then
+ *      func_00135CF8(obj, ctx, count, contacts, firstIdx).
+ *   6. Contact normal: if all78 && !(obj+0x0C bit 0x40) the normal is the
+ *      normalised sum of every live contact normal (falling back to the first
+ *      contact's own normal when the sum is zero), otherwise it is simply the
+ *      first contact's normal at +0x04.
+ *   7. Motion direction: with s28 = func_00139828(obj, first) and
+ *      s58 = func_00139858(obj, first),
+ *         q   = -(delta . n)
+ *         t1  = delta + q*n            (delta's tangential part)
+ *         t2  = t1 + q*n               (its mirror image)
+ *         dir = s28*t1 + s58*t2
+ *      and udelta = delta/|delta| (left at zero when |delta| < 0.001).
+ *   8. obj+0x08 bit 0x100 && the contact normal is horizontal (|n.z| <=
+ *      obj+0x18, the "wall" case) && dir.z != 0:  t = delta.z/dir.z;
+ *      -1 < t <= 1 scales dir by t; t > 1 rebuilds dir inside the
+ *      {axisB x n, n x (axisB x n), n} frame so that its z component lands on
+ *      delta.z.  Everything else is left alone.
+ *   9. pos = nodeB translation + func_00136C08 offset (the offset's z is
+ *      dropped when obj+0x0C has bit 0x400000), except for the "type 7/8 with
+ *      a negative distance and facing the contact" special case, which uses
+ *      node A's translation instead.  With bit 0x100000 a pos.z above
+ *      D_003931B4-1.2 is clamped back to node A's z and floorHit is set.
+ *  10. dir2 = (1 - contact->distance) * dir (zero when the distance is
+ *      negative), clipped to the contact's +0x54 length; floorHit flattens
+ *      dir2 onto the XY plane.
+ *  11. node B translation = pos + dir2 (or pos alone depending on the
+ *      separation/floor/probe tests below), tag 1 -> 2, +0x3C = 1.0;
+ *      node A translation = nodeB - dir, tag 1 -> 2, +0x3C = 1.0;
+ *      with obj+0x0C bit 0x04 node C (obj+0x280) translation = node A's,
+ *      tag 1 -> 2, +0x3C = 1.0.  Then func_0013A148(obj, step).
+ *
+ * The 0x100000 early-out returns "-65" in Hex-Rays only because the caller's
+ * $v0 holds func_00131D78's result there; no caller reads the value. */
+
+s32 func_00139708(u8 *, f32 *);
+f32 func_00139858(u8 *, void *);
+s32 func_00135CF8(u8 *, u8 *, s32, u8 *, s32);
+s32 func_00136C08(f32 *, u8 *, s32, u8 *, s32);
+
+extern f32 D_00392668;          /* 0.001  - "flat" direction epsilon         */
+extern f32 D_0039266C;          /* 0.001  - "no delta" epsilon               */
+extern f32 D_00392670;          /* -0.42  - dot limit for entering a contact */
+extern f32 D_00392674;          /* 1.2    - ceiling margin                   */
+extern f32 D_00392678;          /* 0.001  - horizontal epsilon               */
+extern f32 D_0039267C;          /* 0.001  - "clear of the plane" epsilon     */
+extern f32 D_003931B4;          /* movement ceiling (z)                      */
+
+/* A node written by this handler is either left alone or becomes a
+ * translation-only node (tag 1 -> 2) with a 1.0 homogeneous element. */
+#define ME_TAG2(p)                                                            \
+    do {                                                                      \
+        if (*(u8 *)((p) + 0x50) == 1)                                         \
+            *(u8 *)((p) + 0x50) = 2;                                          \
+    } while (0)
+#define ME_COPY12(d, s) (*(UBytes12 *)(d) = *(UBytes12 *)(s))
+
+void func_0012E260(u8 *obj, u8 *ctx, s32 count, u8 *contacts, f32 step)
+{
+    u8 *nodeA = obj + 0x78;
+    u8 *nodeB = obj + 0xCC;
+    u8 *nodeC = obj + 0x280;            /* only used with obj+0x0C bit 0x04 */
+    f32 *pa = (f32 *)(obj + 0xA8);      /* node A translation               */
+    f32 *pb = (f32 *)(obj + 0xFC);      /* node B translation               */
+    f32 acc[3];                         /* sum of live contact normals      */
+    f32 off[3];                         /* func_00136C08 offset fold        */
+    f32 axisB[3];
+    f32 delta[3];
+    f32 udelta[3];
+    f32 dir[3];
+    f32 dir2[3];
+    f32 t1[3];
+    f32 t2[3];
+    f32 pos[3];
+    f32 npos[3];
+    f32 tmp[3];
+    f32 *n;
+    u8 *c;
+    u8 *first = 0;                      /* first contact that is not 0x63   */
+    u8 *probe = 0;                      /* first contact func_00139708 likes */
+    s32 firstIdx = 0;
+    s32 probeIdx = 0;
+    s32 firstPair = 0;                  /* first "pair" contact index       */
+    s32 all78 = 1;                      /* all live contacts are type 7/8   */
+    s32 wall;                           /* contact normal is horizontal-ish */
+    s32 floorFlag;                      /* contact normal points up         */
+    s32 floorHit = 0;                   /* pos.z was clamped to node A's    */
+    s32 writeNpos;
+    s32 i;
+    f32 s28;
+    f32 s58;
+    f32 dot;
+    f32 q;
+    f32 len;
+    f32 d;
+
+    D_003931A4 = D_003931A4 + 1;
+
+    /* The zero fills are spelled out: an aggregate initialiser is lowered to
+     * memset(), which this module does not link. */
+    acc[0] = 0.0f;
+    acc[1] = 0.0f;
+    acc[2] = 0.0f;
+    off[0] = 0.0f;
+    off[1] = 0.0f;
+    off[2] = 0.0f;
+    udelta[0] = 0.0f;
+    udelta[1] = 0.0f;
+    udelta[2] = 0.0f;
+    axisB[0] = 0.0f;
+    axisB[1] = 0.0f;
+    axisB[2] = 1.0f;
+
+    /* 1./2. contact pre-pass */
+    if ((*(u32 *)(obj + 0x0C) & 0x40) == 0)
+    {
+        for (i = 0; i < count && probe == 0; i++)
+        {
+            c = contacts + i * 0x68;
+            if (*(s16 *)(c + 0x2E) == 0x63)
+                continue;
+            if ((*(u16 *)(*(u32 *)(c + 0x20) + 0x06) & 0x4000) != 0 &&
+                (*(u16 *)(*(u32 *)(c + 0x1C) + 0x06) & 0x4000) != 0)
+                continue;
+            if ((func_00139708(obj, (f32 *)(c + 0x04)) & 0xFF) == 0)
+                continue;
+            probe = c;
+            probeIdx = i;
+        }
+    }
+    else
+    {
+        for (i = 0; i < count; i++)
+        {
+            c = contacts + i * 0x68;
+            if (*(s16 *)(c + 0x2E) == 0x63)
+                continue;
+            if ((func_00139708(obj, (f32 *)(c + 0x04)) & 0xFF) == 0)
+                continue;
+            *(s16 *)(c + 0x2E) = 0x63;
+        }
+    }
+
+    /* 3. hard contact while the caller asked to give up: hand over to
+     * func_00131D78 once per D_00330ED0 bit-6 episode. */
+    if (probe != 0 && (*(u32 *)(obj + 0x0C) & 0x100000) != 0)
+    {
+        if ((U_D30ED0 & 0x40) == 0)
+        {
+            func_00131D78(obj, ctx, step);
+            U_D30ED0 = U_D30ED0 & ~0x40u;
+            return;
+        }
+    }
+
+    /* 4. first live contact, first pair contact, "all of them are 7/8" */
+    for (i = 0; i < count && first == 0; i++)
+    {
+        c = contacts + i * 0x68;
+        if (*(s16 *)(c + 0x2E) == 0x63)
+            continue;
+        first = c;
+        firstIdx = i;
+    }
+
+    for (i = 0; i < count; i++)
+    {
+        s32 pair = 0;
+        s32 idx;
+
+        c = contacts + i * 0x68;
+        if (*(s16 *)(c + 0x2E) == 0x63)
+            continue;
+        if ((*(u16 *)(*(u32 *)(c + 0x20) + 0x06) & 0x4000) != 0)
+            pair = (*(u16 *)(*(u32 *)(c + 0x1C) + 0x06) & 0x4000) != 0;
+        idx = (firstPair != 0) ? firstPair : i;
+        if (pair)
+            firstPair = idx;
+        if ((u16)(*(u16 *)(c + 0x2E) - 7) >= 2)
+            all78 = 0;
+    }
+
+    if (first == 0)
+        return;
+
+    /* 5. agree on the contact the machinery works from */
+    if (probe != 0)
+    {
+        if (firstIdx < probeIdx)
+            probeIdx = firstIdx;
+        firstIdx = probeIdx;
+    }
+    if (firstIdx < firstPair)
+        firstIdx = firstPair;
+    func_00135CF8(obj, ctx, count, contacts, firstIdx);
+
+    /* 6. the plane the motion is resolved against */
+    if (all78 != 0 && (*(u32 *)(obj + 0x0C) & 0x40) == 0)
+    {
+        for (i = 0; i < count; i++)
+        {
+            c = contacts + i * 0x68;
+            if (*(s16 *)(c + 0x2E) == 0x63)
+                continue;
+            acc[0] = acc[0] + *(f32 *)(c + 0x04);
+            acc[1] = acc[1] + *(f32 *)(c + 0x08);
+            acc[2] = acc[2] + *(f32 *)(c + 0x0C);
+        }
+        if (acc[0] != 0.0f || acc[1] != 0.0f || acc[2] != 0.0f)
+        {
+            len = F_SQRT(F_DOT3(acc[0], acc[0], acc[1], acc[1],
+                                acc[2], acc[2]));
+            if (len != 0.0f)
+            {
+                f32 s = 1.0f / len;
+                acc[0] = s * acc[0];
+                acc[1] = s * acc[1];
+                acc[2] = s * acc[2];
+            }
+            n = acc;
+        }
+        else
+        {
+            n = (f32 *)(first + 0x04);
+        }
+    }
+    else
+    {
+        n = (f32 *)(first + 0x04);
+    }
+
+    /* the two per-contact scalars func_00139828/58 hand back */
+    s28 = func_00139828(obj, first);
+    s58 = func_00139858(obj, first);
+
+    /* 7. the tangential motion the caller left between the two nodes */
+    for (i = 0; i < 3; i++)
+        delta[i] = pb[i] - pa[i];
+
+    len = F_SQRT(F_DOT3(delta[0], delta[0], delta[1], delta[1],
+                        delta[2], delta[2]));
+    dot = F_DOT3(delta[0], n[0], delta[1], n[1], delta[2], n[2]);
+    q = -dot;
+    for (i = 0; i < 3; i++)
+    {
+        t1[i] = delta[i] + q * n[i];
+        t2[i] = t1[i] + q * n[i];
+        dir[i] = s28 * t1[i] + s58 * t2[i];
+    }
+
+    /* wall/floor classification of the contact normal against obj+0x18 */
+    {
+        f32 lim = *(f32 *)(obj + 0x18);
+        f32 nz = n[2];
+
+        wall = ((-lim <= nz) && (nz <= lim));
+        floorFlag = (lim <= nz);
+    }
+
+    if (!(fabsf(delta[0]) < D_0039266C &&
+          fabsf(delta[1]) < D_0039266C &&
+          fabsf(delta[2]) < D_0039266C))
+    {
+        f32 s = 1.0f / len;
+        udelta[0] = s * delta[0];
+        udelta[1] = s * delta[1];
+        udelta[2] = s * delta[2];
+    }
+
+    /* 8. match the motion's z span to delta.z */
+    if ((*(u32 *)(obj + 0x08) & 0x100) != 0 && wall != 0 && dir[2] != 0.0f)
+    {
+        f32 t = delta[2] / dir[2];
+
+        if (-1.0f < t)
+        {
+            if (t <= 1.0f)
+            {
+                dir[0] = t * dir[0];
+                dir[1] = t * dir[1];
+                dir[2] = t * dir[2];
+            }
+            else
+            {
+                /* {axisB x n, n x (axisB x n), n} frame; the two crosses are
+                 * spelled out the way retail computes them (a plain array
+                 * temporary would fold the same way, so keep the operands). */
+                f32 nn[3];
+                f32 dx[3];
+                f32 sec[3];
+                f32 a;
+                f32 b;
+                f32 k;
+
+                nn[0] = n[0];
+                nn[1] = n[1];
+                nn[2] = n[2];
+                dx[0] = axisB[1] * nn[2] - axisB[2] * nn[1];
+                dx[1] = axisB[2] * nn[0] - axisB[0] * nn[2];
+                dx[2] = axisB[0] * nn[1] - axisB[1] * nn[0];
+                sec[0] = nn[1] * dx[2] - nn[2] * dx[1];
+                sec[1] = nn[2] * dx[0] - nn[0] * dx[2];
+                sec[2] = nn[0] * dx[1] - nn[1] * dx[0];
+                a = F_DOT3(dir[0], dx[0], dir[1], dx[1], dir[2], dx[2]);
+                b = F_DOT3(dir[0], nn[0], dir[1], nn[1], dir[2], nn[2]);
+                k = delta[2] / sec[2];
+                dir[0] = a * dx[0] + k * sec[0] + b * nn[0];
+                dir[1] = a * dx[1] + k * sec[1] + b * nn[1];
+                dir[2] = a * dx[2] + k * sec[2] + b * nn[2];
+            }
+        }
+    }
+
+    /* 9. where the step ends up */
+    d = *(f32 *)(first + 0x00);         /* contact distance */
+    func_00136C08(off, obj, count, contacts, firstIdx);
+
+    if ((*(u32 *)(obj + 0x0C) & 0x400000) != 0)
+        off[2] = 0.0f;
+
+    /* the "distance is negative" test is re-read after func_00136C08 (retail
+     * keeps only the 1-distance factor from before the call) */
+    if ((*(u32 *)(obj + 0x0C) & 0x100000) != 0 &&
+        (u16)(*(u16 *)(first + 0x2E) - 7) < 2 &&
+        *(f32 *)(first + 0x00) < 0.0f &&
+        F_DOT3(n[0], udelta[0], n[1], udelta[1], n[2], udelta[2]) <
+            D_00392670)
+    {
+        pos[0] = pa[0];
+        pos[1] = pa[1];
+        pos[2] = pa[2];
+    }
+    else
+    {
+        pos[0] = pb[0] + off[0];
+        pos[1] = pb[1] + off[1];
+        pos[2] = pb[2] + off[2];
+    }
+
+    if ((*(u32 *)(obj + 0x0C) & 0x100000) != 0 &&
+        (D_003931B4 - D_00392674) < pos[2])
+    {
+        pos[2] = pa[2];
+        floorHit = 1;
+    }
+
+    /* 10. the actual displacement */
+    {
+        f32 s = (0.0f <= d) ? (1.0f - d) : 0.0f;
+
+        dir2[0] = s * dir[0];
+        dir2[1] = s * dir[1];
+        dir2[2] = s * dir[2];
+    }
+
+    len = F_SQRT(F_DOT3(dir2[0], dir2[0], dir2[1], dir2[1],
+                        dir2[2], dir2[2]));
+    {
+        f32 m = *(f32 *)(first + 0x54);
+
+        if (m < len)
+        {
+            f32 s = m / len;
+            dir2[0] = s * dir2[0];
+            dir2[1] = s * dir2[1];
+            dir2[2] = s * dir2[2];
+        }
+    }
+
+    if (floorHit != 0)
+    {
+        /* Flatten the step.  Retail then re-normalises the (now horizontal)
+         * vector and rescales it by its own horizontal length, which is a
+         * no-op apart from rounding; the zeroed z is what matters. */
+        f32 h;
+
+        dir2[2] = 0.0f;
+        h = F_SQRT(F_DOT3(dir2[0], dir2[0], dir2[1], dir2[1],
+                         dir2[2], dir2[2]));
+        if (!(fabsf(dir2[0]) < D_00392678 &&
+              fabsf(dir2[1]) < D_00392678 &&
+              fabsf(dir2[2]) < D_00392678))
+        {
+            f32 l = F_SQRT(F_DOT3(dir2[0], dir2[0], dir2[1], dir2[1],
+                                  dir2[2], dir2[2]));
+
+            if (l != 0.0f)
+            {
+                f32 s = 1.0f / l;
+                dir2[0] = s * dir2[0];
+                dir2[1] = s * dir2[1];
+                dir2[2] = s * dir2[2];
+            }
+            dir2[0] = h * dir2[0];
+            dir2[1] = h * dir2[1];
+            dir2[2] = h * dir2[2];
+        }
+    }
+
+    npos[0] = pos[0] + dir2[0];
+    npos[1] = pos[1] + dir2[1];
+    npos[2] = pos[2] + dir2[2];
+    for (i = 0; i < 3; i++)
+        tmp[i] = npos[i] - pa[i];
+
+    /* 11. node B: only leave the contact plane early when the motion really
+     * separates from it and the contact is a floor we are not approaching. */
+    dot = F_DOT3(n[0], tmp[0], n[1], tmp[1], n[2], tmp[2]);
+    if (D_0039267C < dot && floorFlag != 0 && 0.0f < s58)
+    {
+        writeNpos = (*(u32 *)(obj + 0x0C) & 0x40) != 0;
+    }
+    else if (probe == 0)
+    {
+        writeNpos = 1;
+    }
+    else if ((func_00139708(obj, (f32 *)(first + 0x04)) & 0xFF) != 0)
+    {
+        writeNpos = 1;
+    }
+    else
+    {
+        writeNpos = (*(u32 *)(obj + 0x0C) & 0x40) != 0;
+    }
+
+    ME_TAG2(nodeB);
+    ME_COPY12(nodeB + 0x30, writeNpos ? npos : pos);
+    *(f32 *)(nodeB + 0x3C) = 1.0f;
+
+    /* node A becomes the start of the next step */
+    for (i = 0; i < 3; i++)
+        tmp[i] = pb[i] - dir[i];
+    ME_TAG2(nodeA);
+    ME_COPY12(nodeA + 0x30, tmp);
+    *(f32 *)(nodeA + 0x3C) = 1.0f;
+
+    if ((*(u32 *)(obj + 0x0C) & 0x04) != 0)
+    {
+        ME_TAG2(nodeC);
+        ME_COPY12(nodeC + 0x30, pa);
+        *(f32 *)(nodeC + 0x3C) = 1.0f;
+    }
+
+    func_0013A148(obj, step);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0012F180);
 

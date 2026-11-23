@@ -639,7 +639,7 @@ def compile_function(
                     f"({recorded_size:#x} and {retail_size:#x})."
                 )
             retail_sizes[symbol] = retail_size
-            padded_assembly, _, _ = project_build.pad_undersized_functions(
+            padded_assembly, _, _, _ = project_build.pad_undersized_functions(
                 assembly_path, object_path, retail_sizes
             )
             if padded_assembly != assembly_path.read_text(encoding="utf-8"):

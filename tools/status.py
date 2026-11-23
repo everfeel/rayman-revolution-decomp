@@ -39,7 +39,7 @@ INCLUDE_ASM = re.compile(
     r"INCLUDE_ASM\s*\([^;]*?\b(func_[0-9A-Fa-f]{8})\s*\)", re.DOTALL
 )
 ASM_FUNC = re.compile(
-    r"ASM_FUNC\s*\([^;]*?\b(func_[0-9A-Fa-f]{8})\s*\)", re.DOTALL
+    r"(?:ASM_FUNC|MICRO_FUNC)\s*\([^;]*?\b(func_[0-9A-Fa-f]{8})\s*\)", re.DOTALL
 )
 # The parameter list must not run past a comment terminator.  Without that
 # guard a `func_x(3) does ...` mention in a comment matches as a call whose

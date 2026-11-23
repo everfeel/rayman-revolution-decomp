@@ -61,6 +61,19 @@ USE_GLOBAL_COMPILER_FLAGS = False
 # tools/compiler_sweep.py. Only the -S step uses it; assembling and linking
 # stay with the real driver, and the normal build leaves it None.
 C_FRONTEND = None
+# C files that emitted bytes into sections retail already ships as verbatim
+# data blobs. Collected by compile_c_source, reported by main.
+EXTRA_SECTIONS = []
+# Sections whose retail content is linked from asm/data rather than generated.
+RETAIL_DATA_SECTIONS = (
+    ".data",
+    ".rodata",
+    ".gcc_except_table",
+    ".lit4",
+    ".sdata",
+    ".sbss",
+    ".bss",
+)
 
 
 @dataclass(frozen=True)
@@ -291,6 +304,40 @@ def retail_function_sizes():
     return sizes
 
 
+def extra_data_sections(object_path):
+    """Bytes a C object adds to sections retail already provides verbatim.
+
+    Retail's .data/.rodata/.lit4/.sdata blobs are linked from asm/data, so any
+    amount a C file contributes to those sections (a float pool, a string
+    literal, a gcc jump table in .rdata) grows .main and shifts every later
+    section, even when the functions themselves are the right size.
+    """
+    elf = Elf32LE(object_path)
+    sizes = {}
+    for section in elf.sections:
+        name = (
+            elf.section_names[section["name_offset"]:]
+            .split(b"\0", 1)[0]
+            .decode("ascii", "replace")
+        )
+        suffix = name.split(".", 2)
+        base = "." + suffix[1] if len(suffix) > 2 else name
+        if base in RETAIL_DATA_SECTIONS and section["size"]:
+            sizes[base] = sizes.get(base, 0) + section["size"]
+    return sizes
+
+
+def report_extra_sections(extra_sections):
+    """Warn about the section growth that overruns .main before it happens."""
+    for source, sizes in extra_sections:
+        detail = ", ".join(f"{name} {size:#x}" for name, size in sorted(sizes.items()))
+        print(
+            f"build: note: {source} adds {detail} to sections retail links as "
+            "fixed data; this grows .main and shifts later sections",
+            file=sys.stderr,
+        )
+
+
 def load_asm_overrides():
     if not ASM_OVERRIDE_FILE.is_file():
         return {}
@@ -381,13 +428,14 @@ def pad_undersized_functions(assembly_path, object_path, retail_sizes):
     assembly = assembly_path.read_text(encoding="utf-8")
     functions = C_FUNCTION.findall(assembly)
     if not functions:
-        return assembly, 0, 0
+        return assembly, 0, 0, []
     if len(functions) != len(set(functions)):
         raise ValueError(f"{assembly_path}: duplicate C function entries")
 
     object_elf = Elf32LE(object_path)
     padded = 0
     total_padding = 0
+    oversized = []
     for name in functions:
         retail_size = retail_sizes.get(name)
         if retail_size is None:
@@ -398,7 +446,14 @@ def pad_undersized_functions(assembly_path, object_path, retail_sizes):
                 f"{object_path}: {name} has no nonempty function symbol"
             )
         padding = retail_size - symbol["size"]
-        if padding <= 0:
+        if padding < 0:
+            # The C function is larger than retail's. A few bytes are harmless
+            # when they fit the alignment gap before the next retail function;
+            # anything larger shifts every later symbol, so report it here
+            # instead of letting the linker fail with a confusing overlap.
+            oversized.append((name, symbol["size"], retail_size))
+            continue
+        if padding == 0:
             continue
         if padding % 4:
             raise ValueError(
@@ -422,7 +477,7 @@ def pad_undersized_functions(assembly_path, object_path, retail_sizes):
         padded += 1
         total_padding += padding
 
-    return assembly, padded, total_padding
+    return assembly, padded, total_padding, oversized
 
 
 def compile_c_source(
@@ -503,7 +558,7 @@ def compile_c_source(
         return None
 
     try:
-        assembly, padded, padding_bytes = pad_undersized_functions(
+        assembly, padded, padding_bytes, oversized = pad_undersized_functions(
             assembly_path, object_path, function_sizes
         )
         if padded:
@@ -518,7 +573,11 @@ def compile_c_source(
         fail(f"could not pad short C functions in {relative.as_posix()}: {error}")
         return None
 
-    return padded, padding_bytes, applied_overrides
+    extra_sections = extra_data_sections(object_path)
+    if extra_sections:
+        EXTRA_SECTIONS.append((relative.as_posix(), extra_sections))
+
+    return padded, padding_bytes, applied_overrides, oversized
 
 
 def assembly_input(source):
@@ -725,6 +784,40 @@ def source_modules():
     return modules, tuple(global_flags)
 
 
+def report_oversized_functions(oversized, retail_sizes):
+    """Check C functions that compile to more bytes than their retail size.
+
+    Every function is laid out at its retail address, so an oversized function
+    is only harmless while it still fits the gap up to the next retail function
+    (the assembler pads each function to 8 bytes). A larger one pushes every
+    later symbol and eventually overruns .main, which is what the link reports
+    as ".main_bss overlaps .main". Returns 1 when a function exceeds its slot.
+    """
+    if not oversized:
+        return 0
+
+    addresses = sorted(int(name[5:], 16) for name in retail_sizes)
+    following = {address: next_address for address, next_address in zip(addresses, addresses[1:])}
+    failed = False
+    for name, built, retail in oversized:
+        address = int(name[5:], 16)
+        slot = following.get(address, address + retail) - address
+        if built > slot:
+            print(
+                f"build: {name} builds to {built} bytes, past its {slot}-byte "
+                f"retail slot (retail size {retail}); later functions would shift",
+                file=sys.stderr,
+            )
+            failed = True
+            continue
+        print(
+            f"build: note: {name} builds to {built} bytes (retail {retail}), "
+            f"inside the alignment gap before the next function",
+            file=sys.stderr,
+        )
+    return 1 if failed else 0
+
+
 def main():
     if not COMPILER.is_file():
         return fail(f"SDK compiler/assembler not found: {COMPILER}")
@@ -755,6 +848,7 @@ def main():
     padded_functions = 0
     padding_bytes = 0
     applied_asm_overrides = set()
+    oversized_functions = []
 
     try:
         modules, global_flags = source_modules()
@@ -777,6 +871,7 @@ def main():
                 return 1
             padded_functions += compile_result[0]
             padding_bytes += compile_result[1]
+            oversized_functions.extend(compile_result[3])
             duplicate_overrides = applied_asm_overrides & compile_result[2]
             if duplicate_overrides:
                 return fail(
@@ -792,6 +887,10 @@ def main():
         ):
             return 1
         objects.append(object_path)
+
+    if report_oversized_functions(oversized_functions, function_sizes):
+        return 1
+    report_extra_sections(EXTRA_SECTIONS)
 
     unapplied_overrides = set(asm_overrides) - applied_asm_overrides
     if unapplied_overrides:

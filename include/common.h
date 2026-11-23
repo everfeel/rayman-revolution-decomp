@@ -75,9 +75,13 @@ __asm__(".include \"include/macro.inc\"");
 
 #if defined(__INTELLISENSE__)
 #define ASM_FUNC(type, name) type name()
+#define MICRO_FUNC(type, name) type name()
 #else
 #define ASM_FUNC(type, name) \
     __asm__(".set noreorder\n.include \"src/asm/" #name ".s\"\n.set reorder")
+/* Handwritten VU0/COP2 microcode lives in src/asm/microcode/. */
+#define MICRO_FUNC(type, name) \
+    __asm__(".set noreorder\n.include \"src/asm/microcode/" #name ".s\"\n.set reorder")
 #endif
 
 #endif
