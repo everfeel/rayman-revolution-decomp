@@ -167,7 +167,7 @@ extern s32 func_001454A0();
 extern s32 func_001454C8();
 extern s32 func_001454F8();
 extern s32 func_00145560();
-extern s32 func_00193038();
+extern s32 func_00193038(s32, s32);
 extern u8 * func_00211980(u8 *s, s32 c);
 
 // moved from block scope (funcs)
@@ -257,6 +257,9 @@ void func_0010DE30(s32 arg0)
     counter[0] = counter[0] - 1;
 }
 
+/* 0x0010DE70: walk the list at arg0->+4->+0x90, and for nodes whose +0x30
+   bit 0x10000 is clear optionally copy the float and set bit 0x8. Left as
+   INCLUDE_ASM: the C body is 100 B against the 96 B retail slot. */
 INCLUDE_ASM(const s32, "core/main", func_0010DE70);
 
 INCLUDE_ASM(const s32, "core/main", func_0010DED0);
@@ -588,7 +591,19 @@ s32 func_001110A8(void)
     return D_0034A340[0];
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001110B8);
+/* Behavioral: name/hash check.  Return 0 for a null pointer, 0 when the
+ * name at a1+0x4B matches D_0034A34B, otherwise compare a1+0x44 with the
+ * high word of the 64-bit D_0034A340 (the word at D_0034A344). */
+extern s32 func_00226580(u8 *a, u8 *b);
+
+s32 func_001110B8(u8 *a1)
+{
+    if (a1 == 0)
+        return 0;
+    if (func_00226580(a1 + 0x4B, D_0034A34B) != 0)
+        return 0;
+    return *(s32 *)(a1 + 0x44) == D_0034A340[1];
+}
 
 s32 func_00111128(void)
 {
@@ -1568,7 +1583,25 @@ s32 func_00116AA0(void)
 
 INCLUDE_ASM(const s32, "core/main", func_00116AD0);
 
-INCLUDE_ASM(const s32, "core/main", func_00116D58);
+/* Retail 0x00116D58: find the first zero word in D_00258038 within the
+   first 16 entries; publish its index and return 1, else -1/0. */
+extern s32 D_00258038[];
+s32 func_00116D58(u16 *out)
+{
+    s32 *p = D_00258038;
+    s32 i = 0;
+
+    do {
+        if (*p == 0) {
+            *out = (u16)i;
+            return 1;
+        }
+        p++;
+        i++;
+    } while (i < 16);
+    *out = 0xFFFF;
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00116DB0);
 
@@ -2256,7 +2289,21 @@ void func_0011A2D0(f32 arg)
 
 INCLUDE_ASM(const s32, "core/main", func_0011A2F0);
 
-INCLUDE_ASM(const s32, "core/main", func_0011A4B0);
+/* Behavioral: clear the 0x24-byte records at a1+0x28..a1+0x4C, then fill
+ * each record's word at +0x20 with func_0014ED50()'s return value. */
+extern s32 func_0014ED50(void);
+extern s32 func_00224B88();
+
+s32 func_0011A4B0(u8 *a1)
+{
+    u8 *p = a1 + 0x28;
+    u8 *end = a1 + 0x4C;
+
+    func_00224B88(p, 0, 0x24);
+    for (; p < end; p += 0x24)
+        *(s32 *)(p + 0x20) = func_0014ED50();
+    return 0;
+}
 
 s32 func_0011A518(s32 a1)
 {
@@ -2325,7 +2372,24 @@ void func_0011A778(void)
     D_00393090 = 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0011A788);
+/* Retail 0x0011A788: the generic 0..255 HUD/colour input is normalised into
+ * the single float at D_003930B4+0x20BC.  `lw $2,D_003930B4` sits in the
+ * delay slot of the first `bc1f`, so the pointer load happens on every path;
+ * that word is also what comes back in $v0. */
+extern f32 D_003924D0;                 /* 1.0f / 255.0f */
+
+s32 func_0011A788(f32 arg0)
+{
+    f32 *dst = (f32 *)((u8 *)D_003930B4 + 0x20BC);
+
+    if (arg0 > 255.0f)
+        *dst = 1.0f;
+    else if (arg0 < 0.0f)
+        *dst = 0.0f;
+    else
+        *dst = arg0 * D_003924D0;
+    return (s32)D_003930B4;
+}
 
 void func_0011A7E0(f32 arg0)
 {
@@ -2707,7 +2771,29 @@ INCLUDE_ASM(const s32, "core/main", func_0011D550);
 
 INCLUDE_ASM(const s32, "core/main", func_0011D680);
 
-INCLUDE_ASM(const s32, "core/main", func_0011D790);
+extern s32 func_00226B48();
+extern s32 func_001C4128();
+
+s32 func_0011D790(s32 a1, s32 *a2)
+{
+    s32 v4 = func_00226B48(a1);
+    s32 v5 = func_001C4128(a2[0], (u32)a1, v4);
+    s32 result = -1;
+
+    if (v5 != -1)
+    {
+        s32 v7 = a2[1] + v5;
+        a2[1] = v7;
+        if (a2[2] < v7)
+            a2[2] = v7;
+        if (v4 != v5)
+            goto retneg;
+        return v5;
+    }
+    return result;
+retneg:
+    return -1;
+}
 
 s64 func_0011D818(int arg1)
 {
@@ -2814,7 +2900,27 @@ s32 func_0011DC00(void)
 
 INCLUDE_ASM(const s32, "core/main", func_0011DC30);
 
-INCLUDE_ASM(const s32, "core/main", func_0011DD00);
+/* Behavioral: backwards search of the s32 array at D_00393C20 for `ptr`.
+ * D_00393170 holds the element count; a negative element terminates the walk. */
+extern u16 D_00393170;
+
+s32 func_0011DD00(void *ptr)
+{
+    s16 last = (s16)(D_00393170 - 1);
+    s32 *p;
+
+    if (ptr == 0 || last < 0)
+        return 0;
+    p = (s32 *)&D_00393C20 + last;
+    for (;;) {
+        s32 v = *p;
+        if (v == (s32)ptr)
+            return 1;
+        if (v < 0)
+            return 0;
+        p--;
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0011DD60);
 
@@ -3181,7 +3287,26 @@ s32 func_00120428(void)
 
 INCLUDE_ASM(const s32, "core/main", func_001204A8);
 
-INCLUDE_ASM(const s32, "core/main", func_00120538);
+/* Behavioral: a1->+0 is a count, a1->+4 points to 4-byte-stride records.
+   The first record whose s16 at +0 is -4086 (0xF00A) receives arg1 at +4
+   and the function returns 1; otherwise it returns 0. */
+s32 func_00120538(u8 *arg0, s32 arg1)
+{
+    s32 count = *(s32 *)arg0;
+    u8 *rec;
+
+    if (count <= 0)
+        return 0;
+    rec = *(u8 **)(arg0 + 4);
+    do {
+        if (*(s16 *)rec == -4086) {
+            *(s32 *)(rec + 4) = arg1;
+            return 1;
+        }
+        rec += 4;
+    } while (--count > 0);
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00120588);
 
@@ -3443,7 +3568,37 @@ void func_00120D30(s32 *dst)
 
 s32 func_00120D40(void) { return D_00393194; }
 
-INCLUDE_ASM(const s32, "core/main", func_00120D48);
+/* Retail 0x00120D48: reset one 0x54-byte transform node to identity.
+ * Every matrix slot is written (zeros by word, ones by single float), all
+ * four scale slots (+0x40..+0x4C) are set to 1.0f, and the tag byte at +0x50
+ * becomes 1.  The last scale store sits in the return delay slot. */
+void func_00120D48(s32 node)
+{
+    u8 *p = (u8 *)node;
+    f32 one = 1.0f;
+
+    *(u32 *)(p + 0x38) = 0;
+    *(u8 *)(p + 0x50) = 1;
+    *(f32 *)(p + 0x40) = one;
+    *(f32 *)(p + 0x3C) = one;
+    *(f32 *)(p + 0x28) = one;
+    *(f32 *)(p + 0x14) = one;
+    *(f32 *)(p + 0x00) = one;
+    *(u32 *)(p + 0x34) = 0;
+    *(u32 *)(p + 0x30) = 0;
+    *(u32 *)(p + 0x2C) = 0;
+    *(u32 *)(p + 0x24) = 0;
+    *(u32 *)(p + 0x20) = 0;
+    *(u32 *)(p + 0x1C) = 0;
+    *(u32 *)(p + 0x18) = 0;
+    *(u32 *)(p + 0x10) = 0;
+    *(u32 *)(p + 0x0C) = 0;
+    *(u32 *)(p + 0x08) = 0;
+    *(u32 *)(p + 0x04) = 0;
+    *(f32 *)(p + 0x4C) = one;
+    *(f32 *)(p + 0x44) = one;
+    *(f32 *)(p + 0x48) = one;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00120DB0);
 
@@ -3719,7 +3874,261 @@ void func_00121888(u8 *arg0, u8 *arg1)
 
 INCLUDE_ASM(const s32, "core/main", func_001224F8);
 
-INCLUDE_ASM(const s32, "core/main", func_001232E8);
+/* 0x001232E8 (0xEF0) -- transform multiply with type dispatch.
+ *
+ * Every node is the same 0x54-byte record used by func_00121888 (inverse):
+ * a 4x4 row-major float matrix at +0x00 (row 3 at +0x30 holds the
+ * translation), a four-float scale at +0x40 (sx, sy, sz, 1) and a type tag at
+ * +0x50 (1 identity, 2 translation, 3/4 diagonal scale, 5/6 rotation with or
+ * without translation, 7/8 general).  The function multiplies the two
+ * matrices, picking a specialised path per tag pair, and reclassifies the
+ * result tag afterwards by looking at the scale it computed.
+ *
+ * The aliasing rule is retail's: when the destination is one of the sources
+ * the product is built in a stack copy and moved at the end.
+ */
+
+extern f32 D_0039254C;          /* 1e-4 - diagonal entries agree (type 4) */
+extern f32 D_00392550;          /* 1e-4 - diagonal entry is one (type 3) */
+extern f32 D_00392554;          /* 1e-4 - diagonal entries agree (type 7) */
+extern f32 D_00392558;          /* 1e-4 - diagonal entry is one (type 6) */
+
+#define MT_F(p, o) (*(f32 *)((p) + (o)))
+
+#define MT_COPY(d, s, n) do { \
+    u32 i_; \
+    for (i_ = 0; i_ < (n); i_++) \
+        *((u8 *)(d) + i_) = *((u8 *)(s) + i_); \
+} while (0)
+
+/* Rows 0..2 of `src` scaled by the three factors at `k + 0x40`. */
+#define MT_SCALE(d, src, k) do { \
+    f32 k_; \
+    k_ = MT_F(k, 0x40); \
+    MT_F(d, 0x00) = k_ * MT_F(src, 0x00); \
+    MT_F(d, 0x04) = k_ * MT_F(src, 0x04); \
+    MT_F(d, 0x08) = k_ * MT_F(src, 0x08); \
+    k_ = MT_F(k, 0x44); \
+    MT_F(d, 0x10) = k_ * MT_F(src, 0x10); \
+    MT_F(d, 0x14) = k_ * MT_F(src, 0x14); \
+    MT_F(d, 0x18) = k_ * MT_F(src, 0x18); \
+    k_ = MT_F(k, 0x48); \
+    MT_F(d, 0x20) = k_ * MT_F(src, 0x20); \
+    MT_F(d, 0x24) = k_ * MT_F(src, 0x24); \
+    MT_F(d, 0x28) = k_ * MT_F(src, 0x28); \
+} while (0)
+
+/* Element-wise product of the two scale vectors. */
+#define MT_SCALE_MUL(d, a, b) do { \
+    MT_F(d, 0x40) = MT_F(a, 0x40) * MT_F(b, 0x40); \
+    MT_F(d, 0x44) = MT_F(a, 0x44) * MT_F(b, 0x44); \
+    MT_F(d, 0x4C) = 1.0f; \
+    MT_F(d, 0x48) = MT_F(a, 0x48) * MT_F(b, 0x48); \
+} while (0)
+
+/* Clear the three implicit 1s of the 4th column (the w term stays 1). */
+#define MT_CLEAR_W(d) do { \
+    MT_F(d, 0x2C) = 0.0f; \
+    MT_F(d, 0x1C) = 0.0f; \
+    MT_F(d, 0x0C) = 0.0f; \
+} while (0)
+
+#define mt_absf(v) ({ union { f32 f_; u32 u_; } c_; c_.f_ = (v); c_.u_ &= 0x7FFFFFFFu; c_.f_; })
+void func_001232E8(u8 *arg0, u8 *arg1, u8 *arg2)
+{
+    u8 tmp[0x54];
+    u8 *d;
+    u8 ta;
+    u8 tb;
+    s32 needMul;
+    s32 retype;
+    f32 sx;
+
+    ta = *(u8 *)(arg1 + 0x50);
+    if ((u8)(ta - 1) < 2) {
+        /* identity or pure translation on the left: the product is the
+         * right operand, untransformed */
+        if (arg0 != arg2)
+            MT_COPY(arg0, arg2, 0x54);
+        return;
+    }
+
+    tb = *(u8 *)(arg2 + 0x50);
+    if (tb == 1) {
+        if (arg0 != arg1)
+            MT_COPY(arg0, arg1, 0x54);
+        return;
+    }
+
+    d = arg0;
+    if (arg0 == arg1 || arg0 == arg2) {
+        tmp[0x50] = 1;
+        d = tmp;
+    }
+
+    MT_F(d, 0x40) = 1.0f;
+    MT_F(d, 0x4C) = 1.0f;
+    MT_F(d, 0x44) = 1.0f;
+    MT_F(d, 0x48) = 1.0f;
+    needMul = 0;
+    retype = 0;
+
+    if (ta == 3) {
+        /* diagonal scale on the left */
+        if (tb == 2) {
+            *(u8 *)(d + 0x50) = ta;
+            MT_COPY(d, arg1, 0x30);
+            MT_COPY(d + 0x40, arg1 + 0x40, 0x10);
+        } else if (tb == 5) {
+            *(u8 *)(d + 0x50) = 6;
+            MT_SCALE(d, arg2, arg1);
+            MT_COPY(d + 0x30, arg2 + 0x30, 0x10);
+            MT_CLEAR_W(d);
+            MT_COPY(d + 0x40, arg1 + 0x40, 0x10);
+        } else if (tb == 3 || tb == 4 || tb == 6 || tb == 7 || tb == 8) {
+            *(u8 *)(d + 0x50) = tb;
+            retype = 1;
+            MT_SCALE(d, arg2, arg1);
+            MT_COPY(d + 0x30, arg2 + 0x30, 0x10);
+            MT_CLEAR_W(d);
+            MT_SCALE_MUL(d, arg1, arg2);
+        }
+    } else if (ta == 4 || ta == 7 || ta == 8) {
+        if (tb == 2) {
+            *(u8 *)(d + 0x50) = ta;
+            MT_COPY(d, arg1, 0x30);
+            MT_COPY(d + 0x40, arg1 + 0x40, 0x10);
+        } else if (tb == 3 || tb == 4) {
+            *(u8 *)(d + 0x50) = ta;
+            needMul = 1;
+            retype = 1;
+            MT_SCALE_MUL(d, arg1, arg2);
+        } else if (tb == 5 || tb == 6 || tb == 7 || tb == 8) {
+            *(u8 *)(d + 0x50) = 8;
+            needMul = 1;
+            retype = 1;
+            MT_SCALE_MUL(d, arg1, arg2);
+        }
+    } else if (ta == 5 || ta == 6) {
+        /* rotation on the left */
+        if (tb == 2) {
+            *(u8 *)(d + 0x50) = ta;
+            MT_COPY(d, arg1, 0x30);
+            MT_COPY(d + 0x40, arg1 + 0x40, 0x10);
+        } else if (tb == 3) {
+            *(u8 *)(d + 0x50) = 6;
+            retype = 1;
+            MT_SCALE(d, arg1, arg2);
+            MT_COPY(d + 0x30, arg1 + 0x30, 0x10);
+            MT_CLEAR_W(d);
+            MT_SCALE_MUL(d, arg1, arg2);
+        } else if (tb == 4 || tb == 7) {
+            *(u8 *)(d + 0x50) = 7;
+            needMul = 1;
+            retype = 1;
+            MT_SCALE_MUL(d, arg1, arg2);
+        } else if (tb == 5) {
+            *(u8 *)(d + 0x50) = 5;
+            needMul = 1;
+        } else if (tb == 6) {
+            *(u8 *)(d + 0x50) = 6;
+            needMul = 1;
+            retype = 1;
+            MT_SCALE_MUL(d, arg1, arg2);
+        } else if (tb == 8) {
+            *(u8 *)(d + 0x50) = 8;
+            needMul = 1;
+            MT_COPY(d + 0x40, arg2 + 0x40, 0x10);
+        }
+    }
+
+    if (needMul) {
+        MT_F(d, 0x00) = MT_F(arg1, 0x00) * MT_F(arg2, 0x00) +
+                        MT_F(arg1, 0x10) * MT_F(arg2, 0x04) +
+                        MT_F(arg1, 0x20) * MT_F(arg2, 0x08);
+        MT_F(d, 0x04) = MT_F(arg1, 0x04) * MT_F(arg2, 0x00) +
+                        MT_F(arg1, 0x14) * MT_F(arg2, 0x04) +
+                        MT_F(arg1, 0x24) * MT_F(arg2, 0x08);
+        MT_F(d, 0x08) = MT_F(arg1, 0x08) * MT_F(arg2, 0x00) +
+                        MT_F(arg1, 0x18) * MT_F(arg2, 0x04) +
+                        MT_F(arg1, 0x28) * MT_F(arg2, 0x08);
+        MT_F(d, 0x10) = MT_F(arg1, 0x00) * MT_F(arg2, 0x10) +
+                        MT_F(arg1, 0x10) * MT_F(arg2, 0x14) +
+                        MT_F(arg1, 0x20) * MT_F(arg2, 0x18);
+        MT_F(d, 0x14) = MT_F(arg1, 0x04) * MT_F(arg2, 0x10) +
+                        MT_F(arg1, 0x14) * MT_F(arg2, 0x14) +
+                        MT_F(arg1, 0x24) * MT_F(arg2, 0x18);
+        MT_F(d, 0x18) = MT_F(arg1, 0x08) * MT_F(arg2, 0x10) +
+                        MT_F(arg1, 0x18) * MT_F(arg2, 0x14) +
+                        MT_F(arg1, 0x28) * MT_F(arg2, 0x18);
+        MT_F(d, 0x20) = MT_F(arg1, 0x00) * MT_F(arg2, 0x20) +
+                        MT_F(arg1, 0x10) * MT_F(arg2, 0x24) +
+                        MT_F(arg1, 0x20) * MT_F(arg2, 0x28);
+        MT_F(d, 0x24) = MT_F(arg1, 0x04) * MT_F(arg2, 0x20) +
+                        MT_F(arg1, 0x14) * MT_F(arg2, 0x24) +
+                        MT_F(arg1, 0x24) * MT_F(arg2, 0x28);
+        MT_F(d, 0x28) = MT_F(arg1, 0x08) * MT_F(arg2, 0x20) +
+                        MT_F(arg1, 0x18) * MT_F(arg2, 0x24) +
+                        MT_F(arg1, 0x28) * MT_F(arg2, 0x28);
+        MT_F(d, 0x30) = MT_F(arg1, 0x00) * MT_F(arg2, 0x30) +
+                        MT_F(arg1, 0x10) * MT_F(arg2, 0x34) +
+                        MT_F(arg1, 0x20) * MT_F(arg2, 0x38) +
+                        MT_F(arg1, 0x30);
+        MT_F(d, 0x34) = MT_F(arg1, 0x04) * MT_F(arg2, 0x30) +
+                        MT_F(arg1, 0x14) * MT_F(arg2, 0x34) +
+                        MT_F(arg1, 0x24) * MT_F(arg2, 0x38) +
+                        MT_F(arg1, 0x34);
+        MT_F(d, 0x38) = MT_F(arg1, 0x08) * MT_F(arg2, 0x30) +
+                        MT_F(arg1, 0x18) * MT_F(arg2, 0x34) +
+                        MT_F(arg1, 0x28) * MT_F(arg2, 0x38) +
+                        MT_F(arg1, 0x38);
+        MT_CLEAR_W(d);
+        MT_F(d, 0x3C) = 1.0f;
+    }
+
+    /* Retail overwrites the translation row with the right operand's, even
+     * when the block above just computed one (see the note in the doc). */
+    MT_COPY(d + 0x30, arg2 + 0x30, 0x10);
+
+    if (retype) {
+        if (*(u8 *)(d + 0x50) == 3) {
+            sx = MT_F(d, 0x40);
+            if (mt_absf(sx - 1.0f) < D_00392550)
+                *(u8 *)(d + 0x50) = 2;
+        } else if (*(u8 *)(d + 0x50) == 4) {
+            sx = MT_F(d, 0x40);
+            if (mt_absf(sx - MT_F(d, 0x44)) < D_0039254C) {
+                if (mt_absf(sx - MT_F(d, 0x48)) < D_0039254C) {
+                    *(u8 *)(d + 0x50) = 3;
+                    if (mt_absf(sx - 1.0f) < D_00392550)
+                        *(u8 *)(d + 0x50) = 2;
+                }
+            }
+        } else if (*(u8 *)(d + 0x50) == 6) {
+            sx = MT_F(d, 0x40);
+            if (mt_absf(sx - 1.0f) < D_00392558)
+                *(u8 *)(d + 0x50) = 5;
+        } else if (*(u8 *)(d + 0x50) == 7) {
+            sx = MT_F(d, 0x40);
+            if (mt_absf(sx - MT_F(d, 0x44)) < D_00392554) {
+                if (mt_absf(sx - MT_F(d, 0x48)) < D_00392554) {
+                    *(u8 *)(d + 0x50) = 6;
+                    if (mt_absf(sx - 1.0f) < D_00392558)
+                        *(u8 *)(d + 0x50) = 5;
+                }
+            }
+        }
+    }
+
+    if (arg0 != d)
+        MT_COPY(arg0, d, 0x54);
+}
+
+#undef MT_F
+#undef MT_COPY
+#undef MT_SCALE
+#undef MT_SCALE_MUL
+#undef MT_CLEAR_W
 
 void func_001241D8(u8 *arg0, f32 *arg1)
 {
@@ -4133,7 +4542,16 @@ INCLUDE_ASM(const s32, "core/main", func_00128618);
 
 INCLUDE_ASM(const s32, "core/main", func_00128C40);
 
-INCLUDE_ASM(const s32, "core/main", func_00128F88);
+/* Behavioral: true when the L1 norm of the three floats is below eps.
+   The outer fabs is kept (it is a no-op for non-negative sums). */
+s32 func_00128F88(f32 *vec, f32 eps)
+{
+    f32 s = fabsf(vec[2]);
+
+    s = fabsf(vec[1]) + s;
+    s = fabsf(vec[0]) + s;
+    return fabsf(s) < eps;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00128FC8);
 
@@ -4557,7 +4975,79 @@ INCLUDE_ASM(const s32, "core/main", func_0012AD38);
 
 INCLUDE_ASM(const s32, "core/main", func_0012B098);
 
-INCLUDE_ASM(const s32, "core/main", func_0012B1B0);
+/* Retail 0x0012B1B0: angle between two 3-D vectors, with the (unit) rotation
+ * axis stored next to it.  Output is four consecutive floats:
+ *   +0x00 angle in radians, +0x04/+0x08/+0x0C normalised cross product.
+ * The return value is `out` itself (the export agrees; no caller reads $f0).
+ *
+ * The cross products and the three-term sums are fused in the R5900
+ * accumulator; C arithmetic would round twice and can flip the 1e-5 tests. */
+extern f32 D_00392638;                 /* 1e-5f   parallel/degenerate epsilon */
+extern f32 D_0039263C;                 /* pi      antiparallel result */
+extern f32 D_00392640;                 /* pi      dot <= -1 result */
+f32 func_00217E28(f32);                /* acos wrapper at 0x00217E28 */
+
+#define F_MULSUB2(a, b, c, d) ({                                    \
+    f32 r_;                                                         \
+    __asm__ volatile("mula.s %1,%2\n\t"                             \
+                     "msub.s %0,%3,%4"                              \
+                     : "=&f"(r_)                                    \
+                     : "f"(a), "f"(b), "f"(c), "f"(d));             \
+    r_;                                                             \
+})
+
+#define F_SQRT1(x) ({                                                \
+    f32 r_;                                                          \
+    __asm__ volatile("sqrt.s %0,%1" : "=&f"(r_) : "f"(x));          \
+    r_;                                                              \
+})
+
+s32 func_0012B1B0(f32 *out, SolverVec *a, SolverVec *b)
+{
+    f32 ax = a->x, ay = a->y, az = a->z;
+    f32 bx = b->x, by = b->y, bz = b->z;
+    f32 cx = F_MULSUB2(ay, bz, az, by);
+    f32 cy = F_MULSUB2(az, bx, ax, bz);
+    f32 cz = F_MULSUB2(ax, by, ay, bx);
+    f32 dot;
+    f32 len;
+    f32 inv;
+
+    out[1] = cx;
+    out[2] = cy;
+    out[3] = cz;
+
+    if (!(fabsf(cx) < D_00392638) ||
+        !(fabsf(cy) < D_00392638) ||
+        !(fabsf(cz) < D_00392638)) {
+        /* The retail `bc1fl` carries a reload of out[1] in its delay slot;
+         * it has no effect on the value used here. */
+        len = F_SQRT1(F_DOT3(cx, cx, cy, cy, cz, cz));
+        if (len != 0.0f) {
+            inv = 1.0f / len;
+            out[1] = cx * inv;
+            out[2] = cy * inv;
+            out[3] = cz * inv;
+        }
+        dot = F_DOT3(ax, bx, ay, by, az, bz);
+        if (dot <= -1.0f)
+            out[0] = D_00392640;
+        else if (dot >= 1.0f) {
+            out[0] = 0.0f;
+            out[1] = out[2] = out[3] = 0.0f;
+        } else
+            out[0] = func_00217E28(dot);
+    } else if (!(fabsf(ax - bx) < D_00392638) ||
+               !(fabsf(ay - by) < D_00392638) ||
+               !(fabsf(az - bz) < D_00392638)) {
+        /* Antiparallel: the (tiny) raw cross product is left in the axis. */
+        out[0] = D_0039263C;
+    } else {
+        out[0] = 0.0f;
+        out[1] = out[2] = out[3] = 0.0f;
+    }
+    return (s32)out;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0012B3B8);
 

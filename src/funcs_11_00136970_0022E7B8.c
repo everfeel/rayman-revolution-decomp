@@ -323,7 +323,7 @@ extern s32 D_00410CC0[];
 extern u8 D_00391260[];
 extern u8 D_00391448[];
 extern u8 D_00391458[];
-extern u8 D_00253627;
+extern u8 D_00253627[];
 extern f32 D_003731D0[];
 
 extern f32 D_003731D4[];
@@ -683,7 +683,7 @@ extern void func_00119B50();
 extern void func_00119D68();
 extern void func_00119D78();
 extern void func_00119E40();
-extern f32 func_0011A788(f32 arg0);
+extern s32 func_0011A788(f32 arg0);
 extern f32 func_0011A818();
 extern void func_0011B0A0();
 extern void func_0011B0C0();
@@ -760,7 +760,7 @@ extern void func_00161300();
 extern void func_001616B0();
 extern void func_00161738();
 extern s32 func_00161858();
-extern void func_00162020();
+extern s32 *func_00162020(s32);
 extern void func_001621C8();
 extern void func_00162228();
 extern s32 func_001626A8();
@@ -860,7 +860,7 @@ extern s32 func_0018C608();
 extern s32 func_0018DA08();
 extern s32 func_0018DAD0();
 extern u8 func_0018DB30();
-extern void func_0018E670();
+extern u8 *func_0018E670(u8 *);
 extern s32 func_0018E6D0();
 extern s32 func_0018EC88();
 extern void func_0018FA18();
@@ -1372,8 +1372,7 @@ typedef struct ActorSurfaceState {
 
 /* func_00139708: `actor->minSurfaceZ <= normal[2]` (surface counts as a floor).
  * func_001396A0: `|normal[2]| < actor->minSurfaceZ` (surface counts as a wall).
- * Both read the three floats the pointer points at.  Still retail assembly in
- * this module; only the symbols are needed here. */
+ * Both read the three floats the pointer points at. */
 s32 func_00139708(ActorSurfaceState *actor, f32 *normal);
 s32 func_001396A0(ActorSurfaceState *actor, f32 *normal);
 
@@ -1582,7 +1581,23 @@ INCLUDE_ASM(const s32, "core/main", func_001378C0);
 
 INCLUDE_ASM(const s32, "core/main", func_001379E0);
 
-INCLUDE_ASM(const s32, "core/main", func_00137C68);
+void func_00137C68(u8 *arg0, f32 arg1)
+{
+    u8 *node;
+    f32 v;
+
+    if ((*(u32 *)(arg0 + 0xC) & 0x8000) != 0)
+        return;
+    v = -*(f32 *)(arg0 + 0x10);
+    v = v * arg1 + *(f32 *)(arg0 + 0x44);
+    v = v * arg1;
+    node = arg0 + 0xCC;
+    v = *(f32 *)(arg0 + 0xB0) + v;
+    /* Retail only upgrades tag 1 -> 2; other tags are left alone. */
+    if (*(u8 *)(node + 0x50) == 1)
+        *(u8 *)(node + 0x50) = 2;
+    *(f32 *)(node + 0x38) = v;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00137CB8);
 
@@ -1654,11 +1669,34 @@ void func_00139288(u8 *arg0, u8 *arg1)
 
 INCLUDE_ASM(const s32, "core/main", func_001392A8);
 
-INCLUDE_ASM(const s32, "core/main", func_001396A0);
+/* Retail 0x001396A0: a contact normal is "wall-like" when its z component is
+ * strictly inside (-minSurfaceZ, +minSurfaceZ).  The dot with (0,0,1) is done
+ * in the FPU accumulator, so a NaN in x/y propagates and makes the test false.
+ * Retail uses `bc1f` / `bc1tl` — both strict, hence z == +/-threshold is false. */
+s32 func_001396A0(ActorSurfaceState *actor, f32 *normal)
+{
+    f32 z = F_DOT3(normal[0], normal[1], normal[2], 0.0f, 0.0f, 1.0f);
+    f32 limit = actor->minSurfaceZ;
+    return (-limit < z) && (z < limit);
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00139708);
+/* Retail 0x00139708: a contact normal is "floor-like" when
+ * minSurfaceZ <= z.  The comparison is `c.le.s` + `bc1tl`, so NaN is false. */
+s32 func_00139708(ActorSurfaceState *actor, f32 *normal)
+{
+    f32 z = F_DOT3(normal[0], normal[1], normal[2], 0.0f, 0.0f, 1.0f);
+    return actor->minSurfaceZ <= z;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00139760);
+/* Retail 0x00139760: "normal faces away" test. The retail code builds
+   (0,0,1) on the stack and compares the dot product with -minSurfaceZ. */
+s32 func_00139760(u8 *actor, u8 *contact)
+{
+    f32 *normal = (f32 *)(contact + 4);
+    f32 z = F_DOT3(normal[0], normal[1], normal[2], 0.0f, 0.0f, 1.0f);
+
+    return z < -*(f32 *)(actor + 0x18);
+}
 
 s32 func_001397C0(u8 *arg0)
 {
@@ -1699,7 +1737,25 @@ INCLUDE_ASM(const s32, "core/main", func_00139BA0);
 
 INCLUDE_ASM(const s32, "core/main", func_00139CE0);
 
-INCLUDE_ASM(const s32, "core/main", func_0013A148);
+/* Retail 0x0013A148: commit the velocity of an actor from the displacement
+ * between its two solver poses.  `nodeB` (+0xFC) is the end pose, `nodeA`
+ * (+0xA8) the start pose; the result is written at +0x3C/+0x40/+0x44.
+ * There is no guard against step == 0 (Inf/NaN are stored verbatim).
+ * $v0 on return is still the address of nodeB — several callers return it
+ * from their own function, so the C return value must be kept. */
+s32 func_0013A148(u8 *obj, f32 step)
+{
+    f32 *a = (f32 *)(obj + 0xA8);
+    f32 *b = (f32 *)(obj + 0xFC);
+    f32 dx = (b[0] - a[0]) / step;
+    f32 dy = (b[1] - a[1]) / step;
+    f32 dz = (b[2] - a[2]) / step;
+
+    *(f32 *)(obj + 0x3C) = dx;
+    *(f32 *)(obj + 0x40) = dy;
+    *(f32 *)(obj + 0x44) = dz;
+    return (s32)(obj + 0xFC);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0013A1C8);
 
@@ -2303,9 +2359,29 @@ void func_001442B8(float a, float b, float c, float d, float e)
     D_00393268 = e;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001442D0);
+/* Retail 0x001442D0: interpolate a segment to the plane z=D_00393268.
+   The 4th argument travels in $f12 (float). */
+void func_001442D0(f32 *out, f32 *a, f32 *b, f32 t)
+{
+    f32 k = t / (a[2] - b[2]);
 
-INCLUDE_ASM(const s32, "core/main", func_00144328);
+    out[0] = a[0] + k * (b[0] - a[0]);
+    out[1] = a[1] + k * (b[1] - a[1]);
+    out[2] = D_00393268;
+}
+
+/* Behavioral: clip a segment against the plane x = D_00393258.  The 4th
+ * argument is the float in $f12 (target X).  out[0] is the clipping plane
+ * constant; out[1]/out[2] are the Y/Z of the point on [a2,a3] with that X. */
+void func_00144328(f32 *out, f32 *a2, f32 *a3, f32 targetX)
+{
+    f32 dx = a2[0] - a3[0];
+    f32 t = targetX / dx;
+
+    out[0] = D_00393258;
+    out[1] = a2[1] + t * (a3[1] - a2[1]);
+    out[2] = a2[2] + t * (a3[2] - a2[2]);
+}
 
 void func_00144380(f32 *a1, f32 *a2, f32 *a3, f32 a4)
 {
@@ -2324,7 +2400,15 @@ void func_00144380(f32 *a1, f32 *a2, f32 *a3, f32 a4)
     a1[2] = a2[2] + v6 * (a3[2] - a2[2]);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001443D8);
+/* Retail 0x001443D8: interpolate a segment to the plane x=D_0039325C. */
+void func_001443D8(f32 *out, f32 *a, f32 *b, f32 t)
+{
+    f32 k = t / (b[0] - a[0]);
+
+    out[0] = D_0039325C;
+    out[1] = a[1] + k * (b[1] - a[1]);
+    out[2] = a[2] + k * (b[2] - a[2]);
+}
 
 void func_00144430(f32 *a1, f32 *a2, f32 *a3, f32 a4)
 {
@@ -2455,7 +2539,18 @@ s32 func_00144F28(s32 a1, s32 a2, u32 a3)
     return a1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00144F98);
+/* Behavioral: func_002249D4(dst=a2, src=a1, count=a3), then return a1+a3
+ * rounded UP to the next multiple of 4.  The delay slot of the `andi` makes
+ * the +4-(a3&3) happen exactly when a3 is not already aligned. */
+void *func_00144F98(void *a1, void *a2, u32 a3)
+{
+    u8 *end = (u8 *)a1 + a3;
+
+    func_002249D4(a2, a1, a3);
+    if (a3 & 3)
+        end += 4 - (a3 & 3);
+    return end;
+}
 
 void func_00144FE8(s32 arg)
 {
@@ -3519,7 +3614,18 @@ void func_0014AD50(u8 *arg0)
 
 INCLUDE_ASM(void, "core/main", func_0014AD90);
 
-INCLUDE_ASM(const s32, "core/main", func_0014AF20);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+extern s32 D_003932D0;
+void func_0014AF20(u8 *a0)
+{
+    u8 *p = *(u8 **)(a0 + 8);
+    while (p != 0) {
+        func_001224F8(*(u32 *)(p + 0x24), *(u32 *)(a0 + 0x24), *(u32 *)(p + 0x20));
+        *(u32 *)(p + 0x28) = D_003932D0;
+        func_0014AF20(p);
+        p = *(u8 **)(p + 0x14);
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0014AF88);
 
@@ -3688,7 +3794,19 @@ s32 func_0014B9A0(void)
     return func_0014BCD8(D_003932E8);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0014B9C0);
+/* Retail 0x0014B9C0: scale a float by a global integer. For a negative
+   integer the magnitude is halved (rounding the odd bit up) and doubled
+   again, so the effective factor is v - (v&1)*... ; kept verbatim. */
+s32 func_0014B9C0(f32 arg0)
+{
+    s32 v = *(s32 *)((u8 *)D_003932E8 + 0x10);
+
+    if (v < 0) {
+        s32 t = (v & 1) | ((u32)v >> 1);
+        return (s32)(arg0 * (f32)(t + t));
+    }
+    return (s32)(arg0 * (f32)v);
+}
 
 s32 func_0014BFA0(s32);
 
@@ -4228,9 +4346,44 @@ s32 func_0014DC38(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6, s32 a7, s32 a8
     return result;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0014DC98);
+extern s32 D_00393370;
 
-INCLUDE_ASM(const s32, "core/main", func_0014DCE0);
+/* Generates a token in D_00393370: arg0+1 when arg0 is nonzero, else -1.
+   If that token matches *arg1, stores arg0 into arg1+4, resets the global to
+   -1 and returns 0; otherwise returns arg0 without touching arg1. */
+s32 func_0014DC98(s32 arg0, s32 *arg1)
+{
+    s32 token;
+
+    if (arg0 != 0) {
+        token = D_00393370 + 1;       /* load is in the branch delay slot */
+    } else {
+        token = -1;
+    }
+    D_00393370 = token;
+    if (token == *arg1) {
+        arg1[1] = arg0;
+        D_00393370 = -1;
+        return 0;
+    }
+    return arg0;
+}
+
+/* Byte-matching: the D_0039333C == 0 (idle) arm returns a literal 0 and must
+   be written first, with the busy arm tail-ended after it. */
+s32 func_0014DCE0(s32 a0)
+{
+    s32 args[2];
+    args[0] = a0;
+    args[1] = 0;
+    if (D_0039333C == 0)
+    {
+        func_00211918(&D_00389D10);
+        return 0;
+    }
+    func_0016BD48(D_0039333C, func_0014DC98, args);
+    return args[1];
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0014DD30);
 
@@ -4572,7 +4725,19 @@ s32 func_00150328(s32 value) { return value; }
 
 s32 func_00150330(s32 value) { return value; }
 
-INCLUDE_ASM(const s32, "core/main", func_00150338);
+extern u8 D_00389DC8[];
+extern void func_00150448();
+
+void func_00150338(void)
+{
+    s32 v = func_0018D2E8(0, 0x732, (s32)func_001502F8, (s32)func_00150300);
+
+    if (v < 0)
+        return;
+    D_003933EC = func_0016C548(4, 0x732, (s32)func_00150308, (s32)func_00150328, (s32)func_00150330);
+    func_00211918((s32)D_00389DC8);
+    func_00150448();
+}
 
 extern u8 D_0039341C;
 extern s32 D_0039342C;
@@ -4788,7 +4953,24 @@ INCLUDE_ASM(const s32, "core/main", func_00153510);
 
 INCLUDE_ASM(const s32, "core/main", func_001537B0);
 
-INCLUDE_ASM(const s32, "core/main", func_00153920);
+/* Retail 0x00153920: classify the object at D_003930B4->+0x2030->+0x28.
+   Writes the class to *out and returns it: 1 if absent/disabled, 2 or 3
+   depending on the 0x20 flag of the u16 at +4. */
+extern s32 D_003930B4;
+s32 func_00153920(u8 *out)
+{
+    u8 *p = (u8 *)(u32)D_003930B4;
+    u8 *q;
+    s32 r = 1;
+
+    p = *(u8 **)(p + 0x2030);
+    q = *(u8 **)(p + 0x28);
+    if (q != 0 && *(u8 *)(q + 0x10) != 0) {
+        r = (*(u16 *)(q + 4) & 0x20) != 0 ? 2 : 3;
+    }
+    *out = (u8)r;
+    return r;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00153970);
 
@@ -4965,7 +5147,19 @@ s32 func_001575F0(u32 a1)
     }
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001576D8);
+/* Behavioral: append one 16-byte record containing a 64-bit value and a tag
+ * (7 when a2 is nonzero, otherwise 6) to the packet buffer at D_003938B0. */
+extern u8 *D_003938B0;
+
+s32 func_001576D8(u64 value, u32 a2)
+{
+    u64 *dst = (u64 *)D_003938B0;
+
+    dst[0] = value;
+    dst[1] = (a2 != 0) ? 7 : 6;
+    D_003938B0 += 0x10;
+    return 1;
+}
 
 void func_00157710(s32 arg0, s32 arg1, u32 arg2)
 {
@@ -5644,7 +5838,7 @@ s32 func_0015C8A0();
 void func_0015F748();
 void func_0015F770();
 void func_0015B8E8();
-s32 func_0015E8D8();
+void func_0015E8D8();
 void func_00160370();
 void func_0015F718();
 void func_00169B08();
@@ -6604,13 +6798,43 @@ s32 func_0015DF18(u8 *arg0)
     return 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0015DF50);
+s32 func_0015DF50(s32 *a1)
+{
+    s32 v2 = *a1;
+    s32 v3;
+    s32 v4;
+
+    if ((v2 & 0xA) == 2)
+    {
+        *a1 = (v2 & -5) | 8;
+        v2 = (v2 & -5) | 8;
+    }
+    v3 = v2 & 5;
+    if (v3 == 1)
+        *a1 = (v2 | 4) & -9;
+    func_00165E08(a1[3]);
+    v4 = *a1;
+    a1[3] = 0;
+    v4 &= -2;
+    v4 &= -3;
+    *a1 = v4;
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0015DFE0);
 
 INCLUDE_ASM(const s32, "core/main", func_0015E0B0);
 
-INCLUDE_ASM(const s32, "core/main", func_0015E1E0);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+s32 func_0015E1E0(void *arg0)
+{
+    u8 *a0 = (u8 *)arg0;
+    s32 r;
+    func_0015DFE0(a0 + 0x10, 0, 0x10001);
+    func_0015DFE0(a0, 0, 0x20001);
+    r = func_0015F5D0();
+    return (r < 0) ? -1 : 1;
+}
 
 static inline s32 negv(s32 x) { return -x; }
 
@@ -6631,7 +6855,22 @@ end:
     return r;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0015E2A0);
+/* Retail 0x0015E2A0: the two `bltzl` delay slots set the result to 1 only
+   when the branch is TAKEN (branch-likely semantics on the R5900), so the
+   sign tests matter. Ghidra's "return 2" fall-through is real. */
+s32 func_0015E2A0(u8 *arg)
+{
+    s32 a = *(s32 *)arg;
+    s32 b = *(s32 *)(arg + 0x10);
+
+    if ((a & 0xA) == 0 && (b & 0xA) == 0)
+        return -1;
+    if ((a & 2) != 0)
+        return 1;
+    if ((b & 2) != 0)
+        return 1;
+    return 2;
+}
 
 s32 func_0015E2F0(s32 arg)
 {
@@ -6736,7 +6975,19 @@ void func_0015E8C0(void)
     D_003702D0[2] = 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0015E8D8);
+/* Retail 0x0015E8D8: walk the global D_003702D0 list and call
+   func_0015F198(*node) for every entry. The return value is the high half
+   of the global's address (a compiler artifact, ignored by callers). */
+void func_0015E8D8(void)
+{
+    s32 *p = (s32 *)D_003702D0[0];
+
+    while (p != 0) {
+        s32 *next = (s32 *)p[0x30 / 4];
+        func_0015F198(p[0]);
+        p = next;
+    }
+}
 
 s32 func_0015E918(u32 a1)
 {
@@ -6775,7 +7026,7 @@ INCLUDE_ASM(const s32, "core/main", func_0015ED10);
 
 INCLUDE_ASM(const s32, "core/main", func_0015F080);
 
-s32 func_0015F198(void);
+s32 func_0015F198();
 
 s32 func_0015F178(void)
 {
@@ -7050,7 +7301,13 @@ INCLUDE_ASM(const s32, "core/main", func_0015FFE8);
 extern s32 D_00393600;
 extern s32 D_00393604;
 
-INCLUDE_ASM(const s32, "core/main", func_00160078);
+/* Retail 0x00160078: dispatch through slot 0 of the 24-byte descriptor
+   table D_003702E0, using the index stored at (arg0->+4)->+4. */
+void func_00160078(void *arg0)
+{
+    s32 idx = *(u32 *)(*(u8 **)((u8 *)arg0 + 4) + 4);
+    ((void (*)(u32))D_003702E0[idx][0])(*(u32 *)arg0);
+}
 
 extern s32 D_003702E0[][6];
 
@@ -7308,7 +7565,18 @@ void func_00160758(void) { func_001648F8(); }
 
 void func_00160760(void) { func_00164900(); }
 
-INCLUDE_ASM(const s32, "core/main", func_00160768);
+/* Byte-matching: dispatch through the 0x18-byte D_003702E0 records; the
+   taken arm must stay first so the `-2` block lands out of line. */
+s32 func_00160768(u8 *a0)
+{
+    s32 idx;
+    if (*(s32 *)(a0 + 0xC) != 0)
+    {
+        idx = *(s32 *)(*(s32 *)(a0 + 4) + 4);
+        return ((s32 (*)(s32)) D_003702E0[idx][4])(*(s32 *)a0);
+    }
+    return -2;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001607B8);
 
@@ -7466,7 +7734,19 @@ s32 func_00160EB0(s32 arg1, s32 arg2)
 
 INCLUDE_ASM(const s32, "core/main", func_00160ED0);
 
-INCLUDE_ASM(const s32, "core/main", func_00161060);
+extern s32 D_003935B0;
+
+/* Indexed lookup in a 12-byte-stride table at arg0+0x28.  arg0+0x20 is the
+   index and arg0+0x2C the count.  Invalid index returns the global
+   D_003935B0, which is loaded in the return delay slot of the retail branch. */
+s32 func_00161060(s32 *arg0)
+{
+    s32 index = arg0[8];
+
+    if (index != -1 && index < arg0[11])
+        return *(s32 *)(arg0[10] + index * 12);
+    return D_003935B0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001610A0);
 
@@ -7672,7 +7952,18 @@ INCLUDE_ASM(const s32, "core/main", func_00161F48);
 
 INCLUDE_ASM(const s32, "core/main", func_00161FB8);
 
-INCLUDE_ASM(const s32, "core/main", func_00162020);
+/* Returns &D_003D82C8[arg0*15] (stride 0x3C).  If bit 0 of that record is
+   set, zeroes the two words at +0x30 and +0x34 before returning. */
+s32 *func_00162020(s32 arg0)
+{
+    s32 *record = (s32 *)((u8 *)D_003D82C8 + arg0 * 0x3C);
+
+    if ((*(u32 *)record & 1) != 0) {
+        record[0xC] = 0;
+        record[0xD] = 0;
+    }
+    return record;
+}
 
 s32 func_00162060(s32 arg0, s32 arg1)
 {
@@ -8476,7 +8767,15 @@ void func_00164F28(void *arg0, void *arg1)
     func_00169AC0(0x1B, &D_003935F8);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00164F50);
+s32 func_00164F50(void)
+{
+    s32 v;
+    if (func_00165570() == 0) {
+        v = func_001679B8();
+        if (v != 0) return 4;
+    }
+    return 1;
+}
 
 s32 func_00165510(void);
 
@@ -8939,7 +9238,19 @@ s32 func_00166070(u8 *arg0, s32 arg1)
     return r;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001660C8);
+/* Behavioral: validate that `ptr` is a 16-byte-aligned element of the
+ * 0x304-byte table at `base` (elements start at base+4), and if so call
+ * func_00168C18(ptr); otherwise return -1. */
+extern s32 func_00168C18();
+
+s32 func_001660C8(u8 *base, u8 *ptr)
+{
+    u32 p = (u32)ptr, b = (u32)base;
+
+    if (p < b + 4 || b + 0x304 < p || ((p - 4 - b) & 0xF) != 0)
+        return -1;
+    return func_00168C18(ptr);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00166120);
 
@@ -9881,7 +10192,15 @@ s32 func_00168390(s32 arg0, u32 *arg1)
 
 INCLUDE_ASM(const s32, "core/main", func_001683D8);
 
-INCLUDE_ASM(const s32, "core/main", func_00168470);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+s32 func_00168470(s32 *p)
+{
+    s32 flag = 1;
+    func_00168270(p, &flag, func_00168390);
+    if (flag != 0)
+        *p &= ~1;
+    return flag ? 0 : -1;
+}
 
 /* Byte-matching.  Same shape as func_00166040 with func_00168310. */
 s32 func_001684D8(s32 arg0)
@@ -10427,7 +10746,7 @@ typedef struct AF78Ctx {
 s32 func_0016ACE8(s32, s32);
 s32 func_001893D0(s32, s32, s32, s32);
 s32 func_0016BD48(s32, s32, s32);
-void func_00189728(s32 *, s32);
+s32 *func_00189728(s32 *, s32);
 s32 func_00197458(s32, s32, s32);
 s32 func_00189F88(s32 *, s32);
 s32 func_00189980(s32 *, s32);
@@ -10569,7 +10888,29 @@ s32 func_0016BDC0(s32 arg0)
 
 INCLUDE_ASM(const s32, "core/main", func_0016BDF8);
 
-INCLUDE_ASM(const s32, "core/main", func_0016BE90);
+s32 func_0018E628(s32 a1);
+
+u8 *func_0016BE90(u8 *arg0)
+{
+    u8 *result = arg0;
+    u8 *head = arg0 + 8;
+    u8 *node = *(u8 **)head;
+    u8 *p;
+
+    if (node != head) {
+        __asm__ volatile("" ::: "memory");
+        p = node - 0x40;
+        do {
+            if ((*(u8 *)(p + 2) & 4) != 0) {
+                func_0018E628(*(s32 *)(p + 4));
+                ((s32 (*)(u8 *))*(s32 **)(p + 0x48))(p);
+            }
+            node = *(u8 **)node;
+            p = node - 0x40;
+        } while (node != head);
+    }
+    return result;
+}
 
 s32 func_0016BF10(s32 arg, u8 *n)
 {
@@ -10579,7 +10920,20 @@ s32 func_0016BF10(s32 arg, u8 *n)
     return arg;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0016BF38);
+/* Behavioral: link `a1` into the list headed by a2[16]/a2[17] and store a2[15]=a1.
+ * The second word of the head node is redirected to the embedded node a2+0x40. */
+void *func_0016BF38(u8 *a1, u32 *a2)
+{
+    u32 *head = (u32 *)*(u32 *)(a1 + 8);
+    u32 *embedded = a2 + 0x10;
+
+    a2[16] = (u32)head;
+    a2[17] = (u32)(a1 + 8);
+    head[1] = (u32)embedded;
+    *(u32 *)(a1 + 8) = (u32)embedded;
+    a2[15] = (u32)a1;
+    return a1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0016BF68);
 
@@ -10718,7 +11072,14 @@ u8 *func_0016C6A8(u8 *p, s32 *counter)
     return p;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0016C6C0);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+u8 *func_0016C6C0(u8 *o)
+{
+    if ((*(u32 *)(o + 0x4C) & 2) != 0)
+        func_0016A730();
+    o[3] |= 1;
+    return o;
+}
 
 struct Off38 { char pad[0x38]; s32 v; };
 
@@ -10786,7 +11147,18 @@ INCLUDE_ASM(const s32, "core/main", func_0016D618);
 
 INCLUDE_ASM(const s32, "core/main", func_0016DDA8);
 
-INCLUDE_ASM(const s32, "core/main", func_0016DE20);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+extern s32 D_00393C98, D_00393C9C, D_003724A8[];
+s32 func_0016DE20(s32 a0, s32 a1)
+{
+    s32 r;
+    D_00393C98 = a1;
+    r = func_00195578(D_003724A8[0], 20, 0);
+    *(s32 *)((u8 *)D_003731B8 + D_00393C98) = r;
+    if (r == 0) return 0;
+    ++D_00393C9C;
+    return a0;
+}
 
 s32 func_0016DE88(void) { return D_003724B4[0]; }
 
@@ -11077,7 +11449,18 @@ s32 func_0016EBB0(s32 a1, s32 a2, u32 *a3, s32 a4, s32 a5, s32 a6, s32 a7, s32 a
     return a2;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0016EC98);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+extern s32 D_00393CA0, D_00393CA4, D_003724C0[];
+s32 func_0016EC98(s32 a0, s32 a1)
+{
+    s32 r;
+    D_00393CA0 = a1;
+    r = func_00195578(D_003724C0[0], 20, 0);
+    *(s32 *)((u8 *)D_003731B8 + D_00393CA0) = r;
+    if (r == 0) return 0;
+    ++D_00393CA4;
+    return a0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0016ED00);
 
@@ -11243,7 +11626,27 @@ s32 func_0016F688(s32 a1, s32 a2)
     return a1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0016F6F0);
+extern u8 D_003724F0[];
+
+/* Retail 0x0016F6F0: set the 3-vector at D_003724F0 to (1,1,1), or copy
+   12 bytes from arg0 into it. `arg0` may be only word-aligned, so use the
+   packed 12-byte aggregate to keep the retail ldl/ldr unaligned loads.
+   The return value is the high half of the global's address (a compiler
+   artifact); no caller reads it. */
+s32 func_0016F6F0(u8 *arg0)
+{
+    if (arg0 == 0) {
+        f32 *dst = (f32 *)D_003724F0;
+        dst[0] = 1.0f;
+        dst[1] = 1.0f;
+        dst[2] = 1.0f;
+    } else {
+        *(S12 *)D_003724F0 = *(S12 *)arg0;
+    }
+    /* Retail leaves %hi(D_003724F0) in $2 (a compiler artifact, ignored by
+       both callers). Return the same constant directly to stay in the slot. */
+    return 0x00370000;
+}
 
 s32 func_0016F738(s32 a1, s32 a2, s32 a3, s32 a4)
 {
@@ -11298,7 +11701,18 @@ u8 *func_0016F8C0(u8 *p)
     return p;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0016F8D8);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+void func_0016F8D8(u32 *p, s32 v)
+{
+    if (v != 0)
+        func_00199AB8(v);
+    if (*p == 0) {
+        *p = v;
+    } else {
+        func_00199AD0(*p);
+        *p = v;
+    }
+}
 
 s32 func_0016F930(const s32 *p) { return *(const s32 *)((const u8 *)p + (0)); }
 
@@ -11339,7 +11753,23 @@ s32 func_0016FA00(s32 arg)
 
 s32 func_0016FA28(void) { return 1; }
 
-INCLUDE_ASM(const s32, "core/main", func_0016FA30);
+/* Byte-matching.  Three separate levers: `D_003724D8` must be declared as an
+   array (a scalar declaration makes it gp-relative and costs the `lui`/`addiu`
+   pair), `n` must be initialised before the branch so the else arm is a bare
+   `addiu`, and the offset must be a named local added to `n` AFTER the call is
+   evaluated (`off = n + 0xC; return off + r;`) or GCC reassociates `0xC` onto
+   the call result. */
+s32 func_0016FA30(s32 *a0)
+{
+    s32 n = 0x28;
+    s32 off;
+    s32 r;
+    if (*a0 != 0)
+        n = func_0018AD50(*a0) + 0x34;
+    r = func_0019A3A8((u8 *)D_003724D8, (s32)a0);
+    off = n + 0xC;
+    return off + r;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0016FA88);
 
@@ -11377,7 +11807,25 @@ INCLUDE_ASM(const s32, "core/main", func_00170240);
 
 INCLUDE_ASM(const s32, "core/main", func_00170358);
 
-INCLUDE_ASM(const s32, "core/main", func_00170460);
+/* Reverse linear search.  arg0 is a two-word descriptor: [0] = item array,
+   [1] = item count.  Returns the highest matching index, or -1.  The retail
+   loop decrements in the branch delay slots; the -1 result is what those
+   slots leave in $v0 when the count is exhausted. */
+s32 func_00170460(s32 *desc, s32 value)
+{
+    s32 *items = *(s32 **)desc;
+    s32 i = desc[1];
+    s32 result = -1;
+
+    while (i > 0) {
+        i--;
+        if (items[i] == value) {
+            result = i;
+            break;
+        }
+    }
+    return result;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00170498);
 
@@ -11389,17 +11837,69 @@ INCLUDE_ASM(const s32, "core/main", func_00170818);
 
 INCLUDE_ASM(const s32, "core/main", func_001709E8);
 
-INCLUDE_ASM(const s32, "core/main", func_00170A88);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+extern s32 D_0039364C;
+extern s32 D_00372500[];
+u32 func_00170A88(u32 a0)
+{
+    s32 v = --D_0039364C;
+    if (v == 0) {
+        u32 x = *(u32 *)((u8 *)&D_00372500 + 0x14);
+        if (x != 0) {
+            func_001956D0(x);
+            *(u32 *)((u8 *)&D_00372500 + 0x14) = 0;
+        }
+    }
+    return a0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00170AE8);
 
-INCLUDE_ASM(const s32, "core/main", func_00170BD0);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+s32 func_00170BD0(u8 *a0)
+{
+    if (*(u32 *)(a0 + 8) != 0) {
+        s32 (*fn)(u32) = *(s32 (**)(u32))((u8 *)&D_003731B8 + 0x130);
+        fn(*(u32 *)(a0 + 8));
+        *(u32 *)(a0 + 8) = 0;
+    }
+    {
+        s32 (*fn)(u32, u8 *, u32) = *(s32 (**)(u32, u8 *, u32))((u8 *)&D_003731B8 + 0x140);
+        fn(*(s32 *)0x00372514, a0, 0x00370000);
+    }
+    return 1;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00170C38);
+s32 func_00170C38_impl(s32 *arg0) __asm__("func_00170C38");
+
+s32 func_00170C38_impl(s32 *arg0)
+{
+    if (arg0[0] != 0 || arg0[1] != 0 || arg0[2] != 0 || arg0[3] != 0)
+        ((s32 (*)(void))D_003732E8[0])();
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00170C90);
 
-INCLUDE_ASM(const s32, "core/main", func_00170DA8);
+/* D_00372510 (0x00372510) is outside the gp window; retail uses lui/addiu,
+   so name its absolute address rather than an extern (which assembles as a
+   gp-relative reference and fails to link). */
+#define D_00372510 (*(s32 *)0x00372510)
+
+/* Retail 0x00170DA8: accept modes 0, 1, 2; store the mode and return 1,
+   otherwise return 0 without touching the global. */
+s32 func_00170DA8(s32 arg)
+{
+    if (arg == 0) {
+        D_00372510 = 0;
+        return 1;
+    }
+    if (arg == 1 || arg == 2) {
+        D_00372510 = arg;
+        return 1;
+    }
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00170DF8);
 
@@ -11682,7 +12182,7 @@ s32 func_00176A10(u8 *arg0, u8 *arg1)
     s32 *p = (s32 *)((u8 *)arg1 + D_00393654 + 0xC);
     s32 v = func_0018C5D8(arg1);
     if (v != 0) {
-        func_0018E670(v);
+        func_0018E670((u8 *)v);
         *p = (s32)arg0;
     } else {
         *p = (s32)arg0;
@@ -11728,13 +12228,57 @@ INCLUDE_ASM(const s32, "core/main", func_001770E0);
 
 INCLUDE_ASM(const s32, "core/main", func_00177158);
 
-INCLUDE_ASM(const s32, "core/main", func_001771E0);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+extern s32 D_00393CB8;
+s32 func_001771E0(u8 *a0)
+{
+    u8 *a, *b;
+    s32 (*fn)(u32, u8 *, u32);
+    u32 ptr;
+    u32 arg;
+    a = *(u8 **)(a0 + 0x10);
+    *(u32 *)a = *(u32 *)(a0 + 0xC);
+    b = *(u8 **)(a0 + 0xC);
+    *(u32 *)(b + 4) = *(u32 *)(a0 + 0x10);
+    a = *(u8 **)(a0 + 4);
+    *(u32 *)a = *(u32 *)(a0 + 0);
+    b = *(u8 **)(a0 + 0);
+    *(u32 *)(b + 4) = *(u32 *)(a0 + 4);
+    fn = *(s32 (**)(u32, u8 *, u32))((u8 *)&D_003731B8 + 0x140);
+    ptr = (u32)((u8 *)&D_003731B8 + D_00393CB8);
+    arg = *(u32 *)(ptr + 4);
+    fn(arg, a0, ptr);
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00177248);
 
 INCLUDE_ASM(const s32, "core/main", func_001772F8);
 
-INCLUDE_ASM(const s32, "core/main", func_00177388);
+extern s32 D_00393654;
+void func_00177968(void);
+void func_001778F0(void);
+void func_00177930(void);
+
+/* Retail 0x00177388: install the three callbacks at arg0+0x10/0x18/0x1C,
+   copy the previous values into the embedded record at arg0+D_00393654,
+   and clear that record's header. */
+u8 *func_00177388(u8 *arg0)
+{
+    u8 *node = arg0 + D_00393654;
+
+    *(u32 *)(node + 0x10) = *(u32 *)(arg0 + 0x18);
+    *(u32 *)(node + 0x18) = *(u32 *)(arg0 + 0x10);
+    *(u32 *)(node + 0x14) = *(u32 *)(arg0 + 0x1C);
+    *(u32 *)(arg0 + 0x10) = (u32)func_00177968;
+    *(u32 *)(arg0 + 0x18) = (u32)func_001778F0;
+    *(u32 *)(arg0 + 0x1C) = (u32)func_00177930;
+    *(u32 *)(node + 0xC) = 0;
+    *(u32 *)(node + 0x0) = 0;
+    *(u32 *)(node + 0x4) = 0;
+    *(u32 *)(node + 0x8) = 0;
+    return arg0;
+}
 
 s32 func_00176A10();
 
@@ -11755,7 +12299,24 @@ u8 *func_001773E8(u8 *a1, u8 *a2)
 
 INCLUDE_ASM(const s32, "core/main", func_00177438);
 
-INCLUDE_ASM(const s32, "core/main", func_001774A8);
+/* Declared with >4 bytes so -G4 does not assume gp-relative addressing: the
+ * symbol lives in .data, outside the linker's gp window. */
+extern u16 D_003731C0[3];
+extern s32 func_001779F0();
+
+/* Rebinds arg0's slot in the D_00393658 table: saves its +0x10 field to the
+   table entry +4, clears the entry +0, sets +0x60 to D_003731C0-1 and replaces
+   +0x10 with func_001779F0.  Return value is arg0. */
+u8 *func_001774A8(u8 *arg0)
+{
+    u8 *entry = arg0 + D_00393658;
+
+    *(s32 *)(entry + 0x4) = *(s32 *)(arg0 + 0x10);
+    *(s16 *)(arg0 + 0x60) = (s16)(D_003731C0[0] - 1);
+    *(s32 *)(arg0 + 0x10) = (s32)func_001779F0;
+    *(s32 *)entry = 0;
+    return arg0;
+}
 
 s32 func_001774E0(s32 value) { return value; }
 
@@ -11779,7 +12340,21 @@ s64 func_001775E0(s64 a1, s32 a2)
 
 s32 func_00177620(s32 value) { return value; }
 
-INCLUDE_ASM(const s32, "core/main", func_00177628);
+/* Behavioral: unlink-style node rewrite.  p = a1 + D_00393660 (a byte offset,
+ * NOT zero: Ghidra assumed the initial value 0).  p[1] = a1->next(+0x10),
+ * a1->next = func_00175DC0, p[0] = 0.  Returns a1. */
+extern s32 D_00393660;
+extern void func_00175DC0(void);
+
+u8 *func_00177628(u8 *a1)
+{
+    u32 *p = (u32 *)(a1 + D_00393660);
+
+    p[1] = *(u32 *)(a1 + 0x10);
+    *(u32 *)(a1 + 0x10) = (u32)func_00175DC0;
+    p[0] = 0;
+    return a1;
+}
 
 s64 func_00177650(s64 a1, s32 a2)
 {
@@ -11881,7 +12456,22 @@ s32 func_001788D0(void)
     return *(s32 *)(base + index + 0x48);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001788E8);
+/* arg0 == 0 selects table slot +0x54, falling back to +0x48; the chosen
+   value is cached into +0x3C and returned.  The retail branch skips BOTH
+   table loads when arg0 != 0, so the fallback is not speculative. */
+s32 func_001788E8(s32 arg0)
+{
+    u8 *base = (u8 *)D_003731B8 + D_003937B0;
+    s32 v = arg0;
+
+    if (v == 0) {
+        v = *(s32 *)(base + 0x54);
+        if (v == 0)
+            v = *(s32 *)(base + 0x48);
+    }
+    *(s32 *)(base + 0x3C) = v;
+    return v;
+}
 
 s32 func_00178920(void)
 {
@@ -11981,7 +12571,20 @@ s32 func_00178A90(void)
     return *(s32 *)(base + index + 0x38);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00178AA8);
+/* Same selector shape as func_001788E8: +0x50, fallback +0x44, cache +0x38. */
+s32 func_00178AA8(s32 arg0)
+{
+    u8 *base = (u8 *)D_003731B8 + D_003937B0;
+    s32 v = arg0;
+
+    if (v == 0) {
+        v = *(s32 *)(base + 0x50);
+        if (v == 0)
+            v = *(s32 *)(base + 0x44);
+    }
+    *(s32 *)(base + 0x38) = v;
+    return v;
+}
 
 u8 *func_00178AE0(u8 *p, u8 *out)
 {
@@ -12028,7 +12631,20 @@ s32 func_00178B80(void)
     return *(s32 *)(base + index + 0x44);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00178B98);
+/* Same selector shape as func_001788E8: +0x58, fallback +0x4C, cache +0x40. */
+s32 func_00178B98(s32 arg0)
+{
+    u8 *base = (u8 *)D_003731B8 + D_003937B0;
+    s32 v = arg0;
+
+    if (v == 0) {
+        v = *(s32 *)(base + 0x58);
+        if (v == 0)
+            v = *(s32 *)(base + 0x4C);
+    }
+    *(s32 *)(base + 0x40) = v;
+    return v;
+}
 
 s32 func_00178BD0(void)
 {
@@ -12169,7 +12785,21 @@ INCLUDE_ASM(const s32, "core/main", func_0017D6C0);
 
 void func_0017D870(void) { func_001825C8(); }
 
-INCLUDE_ASM(const s32, "core/main", func_0017D878);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+extern u8 D_00372CC0[];
+extern u8 D_00372D20[];
+extern u8 D_00372D78[];
+s32 func_0017D878(s32 a0)
+{
+    s32 p = 0;
+
+    switch (a0) {
+    case 2: p = (s32)&D_00372CC0; break;
+    case 0: p = (s32)&D_00372D20; break;
+    case 1: p = (s32)&D_00372D78; break;
+    }
+    return p;
+}
 
 s32 func_00181700(void);
 
@@ -13083,7 +13713,24 @@ s32 func_001833F8(void)
     return *(s32 *)(base + index + 0x64);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00183410);
+extern s32 D_003937B0;
+extern s32 D_003731B8[];
+
+void func_00183410(void)
+{
+    s32 idx;
+    u32 base;
+    s32 *p;
+
+    func_00178B98(0);
+    idx = D_003937B0;
+    base = (u32)D_003731B8;
+    p = (s32 *)(idx + base);
+    if (p[0x58 / 4] != 0) {
+        func_001A38C0(p[0x58 / 4]);
+        *(s32 *)(D_003937B0 + base + 0x58) = 0;
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00183468);
 
@@ -13350,7 +13997,19 @@ u8 *func_00188CB8(u8 *p)
     return p;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00188CD0);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+extern s32 D_00393730;
+s32 func_00188CD0(void)
+{
+    s32 local[2];
+    s32 old;
+    local[0] = 2;
+    local[1] = func_0018DA08(0x8000001B);
+    func_0018DAD0(local);
+    old = D_00393730;
+    D_00393730 = old + 1;
+    return old;
+}
 
 u16 func_00188D18(const u16 *p) { return p[46]; }
 
@@ -13453,7 +14112,7 @@ s32 func_00189220(u32 *a1)
 
 INCLUDE_ASM(const s32, "core/main", func_00189268);
 
-void func_00189728();
+s32 *func_00189728(s32 *, s32);
 s32 func_00197458();
 
 s32 func_001893D0(s32 a1, s32 a2, s32 a3, s32 a4)
@@ -13474,13 +14133,56 @@ INCLUDE_ASM(const s32, "core/main", func_001895D8);
 
 INCLUDE_ASM(const s32, "core/main", func_00189698);
 
-INCLUDE_ASM(const s32, "core/main", func_00189728);
+/* Retail body is a pure delay loop: (arg1 >> 2) iterations of NOPs, with
+   arg0 copied to $v0.  Nothing is read or written, but the loop is retained
+   with a volatile counter because callers pass it a buffer size and the
+   original spins for that many quarters. */
+s32 *func_00189728(s32 *arg0, s32 arg1)
+{
+    u32 n = (u32)arg1 >> 2;
 
-INCLUDE_ASM(const s32, "core/main", func_00189760);
+    while (n != 0) {
+        __asm__ volatile("" ::: "memory");
+        n--;
+    }
+    return arg0;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00189798);
+/* Identical delay-loop body to func_00189728. */
+s32 func_00189760(s32 arg0, u32 arg1)
+{
+    u32 n = arg1 >> 2;
 
-INCLUDE_ASM(const s32, "core/main", func_001897D0);
+    while (n != 0) {
+        __asm__ volatile("" ::: "memory");
+        n--;
+    }
+    return arg0;
+}
+
+/* Identical delay-loop body to func_00189728. */
+s32 func_00189798(s32 arg0, u32 arg1)
+{
+    u32 n = arg1 >> 2;
+
+    while (n != 0) {
+        __asm__ volatile("" ::: "memory");
+        n--;
+    }
+    return arg0;
+}
+
+/* Identical delay-loop body to func_00189728. */
+s32 func_001897D0(s32 arg0, u32 arg1)
+{
+    u32 n = arg1 >> 2;
+
+    while (n != 0) {
+        __asm__ volatile("" ::: "memory");
+        n--;
+    }
+    return arg0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00189808);
 
@@ -13499,7 +14201,25 @@ s32 func_00189F50(s32 arg1, s32 arg2, s32 arg3, s32 arg4)
 
 INCLUDE_ASM(const s32, "core/main", func_00189F88);
 
-INCLUDE_ASM(const s32, "core/main", func_0018A060);
+/* Finds value in the word array described by arg0 ([0] = array, [1] = count).
+   On success writes the index to *arg2 and returns 1; on failure returns 0
+   without touching *arg2.  The count is reloaded each iteration, as in the
+   retail listing. */
+s32 func_0018A060(s32 *desc, s32 value, s32 *outIndex)
+{
+    s32 *items = *(s32 **)desc;
+    s32 n = desc[1], i = 0;
+
+    if (n <= 0)
+        return 0;
+    while (*items != value) {
+        if (++i >= n)
+            return 0;
+        items++;
+    }
+    *outIndex = i;
+    return 1;
+}
 
 extern s32 D_003732E8[];
 s32 func_0018A0A0(s32 *arg0)
@@ -13988,7 +14708,7 @@ s32 *func_0018C5F8(s32 *p, s32 value) { p[0x19] = value; return p; }
 
 s32 func_0018C608(const s32 *p) { return *(const s32 *)((const u8 *)p + (100)); }
 
-void func_0018E670();
+u8 *func_0018E670(u8 *);
 u8 *func_0018C610(u8 *arg0, u8 *arg1)
 {
     u8 *result = arg0;
@@ -13996,7 +14716,7 @@ u8 *func_0018C610(u8 *arg0, u8 *arg1)
     *(UnalignedU64 *)(arg0 + 0x78) = *(UnalignedU64 *)arg1;
     v = *(s32 *)(arg0 + 4);
     if (v != 0) {
-        func_0018E670(v);
+        func_0018E670((u8 *)v);
         return arg0;
     }
     return result;
@@ -14148,7 +14868,18 @@ s32 func_0018D350(void)
     return v0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0018D3D8);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+u32 func_0018D3D8(void)
+{
+    u32 cond = (D_00393748 == 0);
+    if (cond) {
+        func_0019A450();
+        func_0018EC70();
+        func_00195A40();
+        D_00373300[0] = 0;
+    }
+    return cond;
+}
 
 s32 func_0018D428(void)
 {
@@ -14163,7 +14894,18 @@ s32 func_0018D428(void)
 
 INCLUDE_ASM(const s32, "core/main", func_0018D478);
 
-INCLUDE_ASM(const s32, "core/main", func_0018D520);
+/* Byte-matching.  The local must be an `s32 v[8]` whose slot 4 is passed to
+   the callback (retail's frame is 0x30 and the pointer is sp+0x10), and the
+   one-shot `do {} while (0)` is what makes cc1 leave retail's spare nop after
+   the `beql` delay-slot store (any non-loop arm drops it and the function
+   shrinks to 60 B). */
+s32 func_0018D520(void)
+{
+    s32 v[8];
+    if (((s32 (*)(s32, s32 *, s32, s32)) D_003731CC[0])(15, &v[4], 0, 0) == 0)
+        do { v[4] = 0; } while (0);
+    return v[4];
+}
 
 s32 func_0018D560(s32 a1)
 {
@@ -14390,7 +15132,14 @@ u8 *func_0018D9D0(u8 *arg0, u8 *arg1)
     return arg0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0018DA08);
+/* Retail 0x0018DA08: a stub that spills its argument registers to a scratch
+   frame and returns the first argument unchanged. The extra arguments are
+   ignored, so a single-parameter definition is behaviourally identical. */
+s32 func_0018DA08(arg0)
+    s32 arg0;
+{
+    return arg0;
+}
 
 extern s32 D_00393CF0;
 
@@ -14484,7 +15233,28 @@ s32 func_0018E628(s32 a1)
 
 u8 *func_0018E668(u8 *p) { return p + 16; }
 
-INCLUDE_ASM(const s32, "core/main", func_0018E670);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+u8 *func_0018E670(u8 *a0)
+{
+    u8 *p = a0;
+    u8 *q;
+    u8 c;
+    p[3] |= 0xC;
+    q = *(u8 **)(p + 0xA8);
+    c = q[3];
+    if ((c & 3) == 0) {
+        volatile u32 *base = (volatile u32 *)0x00373274;
+        u8 *prev = (u8 *)*base;
+        *(volatile u32 *)(q + 0x94) = (u32)base;
+        *(volatile u32 *)(q + 0x90) = (u32)prev;
+        prev = (u8 *)*base;
+        *(volatile u32 *)(prev + 4) = (u32)(q + 0x90);
+        *base = (u32)(q + 0x90);
+    }
+    q = *(u8 * volatile *)(p + 0xA8);
+    q[3] = c | 3;
+    return p;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0018E6D0);
 
@@ -14771,7 +15541,19 @@ f32 func_00190E40(void)
     return *(f32 *)(base + index + 0x20c);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00190E58);
+/* Retail 0x00190E58: translate three byte indices through the byte table
+   at D_003731B8 + D_00393D00 + 0xC. The three source bytes are captured
+   before any store, exactly as in the retail listing. */
+u8 *func_00190E58(u8 *arg0)
+{
+    u8 a = arg0[0], b = arg0[1], c = arg0[2];
+    u8 *table = (u8 *)D_003731B8 + D_00393D00;
+
+    arg0[0] = table[a + 0xC];
+    arg0[1] = table[b + 0xC];
+    arg0[2] = table[c + 0xC];
+    return arg0;
+}
 
 s32 func_0019A490();
 
@@ -14862,7 +15644,16 @@ s32 func_00193010(void)
     return ((s32 (*)(void)) D_003731DC[0])();
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00193038);
+s32 func_00193038(s32 a1, s32 a2)
+{
+    s32 local[2];
+    if (*(u32 *)&D_003731B8 != 0)
+        return ((s32 (*)(s32, s32))*(u32 *)((u8 *)&D_003731B8 + 0x20))(a1, a2);
+    local[0] = 1;
+    local[1] = func_0018DA08(0xF);
+    func_0018DAD0(local);
+    return 0;
+}
 
 s32 func_00193090(void)
 {
@@ -15077,7 +15868,15 @@ void func_00195A40(void) {
 
 INCLUDE_ASM(const s32, "core/main", func_00195A48);
 
-INCLUDE_ASM(const s32, "core/main", func_00195AC8);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+s32 func_00195AC8(s32 a0, s32 a1)
+{
+    s32 p = a0 * a1;
+    s32 r = func_00223E58(p);
+    if (r != 0)
+        func_00224B88(r, 0, p);
+    return r;
+}
 
 s32 func_00195B18(const s32 *left, const s32 *right) { return *left - *right; }
 
@@ -15272,13 +16071,41 @@ s32 func_00196720(void)
     return *(s32 *)(base + index + 0x00);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00196738);
+/* Retail 0x00196738: accumulate the +8 delta of every node in the list
+   headed at (D_003731B8 + D_00393D20)+0x20, starting from the +8 word. */
+s32 func_00196738(void)
+{
+    u8 *base = (u8 *)D_003731B8 + D_00393D20;
+    u8 *head = *(u8 **)(base + 0x20);
+    u8 *node = *(u8 **)head;
+    s32 sum = *(s32 *)(base + 8);
+
+    while (node != head) {
+        sum += *(s32 *)(node + 8);
+        node = *(u8 **)node;
+    }
+    return sum;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00196788);
 
 INCLUDE_ASM(const s32, "core/main", func_00196810);
 
-INCLUDE_ASM(const s32, "core/main", func_00196898);
+/* Retail 0x00196898: unlink node from its current list and insert it at
+   the head of the list at (D_003731B8 + D_00393D20)+0x20. */
+void func_00196898(u8 *node)
+{
+    u8 *base = (u8 *)D_003731B8 + D_00393D20;
+    u8 *head;
+
+    **(u32 **)(node + 4) = *(u32 *)node;
+    *(u32 *)(*(u32 *)node + 4) = *(u32 *)(node + 4);
+    head = *(u8 **)(base + 0x20);
+    *(u32 *)(node + 4) = (u32)head;
+    *(u32 *)node = *(u32 *)head;
+    *(u32 *)(*(u32 *)head + 4) = (u32)node;
+    *(u32 *)head = (u32)node;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001968E8);
 
@@ -15631,7 +16458,22 @@ s32 *func_00199BF0(s32 *p, s32 value) { p[0x16] = value; return p; }
 
 s32 *func_00199C00(s32 *p, s32 value) { p[0x17] = value; return p; }
 
-INCLUDE_ASM(const s32, "core/main", func_00199C10);
+/* Retail 0x00199C10: splice node arg0 into the doubly linked list owned
+   by arg1. Existing links are repaired first, then the new node is
+   installed between arg1 and the old +8 node. */
+u8 *func_00199C10(u8 *arg0, u8 *arg1)
+{
+    if (*(u32 *)(arg1 + 4) != 0) {
+        **(u32 **)(arg1 + 0xC) = *(u32 *)(arg1 + 8);
+        *(u32 *)(*(u32 *)(arg1 + 8) + 4) = *(u32 *)(arg1 + 0xC);
+    }
+    *(u32 *)(arg1 + 4) = (u32)arg0;
+    *(u32 *)(arg1 + 8) = *(u32 *)(arg0 + 8);
+    *(u32 *)(arg1 + 0xC) = (u32)(arg0 + 8);
+    *(u32 *)(*(u32 *)(arg0 + 8) + 4) = (u32)(arg1 + 8);
+    *(u32 *)(arg0 + 8) = (u32)(arg1 + 8);
+    return arg1;
+}
 
 s32 *func_00199C68(s32 *p)
 {
@@ -15863,6 +16705,7 @@ s32 func_0019A820(s32 value) { return value; }
 
 s32 func_0019A828(s32 value) { return value; }
 
+/* Behavioral reconstruction (hy4-bfree-1123). */
 INCLUDE_ASM(const s32, "core/main", func_0019A830);
 
 /* Byte-matching.  Unlinks the node from its doubly linked list.
@@ -15991,9 +16834,38 @@ void func_0019B2A8(void) {
 
 INCLUDE_ASM(const s32, "core/main", func_0019B2B0);
 
-INCLUDE_ASM(const s32, "core/main", func_0019B320);
+/* Retail 0x0019B320: uppercase a NUL-terminated string in place. The
+   unsigned range test on (signed char - 0x61) is kept verbatim. */
+s8 *func_0019B320(s8 *arg0)
+{
+    s8 *p = arg0;
+    s32 c;
 
-INCLUDE_ASM(const s32, "core/main", func_0019B368);
+    if (p != 0) {
+        while ((c = *p) != 0) {
+            if ((u32)(c - 'a') < 26)
+                *p = (s8)(c - 32);
+            p++;
+        }
+    }
+    return arg0;
+}
+
+/* Retail 0x0019B368: lowercase a NUL-terminated string in place. */
+s8 *func_0019B368(s8 *arg0)
+{
+    s8 *p = arg0;
+    s32 c;
+
+    if (p != 0) {
+        while ((c = *p) != 0) {
+            if ((u32)(c - 'A') < 26)
+                *p = (s8)(c + 32);
+            p++;
+        }
+    }
+    return arg0;
+}
 
 s8 *func_0019B3B0(s8 *s, s8 c)
 {
@@ -16009,7 +16881,22 @@ s8 *func_0019B3B0(s8 *s, s8 c)
     return r;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0019B3E8);
+/* newlib strrchr installed in the function table by func_0019B1B8 at +0x104.
+   The retail compare sign-extends both the loaded byte (lb) and the argument
+   (sll/sra 24), so (s8) comparisons are required for characters >= 0x80. */
+char *func_0019B3E8(char *s, s32 c)
+{
+    char *last = 0;
+    s8 ch;
+
+    do {
+        ch = *s;
+        if (ch == (s8)c)
+            last = s;
+        s++;
+    } while (ch != 0);
+    return last;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0019B420);
 
@@ -16065,7 +16952,21 @@ s32 func_0019C4F0(void)
 
 INCLUDE_ASM(const s32, "core/main", func_0019C508);
 
-INCLUDE_ASM(const s32, "core/main", func_0019C5F0);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+u32 func_0019C5F0(u32 a0)
+{
+    u32 *p = (u32 *)((u8 *)&D_003731B8 + D_003937A8);
+    u32 x;
+    if (a0 != 0) {
+        p[0x18 / 4] = a0;
+    } else {
+        x = p[0x30 / 4];
+        if (x == 0)
+            x = p[0];
+        p[0x18 / 4] = x;
+    }
+    return p[0x18 / 4];
+}
 
 extern s32 D_003937B0;
 extern s32 func_001A3A88();
@@ -16362,7 +17263,20 @@ s32 func_001A3F20(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6, s32 a7, s32 a8
     return a1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001A3FB0);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+s32 func_001A3FB0(u8 *p)
+{
+    if (*(u16 *)p & 2) {
+        *(u16 *)p = 0;
+    } else {
+        func_001A8320(D_00393824, *(u32 *)(p + 4));
+        *(u16 *)p = 0;
+    }
+    *(u32 *)(p + 4) = 0;
+    *(u32 *)(p + 0xC) = 0;
+    *(u32 *)(p + 0x10) = 0;
+    return 0;
+}
 
 void func_001A4000(void) {
 }
@@ -16384,7 +17298,26 @@ u32 func_001A4008(u8 *arg0)
 
 INCLUDE_ASM(const s32, "core/main", func_001A4048);
 
-INCLUDE_ASM(const s32, "core/main", func_001A4130);
+/* Retail 0x001A4130: index a word table through an indirection word;
+   idx must be below the count at (*arg0)+0x20 and the selected word must
+   not be -1. */
+s32 func_001A4130(u8 *arg0, u32 arg1)
+{
+    u8 *hdr;
+    u8 *table;
+    s32 sel;
+
+    if (arg0 == 0)
+        return 0;
+    hdr = *(u8 **)arg0;
+    if (arg1 >= *(u32 *)(hdr + 0x20))
+        return 0;
+    table = *(u8 **)(arg0 + 0x18);
+    sel = *(s32 *)(table + arg1 * 4);
+    if (sel == -1)
+        return 0;
+    return *(s32 *)(*(u8 **)(arg0 + 0xC) + sel * 4);
+}
 
 s32 func_001A4180(u8 *p)
 {
@@ -16526,11 +17459,33 @@ s32 func_001A6510(s32 *arg0, s32 *arg1)
     return 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001A6588);
+/* Retail 0x001A6588: returns a POINTER (base + index*32), not the value
+   at that address - Ghidra's cast hides that. */
+s32 func_001A6588(u8 *arg0)
+{
+    u32 sel;
+
+    if (arg0 == 0 || *(u32 *)arg0 != 1)
+        return 0;
+    sel = *(u32 *)(arg0 + 0x28);
+    if (sel == 0xFFFFFFFF || sel >= *(u32 *)(arg0 + 4))
+        return 0;
+    return (s32)(*(u32 *)(arg0 + 8) + sel * 32);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001A65E0);
 
-INCLUDE_ASM(const s32, "core/main", func_001A6670);
+/* Retail 0x001A6670: verify a pointer produced by func_001A6588, mark the
+   slot consumed (-1), and return arg0 (non-zero) on success. */
+s32 func_001A6670(u8 *arg0, u32 *arg1, u8 *arg2)
+{
+    if (arg0 == 0 || *(u32 *)arg0 != 1 || arg1 == 0 || arg2 == 0)
+        return 0;
+    if (*(u32 *)(arg0 + 8) + *arg1 * 32 != (u32)arg2)
+        return 0;
+    *arg1 = 0xFFFFFFFF;
+    return (s32)arg0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001A66C8);
 
@@ -16685,7 +17640,21 @@ s32 func_001ABE38(s32 a1, s32 a2, s32 a3)
     return 1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001ABE98);
+/* Retail 0x001ABE98: spin until the busy bit (0x100) clears, then publish
+   the two fields and update the status word. Returns 0xFFFFFF7F (-129). */
+s32 func_001ABE98(u32 *arg0, u32 arg1, u32 arg2)
+{
+    volatile u32 *p = arg0;
+    u32 v;
+
+    do {
+        v = *p;
+    } while ((v & 0x100) != 0);
+    arg0[0x30 / 4] = arg1;
+    arg0[0x20 / 4] = 0;
+    *arg0 = (v | 0x105 | arg2) & 0xFFFFFF7F;
+    return (s32)0xFFFFFF7F;
+}
 
 s32 func_001ABEE0(void) { return 0; }
 
@@ -16714,7 +17683,533 @@ INCLUDE_ASM(const s32, "core/main", func_001AD8D8);
 
 INCLUDE_ASM(const s32, "core/main", func_001ADC90);
 
-INCLUDE_ASM(const s32, "core/main", func_001AE020);
+/* ---------------------------------------------------------------------------
+ * func_001AE020 -- texture upload preparation (handler 4 of the display-list
+ * opcode table at D_003783B0, i.e. opcode 0x04).
+ *
+ * Confirmed from the retail listing (asm/nonmatchings/core/main/func_001AE020.s)
+ * and the pseudocode (tools/export/SLES_500.44.c:178200):
+ *
+ *   s32 func_001AE020(s32 a1, u8 *h, u32 a3)
+ *
+ * a1/a3 are only forwarded to func_001ADC90, which decodes a3 into the
+ * texture descriptor h (h+0x20 = a3&7, h+0x21 = a3&0xF8, h+0x23 = the pixel
+ * format byte).  h+0x0C/0x10 are the width/height in texels and h+0x14 is the
+ * bits-per-texel index (1,2,4,8) used by the D_0038CAF8/D_0038CB78 tables.
+ *
+ * The upload state lives at h + D_00393990 (a runtime pointer offset that
+ * func_001B0CC0 sets to the 0x5C-byte object returned by func_00196290(0x5C,
+ * 0x40C,...); it is 0 in the static image).  Both bases are used in the same
+ * function, so the addition is reproduced verbatim:
+ *
+ *   descriptor h:   +0x04 data ptr, +0x08 second ptr, +0x0C width,
+ *                   +0x10 height, +0x14 bpp index, +0x18 row bytes,
+ *                   +0x20 mode, +0x21 flags (0x80 = no buffer needed),
+ *                   +0x23 pixel format byte (0x80 = mip mapped)
+ *   upload state t: +0x08 TEX0 (low dword) / +0x0C (high dword: TH[3:2]),
+ *                   +0x14 TEXA/clut word, +0x16 mip count*4, +0x17 cleared,
+ *                   +0x18/+0x20 two packed level descriptors,
+ *                   +0x28 mip bytes, +0x2C extra bytes, +0x30 VRAM bytes,
+ *                   +0x34 ready flag, +0x38 clut packet, +0x3C..+0x58
+ *                   per-level packet pointers (cleared on entry)
+ *
+ * Mode dispatch (h+0x20, values >= 6 and 3 return 0):
+ *   0 -> linear allocation only: size = align16(h * bpp*w/8), VRAM pages =
+ *        ceil(w/blkW)*ceil(h/blkH)*2048, malloc when h+0x21 bit7 is clear.
+ *        No TEX0 and no packet build (func_001B8DE8 is not called).
+ *   1 -> keep the texture in the current VRAM area (D_00393D84): only check
+ *        that the area is large enough, then mark h+0x21 = 0x80, h+0x18 = 0.
+ *   2 -> texture already resident: check w/h against the area and derive
+ *        h+0x18 from the area's third word.
+ *   4 -> full path without the area size check.
+ *   5 -> full path with the area size check, and the format byte must not
+ *        carry any of 0xF0.
+ *
+ * Full path: build TEX0 (TBW from D_0038CAF8, TW/TH from floor logs, PSM from
+ * h+0x23), then one of three format groups (h+0x23 & 0x60):
+ *   0x00 -> PSM stays as is, fmt 1 (|0xA00000) / 5 (|4) / 6 (|0x100000)
+ *   0x20 -> PSM 0x13, TEX0 high |= 0x20000004, fmt 1/5 only
+ *   0x40 -> PSM 0x14, TEX0 high |= 0x20000004|0x500000, fmt 1/5 only
+ * Every other format value reports 0x8000000D.
+ * Then either the flat layout (h+0x23 bit7 clear) or the mip layout (bit7
+ * set: up to 4 levels, per-level VRAM block offsets from the PSM table
+ * D_0038CBF8/C18/C38/C58/C78, packed into t+0x18..+0x27), and finally one
+ * allocation of align16(mipBytes) + extraBytes, h+0x08 = ptr + mipBytes when
+ * extraBytes != 0, and func_001B8DE8(h) builds the DMA packets.
+ *
+ * Quirks kept on purpose:
+ *   - the mip loop's first level adds 0 to t+0x28: retail's `$2` operand is
+ *     the low dword of the zero-extended previous block width (i.e. 0), so
+ *     only levels 1..n-1 are counted, matching the arr[1..6]/sz[1..6] packing;
+ *   - the 0x8000000D / 0x80000010 error sites pass an indeterminate second
+ *     argument to func_0018DA08 (no store to $5); 0 is passed here;
+ *   - t+0x2C (extra bytes) is read by the mode 0 failure path without having
+ *     been written on that path.
+ * ------------------------------------------------------------------------ */
+
+extern s32 D_0038CAF8[];   /* [bpp-1]: block width  in texels for TBW / mips */
+extern s32 D_0038CB78[];   /* [bpp-1]: block height in texels (0x80 or 0x40) */
+extern s32 D_0038CBF8[];   /* per-PSM VRAM block offset tables, index 0..7 */
+extern s32 D_0038CC18[];
+extern s32 D_0038CC38[];
+extern s32 D_0038CC58[];
+extern s32 D_0038CC78[];
+extern s32 D_00377F00[];   /* 4 words per VRAM area: texelsW, texelsH, ?, ? */
+extern s32 D_00393D84;     /* currently selected VRAM area */
+extern s32 D_00393968;     /* TEXA/clut word copied to t+0x14 */
+extern u8 D_003732E4[];    /* heap allocator function pointer */
+
+s32 func_001ADC90(s32, u8 *, u32);
+void func_001B8DE8(u8 *);
+
+s32 func_001AE020(s32 a1, u8 *h, u32 a3)
+{
+    u8 *t;
+    s32 ctx[2];
+    s32 v153;
+    s32 v154;
+    s32 stepBlock;
+    s32 a5;
+    s32 a10;
+    s32 blkH;
+    s32 tblW;
+    s32 fmt;
+    s32 width;
+    s32 height;
+    s32 rowBytes;
+    s32 hiWord;
+    s32 logw;
+    s32 logh;
+    s32 x;
+    s32 i;
+    u32 cw;
+    u32 ch;
+    u32 W;
+    u32 HH;
+    u32 total;
+    u32 off;
+    u32 prev;
+    u32 extra;
+    u32 sf;
+    u32 ceilW;
+    u32 hb;
+    u32 n;
+    s32 off8;
+    s32 level;
+    s32 prevSize;
+    s32 psm;
+    s32 vram;
+    s32 p;
+    s32 *psmTable;
+    u64 arr[7];
+    u64 sz[7];
+    u64 packed;
+
+    t = (u8 *)((s32)h + D_00393990);
+
+    if (func_001ADC90(a1, h, a3) == 0)
+        return 0;
+
+    *(s32 *)(h + 0x04) = 0;
+    *(s32 *)(h + 0x08) = 0;
+    *(u8 *)(t + 0x17) = 0;
+    *(u8 *)(t + 0x34) = 0;
+    *(s32 *)(t + 0x38) = 0;
+    *(s32 *)(t + 0x3C) = 0;
+    *(s32 *)(t + 0x40) = 0;
+    *(s32 *)(t + 0x44) = 0;
+    *(s32 *)(t + 0x48) = 0;
+    *(s32 *)(t + 0x4C) = 0;
+    *(s32 *)(t + 0x50) = 0;
+    *(s32 *)(t + 0x54) = 0;
+    *(s32 *)(t + 0x58) = 0;
+
+    width = *(s32 *)(h + 0x0C);
+    if (width == 0)
+        goto no_size;
+    height = *(s32 *)(h + 0x10);
+    if (height == 0)
+        goto no_size;
+
+    /* if-else chain: identical control flow, but no compiler jump table in
+       .rdata (the retail table lives in the fixed data image). */
+    {
+        u32 mode = *(u8 *)(h + 0x20);
+        if (mode == 0) goto mode0;
+        if (mode == 1) goto mode1;
+        if (mode == 2) goto mode2;
+        if (mode == 4) goto tex0;
+        if (mode == 5) goto mode5;
+        return 0;
+    }
+
+/* width or height is zero: nothing to upload, mark the texture empty. */
+no_size:
+    *(s32 *)(h + 0x18) = 0;
+    *(u8 *)(h + 0x21) = 0x80;
+    goto done_ok;
+
+/* Mode 2: the texture already lives in VRAM area D_00393D84. */
+mode2:
+    {
+        s32 *area = D_00377F00 + D_00393D84 * 4;
+
+        if (area[0] < width || area[1] < height)
+            goto err_area;
+        *(s32 *)(h + 0x04) = 0;
+        *(u8 *)(h + 0x21) = 0x80;
+        *(s32 *)(h + 0x18) = (((area[2] + 7) >> 3) * ((area[0] + 63) >> 6)) << 6;
+        goto done_ok;
+    }
+
+/* Modes 1 and 5 first check that the current area can hold the texture. */
+mode1:
+    {
+        s32 *area = D_00377F00 + D_00393D84 * 4;
+        s32 need = ((width + 63) >> 6) * height;
+        s32 cap = ((area[0] + 63) >> 6) * area[1];
+
+        if (cap < need)
+            goto err_area;
+        *(s32 *)(h + 0x18) = 0;
+        *(u8 *)(h + 0x21) = 0x80;
+        *(s32 *)(h + 0x04) = 0;
+        goto done_ok;
+    }
+
+/* Mode 0: linear texture, no TEX0 and no packet build. */
+mode0:
+    {
+        s32 blkW = D_0038CAF8[*(s32 *)(h + 0x14) - 1];
+        s32 blkHH = D_0038CB78[*(s32 *)(h + 0x14) - 1];
+        s32 rows = (*(s32 *)(h + 0x14) * width) >> 3;
+        s32 size = height * rows;
+
+        *(s32 *)(h + 0x18) = rows;
+        *(s32 *)(t + 0x28) = size;
+        *(s32 *)(t + 0x30) = (((width - 1 + blkW) / blkW) *
+                              ((height - 1 + blkHH) / blkHH)) << 11;
+        if (*(u8 *)(h + 0x21) & 0x80) {
+            *(s32 *)(h + 0x04) = 0;
+            goto done_ok;
+        }
+        p = ((s32 (*)(s32)) * (s32 *)D_003732E4)(size);
+        *(s32 *)(h + 0x04) = p;
+        if (p != 0)
+            goto done_ok;
+        ctx[0] = 1;
+        ctx[1] = func_0018DA08((s32)0x80000013, *(s32 *)(t + 0x28) + *(s32 *)(t + 0x2C));
+        func_0018DAD0(ctx);
+        return 0;
+    }
+
+mode5:
+    if ((*(u8 *)(h + 0x23) & 0xF0) != 0)
+        goto err_fmt;
+    {
+        s32 *area = D_00377F00 + D_00393D84 * 4;
+        s32 need = ((width + 63) >> 6) * height;
+        s32 cap = ((area[0] + 63) >> 6) * area[1];
+
+        if (cap < need)
+            goto err_fmt;
+    }
+    /* fall through */
+
+/* Full path: TEX0 from the descriptor. */
+tex0:
+    fmt = *(s32 *)(h + 0x14);
+    blkH = D_0038CB78[fmt - 1];
+    tblW = D_0038CAF8[fmt - 1];
+
+    logw = -1;
+    for (x = width; x != 0; x >>= 1)
+        logw++;
+    logh = -1;
+    for (x = height; x != 0; x >>= 1)
+        logh++;
+
+    {
+        s32 tbw = (tblW < width) ? (width >> 6) : (tblW >> 6);
+
+        *(s32 *)(t + 0x08) = (tbw << 14) | ((logw & 0xF) << 26) | ((logh & 0xF) << 30);
+    }
+
+    /* TH[3:2] live in the low bits of the TEX0 high dword. */
+    logh = -1;
+    for (x = height; x != 0; x >>= 1)
+        logh++;
+    hiWord = (logh & 0xF) >> 2;
+    *(s32 *)(t + 0x0C) = hiWord;
+
+    *(u16 *)(t + 0x14) = (u16)D_00393968;
+    *(u8 *)(t + 0x34) = 1;
+
+    v153 = 0;
+    v154 = 0;
+    stepBlock = 0;
+    a5 = 0;
+    a10 = 0;
+
+    switch (*(u8 *)(h + 0x23) & 0x60) {
+    case 0x20:
+        *(s32 *)(t + 0x08) |= 0x1300000;
+        *(s32 *)(t + 0x0C) = hiWord | 0x20000004;
+        v153 = 16;
+        v154 = 16;
+        if ((*(u8 *)(h + 0x23) & 0xF) == 1) {
+            stepBlock = 2;
+            blkH = 64;
+            *(s32 *)(t + 0x0C) = hiWord | 0x20000004 | 0x500000;
+            a5 = 64;
+            a10 = 64;
+        } else if ((*(u8 *)(h + 0x23) & 0xF) == 5) {
+            stepBlock = 4;
+            blkH = 64;
+            a5 = 32;
+            a10 = 64;
+        } else {
+            goto err_fmt;
+        }
+        break;
+    case 0x40:
+        *(s32 *)(t + 0x08) |= 0x1400000;
+        *(s32 *)(t + 0x0C) = hiWord | 0x20000004;
+        v153 = 2;
+        v154 = 8;
+        if ((*(u8 *)(h + 0x23) & 0xF) == 1) {
+            stepBlock = 2;
+            blkH = 64;
+            *(s32 *)(t + 0x0C) |= 0x500000;
+            a5 = 64;
+            a10 = 64;
+        } else if ((*(u8 *)(h + 0x23) & 0xF) == 5) {
+            stepBlock = 4;
+            blkH = 64;
+            a5 = 32;
+            a10 = 64;
+        } else {
+            goto err_fmt;
+        }
+        break;
+    default:
+        if ((*(u8 *)(h + 0x23) & 0x60) != 0)
+            goto err_fmt;
+        if ((*(u8 *)(h + 0x23) & 0xF) == 5) {
+            *(s32 *)(t + 0x0C) = hiWord | 4;
+        } else if ((*(u8 *)(h + 0x23) & 0xF) == 1) {
+            *(s32 *)(t + 0x08) |= 0xA00000;
+            *(s32 *)(t + 0x0C) = hiWord | 4;
+        } else if ((*(u8 *)(h + 0x23) & 0xF) == 6) {
+            *(s32 *)(t + 0x08) |= 0x100000;
+        } else {
+            goto err_fmt;
+        }
+        break;
+    }
+
+    /* Common upload geometry. */
+    fmt = *(s32 *)(h + 0x14);
+    rowBytes = (fmt * width) >> 3;
+    *(s32 *)(h + 0x18) = rowBytes;
+
+    if ((*(u8 *)(h + 0x23) & 0x80) == 0) {
+        /* ---- single level layout ---- */
+        *(s32 *)(t + 0x24) = 0x400004;
+        *(s32 *)(t + 0x1C) = 0x400004;
+        *(s32 *)(t + 0x20) = 0x4000;
+        *(s32 *)(t + 0x18) = 0x4000;
+        *(s32 *)(t + 0x28) = (height * rowBytes + 15) & ~0xF;
+        extra = (u32)(v154 * v153 * stepBlock);
+        *(s32 *)(t + 0x2C) = (s32)extra;
+        *(u8 *)(t + 0x16) = 0;
+
+        ceilW = (u32)((width + 63 > 0) ? (width + 63) : (width + 126)) >> 6;
+        vram = (s32)((ceilW * (u32)((height - 1 + blkH) / blkH)) << 11);
+        *(s32 *)(t + 0x30) = vram;
+        if (extra == 0) {
+            *(s32 *)(t + 0x10) = 0;
+        } else {
+            u32 nb = ((u32)(v154 - 1 + a10) / (u32)a10) *
+                     ((u32)(v153 - 1 + a5) / (u32)a5);
+
+            *(s32 *)(t + 0x10) = vram >> 6;
+            *(s32 *)(t + 0x30) = (vram + (s32)(nb << 11)) & (s32)0xFFFFF800;
+        }
+        goto alloc;
+    }
+
+    /* ---- mip mapped layout ---- */
+    cw = (u32)width;
+    ch = (u32)height;
+    W = (u32)width;
+    HH = (u32)height;
+    total = 0;
+    off = 0;
+    prev = 0;
+    level = 0;
+    prevSize = 0;
+    for (i = 0; i < 7; i++) {
+        arr[i] = 0;
+        sz[i] = 1;
+    }
+    prevSize = (tblW < (s32)cw) ? (s32)(cw >> 6) : (tblW >> 6);
+    extra = (u32)(v154 * v153 * stepBlock);
+
+    for (;;) {
+        if (cw == 0 || ch == 0 || level >= 4)
+            break;
+        if (!(W < 8 || HH < 8)) {
+            if (cw < 8 || ch < 8)
+                break;
+        }
+
+        sf = (tblW < (s32)cw) ? (cw >> 6) : ((u32)tblW >> 6);
+        sz[level] = (u64)sf;
+        if (level != 0) /* retail's first level adds the low dword 0 */
+            total += ((u32)fmt * cw * ch >> 3) + 15 & 0xFFFFFFF0;
+
+        off8 = func_0021CDD8(fmt, (s32)(sf << 6)) >> 3;
+        if ((s32)sf != prevSize) {
+            u32 a = ((HH >> (level - 1)) - 1 + (u32)blkH) / (u32)blkH;
+            u32 b = ((W >> (level - 1)) - 1 + (u32)tblW) / (u32)tblW;
+
+            off = (prev + ((a * b) << 11)) & 0xFFFFF800;
+        }
+
+        i = (s32)((off + 0x3F) & 0x7C0) >> 8;
+        off = (off + 0x3F) & 0xFFFFFFC0;
+        prevSize = (s32)sf;
+
+        psm = (*(s32 *)(t + 0x08) >> 20) & 0x3F;
+        psmTable = 0;
+        if (psm < 0x15) {
+            if (psm == 0 || psm == 1)
+                psmTable = D_0038CBF8;
+            else if (psm == 2)
+                psmTable = D_0038CC18;
+            else if (psm == 0x0A)
+                psmTable = D_0038CC38;
+            else if (psm == 0x13)
+                psmTable = D_0038CC58;
+            else if (psm == 0x14)
+                psmTable = D_0038CC78;
+        }
+        if (psmTable != 0)
+            arr[level] = (u64)(u32)(((off >> 11) << 5) + (u32)psmTable[i]);
+
+        prev = off;
+        level++;
+        cw >>= 1;
+        ch >>= 1;
+        off = (off + ((u32)((s32)ch * off8) >> 2) + 0x3F) & 0xFFFFFFC0;
+    }
+
+    *(s32 *)(t + 0x28) = (s32)total;
+    *(u8 *)(t + 0x16) = (u8)((level - 1) << 2);
+    *(s32 *)(t + 0x2C) = (s32)extra;
+
+    packed = (arr[1] & 0x3FFF) |
+             ((arr[2] & 0x3FFF) << 20) |
+             ((arr[3] & 0x3FFF) << 40) |
+             (sz[1] << 14) | (sz[2] << 34) | (sz[3] << 54);
+    *(s32 *)(t + 0x18) = (s32)(u32)packed;
+    *(s32 *)(t + 0x1C) = (s32)(u32)(packed >> 32);
+
+    packed = (arr[4] & 0x3FFF) |
+             ((arr[5] & 0x3FFF) << 20) |
+             ((arr[6] & 0x3FFF) << 40) |
+             (sz[4] << 14) | (sz[5] << 34) | (sz[6] << 54);
+    *(s32 *)(t + 0x20) = (s32)(u32)packed;
+    *(s32 *)(t + 0x24) = (s32)(u32)(packed >> 32);
+
+    i = level - 1;
+    ceilW = ((u32)(width >> i) - 1 + (u32)tblW) / (u32)tblW;
+
+    if (extra == 0) {
+        u32 ph = ((u32)(height >> i) - 1 + (u32)blkH) / (u32)blkH;
+
+        *(s32 *)(t + 0x10) = 0;
+        *(s32 *)(t + 0x30) =
+            (s32)((arr[i] << 6) + ((u64)(ceilW * ph) << 11)) & (s32)0xFFFFF800;
+    } else if (v153 == 2) {
+        u64 a = arr[i];
+        s32 bits3 = (s32)((a & 1) | ((a & 4) >> 1) | ((a & 0x10) >> 2));
+
+        hb = ((u32)(height >> i) + 15) >> 4;
+        n = hb + (u32)bits3;
+        vram = (s32)((a << 6) + ((u64)(ceilW * ((n + 7) >> 3)) << 11));
+        vram &= (s32)0xFFFFF800;
+        *(s32 *)(t + 0x30) = vram;
+        if ((width >> i) < 0x80) {
+            *(s32 *)(t + 0x10) = (s32)(a + 10);
+        } else if (n >= 8) {
+            *(s32 *)(t + 0x10) = vram >> 6;
+            *(s32 *)(t + 0x30) = vram + 0x800;
+        } else {
+            *(s32 *)(t + 0x10) = (s32)(u32)((a & ~0x1FULL) + (u32)D_0038CC78[n]);
+        }
+    } else {
+        u64 a = arr[i];
+        s32 bits2 = (s32)(((a & 2) >> 1) | ((a & 8) >> 2));
+
+        hb = ((u32)(height >> i) + 15) >> 4;
+        vram = (s32)((a << 6) + ((u64)(ceilW * ((hb + (u32)bits2 + 3) >> 2)) << 11));
+        vram &= (s32)0xFFFFF800;
+        *(s32 *)(t + 0x30) = vram;
+        if ((width >> i) >= 0x80 && (bits2 >= 3 || hb >= 2)) {
+            *(s32 *)(t + 0x10) = (s32)(u32)((a & ~0x1FULL) + 0x1C);
+            if (bits2 == 3 && hb >= 2)
+                *(s32 *)(t + 0x10) += 0x20;
+        } else {
+            n = hb + (u32)bits2;
+            if (n < 3) {
+                *(s32 *)(t + 0x10) = (s32)(u32)((a & ~0x1FULL) + (u32)D_0038CC58[n]);
+            } else {
+                *(s32 *)(t + 0x30) = vram + 0x800;
+                *(s32 *)(t + 0x10) = vram >> 6;
+            }
+        }
+    }
+
+alloc:
+    {
+        s32 mipBytes = (*(s32 *)(t + 0x28) + 15) & ~0xF;
+        s32 extraBytes = *(s32 *)(t + 0x2C);
+
+        *(s32 *)(t + 0x28) = mipBytes;
+        p = ((AF78Func *)&D_003731B8)[75](mipBytes + extraBytes);
+        *(s32 *)(h + 0x04) = p;
+        if (p == 0) {
+            ctx[0] = 1;
+            ctx[1] = func_0018DA08((s32)0x80000013, mipBytes + extraBytes);
+            func_0018DAD0(ctx);
+            return 0;
+        }
+        if (extraBytes != 0)
+            *(s32 *)(h + 0x08) = p + mipBytes;
+        func_001B8DE8(h);
+    }
+    goto done_ok;
+
+err_fmt:
+    ctx[0] = 1;
+    ctx[1] = func_0018DA08((s32)0x8000000D, 0);
+    func_0018DAD0(ctx);
+    return 0;
+
+err_area:
+    ctx[0] = 1;
+    ctx[1] = func_0018DA08((s32)0x80000010, 0);
+    func_0018DAD0(ctx);
+    return 0;
+
+done_ok:
+    p = (s32)h + D_00393990;
+    *(s32 *)(p + 0x04) = 0;
+    *(s32 *)(p + 0x00) = 0;
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001AEE90);
 
@@ -16785,7 +18280,36 @@ s32 func_001B1080(s32 a1)
     return v;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001B10D0);
+extern f32 D_003928E8;
+extern f32 D_003928EC;
+extern s32 D_0039396C;
+extern s32 D_00244AD0;
+extern s32 D_002439C0;
+
+/* Retail 0x001B10D0: while D_00393D8C is zero, select one of two pointer/
+   float/size triples based on arg0 and publish them into three globals. */
+s32 func_001B10D0(u8 *arg0)
+{
+    s32 ptr;
+    f32 v;
+    s32 size;
+
+    if (D_00393D8C != 0)
+        return 0;
+    if (arg0 != 0) {
+        ptr = (s32)&D_00244AD0;
+        v = D_003928E8;
+        size = 0x20;
+    } else {
+        ptr = (s32)&D_002439C0;
+        v = D_003928EC;
+        size = 0x10;
+    }
+    *(s32 *)D_00378900 = ptr;
+    D_003731D0[0] = v;
+    D_0039396C = size;
+    return 1;
+}
 
 f32 func_001B1128(f32 arg0)
 {
@@ -16825,7 +18349,21 @@ s32 func_001B11E0(void) { return (D_00393968 & 0x3000) >> 12; }
 
 INCLUDE_ASM(const s32, "core/main", func_001B11F0);
 
-INCLUDE_ASM(const s32, "core/main", func_001B1288);
+/* Retail 0x001B1288: replace bits 12..13 of the halfword at
+   (*arg0 + D_00393990 + 0x14) with min(arg1,3). */
+s32 func_001B1288(u8 *arg0, u32 arg1)
+{
+    u8 *p;
+    u16 v;
+
+    if (arg0 == 0 || *(u32 *)arg0 == 0)
+        return 0;
+    p = *(u8 **)arg0 + D_00393990;
+    v = *(u16 *)(p + 0x14);
+    v = (u16)((v & 0xCFFF) | ((arg1 < 4 ? arg1 : 3) << 12));
+    *(u16 *)(p + 0x14) = v;
+    return (s32)arg0;
+}
 
 f32 func_001B12D0(u8 *a1)
 {
@@ -16861,7 +18399,23 @@ s32 func_001B1328(void *arg0)
     return 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001B1358);
+extern s32 D_00393D8C;
+extern s32 D_0024C660;
+extern s32 D_0024B2D0;
+
+/* Retail 0x001B1358: while D_00393D8C is zero, point two D_00378900
+   entries at one of two choice tables depending on arg0. */
+s32 func_001B1358(u8 *arg0)
+{
+    s32 v;
+
+    if (D_00393D8C != 0)
+        return 0;
+    v = arg0 != 0 ? D_0024C660 : D_0024B2D0;
+    D_00378900[3] = v;
+    D_00378900[2] = v;
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001B13A0);
 
@@ -17006,7 +18560,24 @@ s32 func_001B3FD8(void)
     return result;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001B4020);
+extern s32 D_003E3430[];
+
+/* Copies five fields of arg1 into the global descriptor at D_003E3430 and
+   records arg1 in D_00393D98.  arg0 is never read.  The stores are ordered
+   exactly as in the retail listing (global pointer first, then +0,+4,+8,+C)
+   and the halfword loads are sign-extended. */
+s32 func_001B4020(s32 arg0, void *arg1)
+{
+    u8 *p = (u8 *)arg1;
+    volatile s32 *dst = (volatile s32 *)D_003E3430;
+
+    *(volatile s32 *)&D_00393D98 = (s32)arg1;
+    dst[0] = *(s16 *)(p + 0x1C);
+    dst[1] = *(s16 *)(p + 0x1E);
+    dst[2] = *(s32 *)(p + 0x0C);
+    dst[3] = *(s32 *)(p + 0x10);
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001B4058);
 
@@ -17170,6 +18741,8 @@ s32 func_001BA370(s32 value) { D_003E358C[0] = value; return 1; }
 
 INCLUDE_ASM(const s32, "core/main", func_001BA380);
 
+/* Behavioral reconstruction (hy4-bfree-1123). */
+extern u8 D_003E3500[];
 INCLUDE_ASM(const s32, "core/main", func_001BA430);
 
 INCLUDE_ASM(const s32, "core/main", func_001BA498);
@@ -18629,7 +20202,19 @@ s32 func_001C1080(void) {
     return syscall_result;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C1090);
+/* Hardware handshake at 0x1000F000: write 4, poll until bit 2 is set, write
+   4 again, return 4. */
+s32 func_001C1090(void)
+{
+    volatile s32 *reg = (volatile s32 *)0x1000F000;
+    s32 value = 4;
+
+    *reg = value;
+    while ((*reg & 4) == 0) {
+    }
+    *reg = value;
+    return value;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C10D0);
 
@@ -18979,7 +20564,18 @@ INCLUDE_ASM(const s32, "core/main", func_001C1D58);
 
 INCLUDE_ASM(const s32, "core/main", func_001C1E28);
 
-INCLUDE_ASM(const s32, "core/main", func_001C1EE8);
+/* Hardware handshake: wait until bit 0x8000 of 0x1000F130 clears, then write
+   the argument as a byte to 0x1000F180.  The addresses are memory-mapped
+   registers, hence volatile accesses. */
+s32 func_001C1EE8(s32 arg0)
+{
+    volatile s32 *status = (volatile s32 *)0x1000F130;
+
+    while ((*status & 0x8000) != 0) {
+    }
+    *(volatile u8 *)0x1000F180 = (u8)arg0;
+    return arg0;
+}
 
 extern s32 D_00378A68[];
 extern u8 D_003E41C0[];
@@ -19081,7 +20677,25 @@ void func_001C2D00(s32 *a1, s32 a2)
 
 INCLUDE_ASM(const s32, "core/main", func_001C2D60);
 
-INCLUDE_ASM(const s32, "core/main", func_001C2EB8);
+/* Retail 0x001C2EB8: nested list search. Walk arg1->+0x28; for each entry
+   walk its +8 list and return the node whose first word equals arg0.
+   Both +0x14 (outer) and +0x38 (inner) are next pointers. */
+s32 func_001C2EB8(u8 *arg0, u8 *arg1)
+{
+    u8 *p = *(u8 **)(arg1 + 0x28);
+    u8 *q;
+
+    while (p != 0) {
+        q = *(u8 **)(p + 8);
+        while (q != 0) {
+            if (*(u8 **)q == arg0)
+                return (s32)q;
+            q = *(u8 **)(q + 0x38);
+        }
+        p = *(u8 **)(p + 0x14);
+    }
+    return 0;
+}
 
 s32 func_001C2F08(u32 *a1, u32 *a2)
 {
@@ -19399,7 +21013,17 @@ s32 func_001C5578(u32 arg0)
 
 INCLUDE_ASM(const s32, "core/main", func_001C55D8);
 
-INCLUDE_ASM(const s32, "core/main", func_001C5658);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+extern s32 D_003E71C0[];
+s32 func_001C5658(u16 a0, s32 a1, s32 a2)
+{
+    s32 args[4];
+    args[0] = a0;
+    args[1] = a1;
+    args[2] = a2;
+    args[3] = (u32)&D_003E71C0 | 0x20000000;
+    return func_001C1050(1, (s32)args);
+}
 
 void func_001C56A0(s32 arg1)
 {
@@ -19654,7 +21278,22 @@ s32 func_001C60E8(void)
     return (value >> 3) & 1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C60F8);
+/* Reads the VU0 control register with cfc2 $vi29; C has no equivalent, so
+   one inline read is unavoidable.  The bits map to 1/2/3, with bit 0 alone
+   producing 4 (shifted left by two in the final delay slot). */
+s32 func_001C60F8(void)
+{
+    u32 csr;
+
+    __asm__ volatile("cfc2 %0, $vi29" : "=r"(csr));
+    if ((csr & 2) != 0)
+        return 1;
+    if ((csr & 4) != 0)
+        return 2;
+    if ((csr & 8) != 0)
+        return 3;
+    return (s32)((csr & 1) << 2);
+}
 
 /* Fully handwritten VU0 microprogram launcher: src/asm/microcode/. */
 MICRO_FUNC(void, func_001C6138);
@@ -19674,7 +21313,18 @@ MICRO_FUNC(const s32, func_001C6158);
 /* Fully handwritten VU0 register-file save: src/asm/microcode/. */
 MICRO_FUNC(const s32, func_001C6238);
 
-INCLUDE_ASM(const s32, "core/main", func_001C63A8);
+/* Behavioral: VU0 status test (cfc2 $vi29).  Return 1 if the low nibble is 1,
+ * otherwise return 1 only when bits 8..11 are exactly 0x100.  The cfc2 cannot
+ * be produced from C, so the read is inline asm, as in func_001C5F98. */
+s32 func_001C63A8(void)
+{
+    u32 status;
+
+    __asm__ volatile("cfc2 %0, $vi29" : "=r"(status));
+    if ((status & 0xF) == 1)
+        return 1;
+    return (status & 0xF00) == 0x100;
+}
 
 /* Fully handwritten VU0 vector store (vsqi): src/asm/microcode/. */
 MICRO_FUNC(const s32, func_001C63D8);
@@ -19749,7 +21399,17 @@ s32 func_001C6598(void)
     return (value >> 11) & 1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C65A8);
+s32 func_001C65A8(void)
+{
+    u32 s;
+    s32 r;
+    __asm__ volatile("cfc2 %0, $vi29" : "=r"(s));
+    if (s & 0x200) r = 1;
+    else if (s & 0x400) r = 2;
+    else if (s & 0x800) r = 3;
+    else r = (s & 0x100) ? 4 : 0;
+    return r;
+}
 
 /* Fully handwritten VU0 CSR writer: src/asm/microcode/. */
 MICRO_FUNC(void, func_001C65F0);
@@ -19906,11 +21566,62 @@ u32 func_001C6CB8(void)
     return (v & 0x3000) ? 3 : 4;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C6D08);
+/* Behavioral: snapshot the GIF/VU status registers into a 0x38-byte block.
+ * The word at 0x10003840 is read in the jal delay slot (so it is read even
+ * when the status test rejects), and its low two bytes are split across
+ * out->+0x35 (low byte) and out->+0x36 (second byte). */
+typedef struct {
+    u32 word[11];   /* 0x00..0x28 */
+    u16 half[4];    /* 0x2C, 0x2E, 0x30, 0x32 */
+    u8  byte0;      /* 0x34 */
+    u8  byte1;      /* 0x35 = low byte of 0x10003840 */
+    u8  byte2;      /* 0x36 = second byte of 0x10003840 */
+    u8  byte3;      /* 0x37 */
+} HwSnapshot;
+
+extern u32 func_001C6CB8(void);
+
+s32 func_001C6D08(HwSnapshot *out)
+{
+    volatile u32 *r3840 = (volatile u32 *)0x10003840;
+    s32 status = func_001C6CB8();
+    u32 flags = *r3840;    /* retail reads this in the jal delay slot */
+
+    if (status >= 2)
+        return 0;
+    out->word[0]  = *(volatile u32 *)0x10003900;
+    out->word[1]  = *(volatile u32 *)0x10003910;
+    out->word[2]  = *(volatile u32 *)0x10003920;
+    out->word[3]  = *(volatile u32 *)0x10003930;
+    out->word[4]  = *(volatile u32 *)0x10003940;
+    out->word[5]  = *(volatile u32 *)0x10003950;
+    out->word[6]  = *(volatile u32 *)0x10003960;
+    out->word[7]  = *(volatile u32 *)0x10003970;
+    out->word[8]  = *(volatile u32 *)0x10003870;
+    out->word[9]  = *(volatile u32 *)0x10003880;
+    out->word[10] = *(volatile u32 *)0x10003800;
+    out->half[0]  = *(volatile u32 *)0x100038D0;
+    out->half[1]  = *(volatile u32 *)0x10003890;
+    out->half[2]  = *(volatile u32 *)0x10003830;
+    out->half[3]  = *(volatile u32 *)0x10003860;
+    out->byte0    = *(volatile u32 *)0x10003820;
+    out->byte1    = flags;
+    out->byte2    = flags >> 8;
+    out->byte3    = *(volatile u32 *)0x10003850;
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C6E88);
 
-INCLUDE_ASM(const s32, "core/main", func_001C6EE8);
+/* Behavioral: hardware-register setup at 0x10003C10/0x10003C20, returns 6. */
+s32 func_001C6EE8(void)
+{
+    volatile u32 *reg = (volatile u32 *)0x10003C10;
+
+    *reg = 1;
+    reg[4] = 6;
+    return 6;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C6F10);
 
@@ -19950,7 +21661,52 @@ u32 func_001C6FE8(void)
     return (v & 0x3000) ? 3 : 4;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C7038);
+/* Behavioral: the second hardware-register snapshot block (GIF/DMA status).
+ * Same shape as func_001C6D08 but with a different register bank and a
+ * 0x40-byte output block: 11 words, 8 halfwords, then 4 single bytes.  The
+ * word at 0x10003C40 is read in the jal delay slot; its low two bytes land at
+ * out->+0x3D and +0x3E. */
+typedef struct {
+    u32 word[11];        /* 0x00..0x28 */
+    u16 half[8];         /* 0x2C..0x3A */
+    u8  byte[4];         /* 0x3C..0x3F */
+} HwSnapshot2;
+
+extern u32 func_001C6FE8(void);
+
+s32 func_001C7038(HwSnapshot2 *out)
+{
+    volatile u32 *r3C40 = (volatile u32 *)0x10003C40;
+    s32 status = func_001C6FE8();
+    u32 flags = *r3C40;    /* retail reads this in the jal delay slot */
+
+    if (status >= 2)
+        return 0;
+    out->word[0]  = *(volatile u32 *)0x10003D00;
+    out->word[1]  = *(volatile u32 *)0x10003D10;
+    out->word[2]  = *(volatile u32 *)0x10003D20;
+    out->word[3]  = *(volatile u32 *)0x10003D30;
+    out->word[4]  = *(volatile u32 *)0x10003D40;
+    out->word[5]  = *(volatile u32 *)0x10003D50;
+    out->word[6]  = *(volatile u32 *)0x10003D60;
+    out->word[7]  = *(volatile u32 *)0x10003D70;
+    out->word[8]  = *(volatile u32 *)0x10003C70;
+    out->word[9]  = *(volatile u32 *)0x10003C80;
+    out->word[10] = *(volatile u32 *)0x10003C00;
+    out->half[0]  = *(volatile u32 *)0x10003CD0;
+    out->half[1]  = *(volatile u32 *)0x10003C90;
+    out->half[2]  = *(volatile u32 *)0x10003CA0;
+    out->half[3]  = *(volatile u32 *)0x10003CB0;
+    out->half[4]  = *(volatile u32 *)0x10003CE0;
+    out->half[5]  = *(volatile u32 *)0x10003CC0;
+    out->half[6]  = *(volatile u32 *)0x10003C30;
+    out->half[7]  = *(volatile u32 *)0x10003C60;
+    out->byte[0]  = *(volatile u32 *)0x10003C20;
+    out->byte[1]  = flags;
+    out->byte[2]  = flags >> 8;
+    out->byte[3]  = *(volatile u32 *)0x10003C50;
+    return 1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C7210);
 
@@ -19994,7 +21750,17 @@ u8 *func_001C75F8(u8 *dst)
     return dst;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C7630);
+/* Behavioral: get-and-optionally-set the word at 0x1000E060.  The load is in
+ * the branch delay slot, so the OLD value is returned even when arg0==-1. */
+s32 func_001C7630(s32 arg0)
+{
+    volatile u32 *reg = (volatile u32 *)0x1000E060;
+    s32 old = *reg;
+
+    if (arg0 != -1)
+        *reg = arg0;
+    return old;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001C7658);
 
@@ -20142,7 +21908,16 @@ s32 func_001C8320(s32 a1, s32 a2, u8 *a3)
     return *(s32 *)(v4 + 0x60);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001C8368);
+/* Byte-matching: both mismatch paths return the reloaded p[0x70]. */
+u32 func_001C8368(void)
+{
+    u8 *p = func_001C82A0();
+    if (p[0x70] != 6)
+        return p[0x70];
+    if (p[0x71] == 2)
+        return 5;
+    return p[0x70];
+}
 
 extern u8 D_0038DC48[];
 extern s32 D_00378B60[];
@@ -20670,7 +22445,12 @@ s32 func_001CA0B8(void)
 
 INCLUDE_ASM(const s32, "core/main", func_001CA0F8);
 
-INCLUDE_ASM(const s32, "core/main", func_001CA158);
+/* Behavioral: copy 8 bytes from arg0 into the global D_00378BC8 (unaligned
+ * ldl/ldr + sdl/sdr pair). */
+void func_001CA158(u64 *arg0)
+{
+    *(u64 *)D_00378BC8 = *arg0;
+}
 
 extern u8 D_00378BCA[];
 
@@ -20822,7 +22602,15 @@ u8 func_001CA3E0(u8 arg0)
     return (u8)(6 * (arg0 / 10) + arg0);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001CA448);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+extern u8 D_0038DD90[];
+s32 func_001CA448(s32 a0)
+{
+    a0 &= 0xFF;
+    if (a0 >= 154)
+        func_00222068(&D_0038DD78, 296, &D_0038DD90);
+    return (a0 - (a0 >> 4) * 6) & 0xFF;
+}
 
 s32 func_001CA4A0(s32 a1)
 {
@@ -21145,7 +22933,15 @@ s32 func_001CD2E0(s32 a1, s32 a2, s32 a3, s32 a4, s32 a5, s32 a6, s32 a7, s32 a8
     return func_001CD3D0(0, 0, 0, 7, (s32)&D_00378C48);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001CD330);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+extern u8 D_0038E150[];
+void func_001CD330(void)
+{
+    if (D_00378BF0[0] > 0)
+        func_00211918((s32)&D_0038E150);
+    D_00378C38[0] = 1;
+    func_001CD3D0(0, 0, 0, 8);
+}
 
 s32 func_001CD388(void)
 {
@@ -21167,7 +22963,27 @@ INCLUDE_ASM(const s32, "core/main", func_001CD5D8);
 
 s32 func_001CD818(void) { return 1; }
 
-INCLUDE_ASM(const s32, "core/main", func_001CD820);
+/* >4-byte declarations: these globals are in .data, not small data. */
+extern s32 D_00378C70[2];
+extern s32 D_00378D80[2];
+extern s32 func_001CE340(s32, s32);
+
+/* Selects min(arg2+0x22, arg2+0x13 when that is > -1), rounds it down to a
+   16-byte boundary, stores arg1 and that size globally, then tail-calls
+   func_001CE340(arg1, size). */
+/* Tail call into func_001CE340; the callee's $2 is our caller's $2. */
+void func_001CD820(s32 arg0, s32 arg1, s32 arg2)
+{
+    s32 candidate = arg2 + 0x13;
+    s32 selected = arg2 + 0x22;
+
+    if (candidate > -1)
+        selected = candidate;
+    selected = (selected >> 4) << 4;
+    D_00378C70[0] = arg1;
+    D_00378D80[0] = selected;
+    func_001CE340(arg1, selected);
+}
 
 s32 func_001CD858(u8 *arg0, u32 arg1, u32 arg2)
 {
@@ -21370,7 +23186,20 @@ s32 func_001CE100(s32 a1)
     }
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001CE188);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+extern s32 D_00378C60[];
+extern s32 D_00379278[];
+void func_001CE188(void)
+{
+    s32 v;
+    func_001D0A58(1);
+    v = D_00378C60[0];
+    D_00379278[0] = v;
+    *(u32 *)((u8 *)D_00379278 + 0x280) = 0;
+    *(u32 *)((u8 *)D_00379278 + 0x4) = v + 0x1800;
+    *(u32 *)((u8 *)D_00379278 + 0x140) = v + 0x1B00;
+    *(u32 *)((u8 *)D_00379278 + 0x144) = v + 0x3300;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001CE1D8);
 
@@ -21739,7 +23568,62 @@ s32 func_001D4568(void)
     return result;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001D45C0);
+/* Retail 0x001D45C0: pick a slot in the 301 x 0x60 particle pool.
+ * Phase 1 looks for the first record with bit 0x1000000 set (submitted),
+ * clearing its flags and returning its index; it stops at the 0x60000000
+ * sentinel.  Phase 2 walks from the record after that one and returns the
+ * free/submitted record with the lowest +0x0C phase, skipping the sentinel
+ * and kind 0x13.  No candidate means -1. */
+extern u8 D_003796D0[];
+
+s32 func_001D45C0(void)
+{
+    u8 *p = D_003796D0;
+    u32 flags = *(u32 *)p;
+    s32 i = 0;
+    s32 best;
+    f32 minPhase;
+
+    if (flags != 0x60000000u) {
+        for (;;) {
+            if (flags & 0x1000000u) {
+                *(u32 *)p = 0;
+                return i;
+            }
+            p += 0x60;
+            i++;
+            flags = *(u32 *)p;
+            if (flags == 0x60000000u || i >= 0x12C)
+                break;
+        }
+    }
+
+    if (i >= 0x12B)
+        return -1;
+    best = i;
+    i++;
+    if (i >= 0x12C)
+        return best;
+    minPhase = *(f32 *)(p + 0x0C);
+
+    for (;;) {
+        flags = *(u32 *)p;
+        if (flags & 0x1000000u) {
+            *(u32 *)p = 0;
+            return i;
+        }
+        if (*(f32 *)(p + 0x0C) < minPhase) {
+            if (flags != 0x60000000u && (flags & 0xFF) != 0x13) {
+                minPhase = *(f32 *)(p + 0x0C);
+                best = i;
+            }
+        }
+        i++;
+        if (i >= 0x12C)
+            return best;
+        p += 0x60;
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001D46A0);
 
@@ -21792,7 +23676,19 @@ void func_001D4DC0(void)
 
 INCLUDE_ASM(const s32, "core/main", func_001D4DF8);
 
-INCLUDE_ASM(const s32, "core/main", func_001D4E68);
+/* Retail 0x001D4E68: store a 24-byte record into D_00380800[idx*24]:
+   a[0..1], b[0..2] and the integer c. idx arrives in $f12 as a float. */
+void func_001D4E68(f32 idx, f32 *a, f32 *b, s32 c)
+{
+    u8 *dst = D_00380800 + (s32)idx * 0x18;
+
+    *(f32 *)(dst + 0x00) = a[0];
+    *(f32 *)(dst + 0x04) = a[1];
+    *(f32 *)(dst + 0x08) = b[0];
+    *(f32 *)(dst + 0x0C) = b[1];
+    *(s32 *)(dst + 0x10) = c;
+    *(f32 *)(dst + 0x14) = b[2];
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001D4EC8);
 
@@ -21906,7 +23802,7 @@ extern f32 D_00392978, D_0039297C, D_00392980, D_00392984, D_00392988;
 extern f32 D_0039298C, D_00392990, D_00392994, D_00392998, D_0039299C;
 extern f32 D_003929A0, D_003929A4, D_003929A8, D_003929AC, D_003929B0;
 
-f32 func_0011A788(f32 arg0);
+s32 func_0011A788(f32 arg0);
 s32 func_002256F0(void);
 extern f32 func_00217AC0(f32 arg0);
 f32 func_00217CB0(f32 arg0);
@@ -23495,7 +25391,71 @@ void func_001DA3F0(s32 id, f32 *a, f32 *b, u32 owner, f32 scale)
 
 INCLUDE_ASM(const s32, "core/main", func_001DB8E0);
 
-INCLUDE_ASM(const s32, "core/main", func_001DC458);
+/* Retail 0x001DC458: build two unit-ish tangents perpendicular to `in`.
+ * Candidates are (-y,x,0), (-z,0,x) and (0,-z,y); the longest one is picked,
+ * then normalised with the R5900 rsqrt, and out1 is the cross product of the
+ * input with that normalised tangent.  The FPU accumulator is required for
+ * both the squared lengths and the cross products (single rounding). */
+#define F_BASIS_SUB(a, b, c, d) ({                                     \
+    f32 r_;                                                            \
+    __asm__ volatile("mula.s %1,%2\n\t"                                \
+                     "msub.s %0,%3,%4"                                 \
+                     : "=&f"(r_)                                       \
+                     : "f"(a), "f"(b), "f"(c), "f"(d));                \
+    r_;                                                                \
+})
+
+#define F_BASIS_RSQRT(x) ({                                             \
+    f32 r_;                                                             \
+    f32 one_ = 1.0f;                                                    \
+    __asm__ volatile("rsqrt.s %0,%1,%2" : "=&f"(r_) : "f"(one_), "f"(x));\
+    r_;                                                                 \
+})
+
+void func_001DC458(f32 *in, f32 *out0, f32 *out1)
+{
+    f32 tmp[3];
+    f32 len0, lenT, len1, inv;
+
+    out0[0] = -in[1];
+    out0[1] = in[0];
+    out0[2] = 0.0f;
+    out1[0] = -in[2];
+    out1[1] = 0.0f;
+    out1[2] = in[0];
+    tmp[0] = 0.0f;
+    tmp[1] = -in[2];
+    tmp[2] = in[1];
+
+    /* F_DOT3 in this module takes two whole vectors, not component pairs. */
+    len0 = F_DOT3(out0[0], out0[1], out0[2], out0[0], out0[1], out0[2]);
+    lenT = F_DOT3(tmp[0], tmp[1], tmp[2], tmp[0], tmp[1], tmp[2]);
+    len1 = F_DOT3(out1[0], out1[1], out1[2], out1[0], out1[1], out1[2]);
+
+    /* `bc1f` then `bc1fl`: the second test uses the length left by the
+     * first replacement, and its delay-slot reload of out0[0] is harmless. */
+    if (len0 < lenT) {
+        out0[0] = tmp[0];
+        out0[1] = tmp[1];
+        out0[2] = tmp[2];
+        len0 = lenT;
+    }
+    if (len0 < len1) {
+        out0[0] = out1[0];
+        out0[1] = out1[1];
+        out0[2] = out1[2];
+        len0 = len1;
+    }
+
+    inv = F_BASIS_RSQRT(len0);
+    out0[0] *= inv;
+    out0[1] *= inv;
+    out0[2] *= inv;
+
+    out1[0] = F_BASIS_SUB(in[1], out0[2], in[2], out0[1]);
+    out1[1] = F_BASIS_SUB(in[2], out0[0], in[0], out0[2]);
+    out1[2] = F_BASIS_SUB(in[0], out0[1], in[1], out0[0]);
+}
 
 void func_001DC5B0(u8 *dst, u8 *src)
 {
@@ -23558,7 +25518,33 @@ void func_001DC6C0(s32 arg0)
     func_002220A0(buf);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001DC6E8);
+extern s32 D_00380CD8[];
+
+/* Clears the 0x2C-byte records in D_00380CD8 (40 records, 0x6E0 bytes):
+   words +0 and +0x14 and bytes +0x10..+0x13 of each record.  The retail loop
+   clears the next record's word +0 in the delay slot of a branch-likely
+   (bnel), so that store is annulled when the final test fails.  Doing it
+   unconditionally would zero D_003813B8[0], the first entry of the jump table
+   that immediately follows this array. */
+s32 func_001DC6E8(void)
+{
+    u8 *p = (u8 *)D_00380CD8;
+    u8 *end = p + 0x6E0;
+
+    *(s32 *)p = 0;
+    for (;;) {
+        p[0x10] = 0;
+        p[0x11] = 0;
+        p[0x12] = 0;
+        p[0x13] = 0;
+        *(s32 *)(p + 0x14) = 0;
+        p += 0x2C;
+        if ((s32)p >= (s32)end)
+            break;
+        *(s32 *)p = 0;      /* retail branch-likely delay slot: taken path only */
+    }
+    return 0;
+}
 
 extern s32 D_00380CD8[];
 
@@ -23992,7 +25978,19 @@ void func_001DE7A0(u8 *src, u8 *unused, u8 *out)
     out[0xC] = 0x19;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001DE7B8);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+s32 func_001DE7B8(u8 *a0, u8 a1, s32 a2)
+{
+    u8 idx = *(a0 + 4);
+    u8 *entry = (u8 *)&D_00383780 + idx * 12;
+    s32 (*fn)(u32, u32, s32) = *(s32 (**)(u32, u32, s32))(entry + 4);
+    u32 arg;
+    if (idx == 11)
+        arg = (u32)(a0 + 8) + (u8)a1 * 12;
+    else
+        arg = (u32)(a0 + 8) + (u8)a1 * 4;
+    return fn(arg, 0, a2);
+}
 
 typedef s32 (*handler_t818)(u32, u32, s32);
 typedef struct { s32 f0, f1, f2; } vtbl_t818;
@@ -24071,7 +26069,22 @@ s32 func_001DE958(s32 *dst, s32 arg2, s32 *src) { s32 value = *src; *dst = value
 
 s32 func_001DE968(s32 *dst, s32 arg2, s32 *src) { s32 value = *src; *dst = value; return value; }
 
-INCLUDE_ASM(const s32, "core/main", func_001DE978);
+/* The retail compare is a no-op: `bnel $2,$0,.L001DE994` targets the
+   instruction immediately after its own delay slot, and that delay slot has
+   already overwritten $3 with dst[1].  Therefore dst[0] is always dst[1],
+   regardless of the source byte that is loaded and compared.  The source
+   load is kept volatile to preserve the observable read.  The function
+   tail-calls func_002249D4(dst+4, src+4, 4*dst[1]). */
+s32 func_001DE978(u8 *dst, s32 unused, u8 **srcPtr)
+{
+    u8 *src = *srcPtr;
+    u8 n = dst[1];
+
+    /* The retail lbu src[0]/sltu/bnel is dead: its delay slot daddu $3,$4,$0
+     * always leaves $3 = dst[1] before `sb $3,0($7)`. */
+    dst[0] = n;
+    return func_002249D4(dst + 4, src + 4, n * 4);
+}
 
 /* Byte-matching.  arg0 receives a copy of the u8 at arg2 once func_001E0F78 has
    worked on it; arg1 is not used. */
@@ -24148,7 +26161,19 @@ s32 func_001DEBB0(s32 *dst, s32 arg2, s32 *src) { s32 value = *src; *dst = value
 
 s32 func_001DEBC0(s32 *dst, s32 arg2, s32 *src) { s32 value = *src; *dst = value; return value; }
 
-INCLUDE_ASM(const s32, "core/main", func_001DEBD0);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+extern u8 D_00383780[];
+s32 func_001DEBD0(u8 *a0, u8 a1, u32 a2)
+{
+    u8 idx = *(a0 + 4);
+    s32 (*fn)(u32, u32, u32) = *(s32 (**)(u32, u32, u32))((u8 *)D_00383780 + idx * 12 + 8);
+    u32 arg;
+    if (idx == 11)
+        arg = (u32)(a0 + 8) + (u8)a1 * 12;
+    else
+        arg = (u32)(a0 + 8) + (u8)a1 * 4;
+    return fn(arg, 0, a2);
+}
 
 typedef s32 (*handler_t830)(u32, u32, s32);
 typedef struct { s32 f0, f1, f2; } vtbl_t830;
@@ -24533,7 +26558,12 @@ u8 *func_001DF510(u8 *a1)
     return i;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001DF560);
+extern s32 (*D824_TBL[][5])() __asm__("D_003824D8");
+
+s32 func_001DF560(s32 a0, s32 a1)
+{
+    return D824_TBL[(u16)a1][1](a0);
+}
 
 /* Byte-matching: indirect dispatch through D_003824D8[5*u16_index], then a
    second call whose result is stored to *a4 plus a type byte at +0xC. */
@@ -24562,6 +26592,9 @@ s32 a, b;
     return handler();
 }
 
+/* 0x001DF798: a state machine over D_00393AE6 (bit 0x20 lock) and
+   D_00393AE7 (one-shot). Behaviour is understood but left as INCLUDE_ASM:
+   the C form is 100+ B against the 88 B retail slot. */
 INCLUDE_ASM(const s32, "core/main", func_001DF798);
 
 INCLUDE_ASM(const s32, "core/main", func_001DF7F0);
@@ -24570,7 +26603,18 @@ INCLUDE_ASM(const s32, "core/main", func_001DF8D8);
 
 INCLUDE_ASM(const s32, "core/main", func_001DFA10);
 
-INCLUDE_ASM(const s32, "core/main", func_001DFAE8);
+void func_00200CA8();
+
+void func_001DFAE8(s32 a0)
+{
+    u32 v = func_002009A0(a0, 0);
+    u8 *hdr = *(u8 **)(a0 + 0x10);
+
+    if (v < *(u8 *)(hdr + 4)) {
+        *(s32 *)(a0 + 4) = func_00200DD0(a0, v);
+        func_00200CA8(a0);
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001DFB48);
 
@@ -24661,6 +26705,9 @@ INCLUDE_ASM(const s32, "core/main", func_001E0090);
 
 INCLUDE_ASM(const s32, "core/main", func_001E0110);
 
+/* 0x001E0190: node +0x14 -> +0x10 copy plus a nested list pass through
+   +0x18. Understood but left as INCLUDE_ASM: the C form is 100 B against
+   the 96 B retail slot. */
 INCLUDE_ASM(const s32, "core/main", func_001E0190);
 
 INCLUDE_ASM(const s32, "core/main", func_001E01F0);
@@ -24857,7 +26904,16 @@ float func_001E0F10(float a, float step, float b)
     return d + a;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001E0F78);
+/* Retail 0x001E0F78: when the type byte is 8, convert the leading float to
+   an int and change the type to 6. Returns the type byte. */
+void func_001E0F78(arg0)
+    u8 *arg0;
+{
+    if (*(u8 *)(arg0 + 0xC) == 8) {
+        *(s32 *)arg0 = (s32)*(f32 *)arg0;
+        *(u8 *)(arg0 + 0xC) = 6;
+    }
+}
 
 s32 func_001E0FB8(u8 *a1, u8 *a2)
 {
@@ -25010,7 +27066,16 @@ INCLUDE_ASM(const s32, "core/main", func_001E3A88);
 
 INCLUDE_ASM(const s32, "core/main", func_001E3B20);
 
-INCLUDE_ASM(const s32, "core/main", func_001E3D68);
+/* Retail 0x001E3D68: returns 1 when the squared distance between a and b
+   is not greater than arg2 squared (same predicate as func_0020D8E8). */
+s32 func_001E3D68(f32 *a, f32 *b, f32 arg2)
+{
+    f32 dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];
+    f32 d2 = F_DOT3(dx, dy, dz, dx, dy, dz);
+    f32 r2 = arg2 * arg2;
+
+    return !(r2 < d2);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001E3DC8);
 
@@ -25025,7 +27090,20 @@ void func_001E3E48(s32 a1, f32 *a2, f32 *a3, f32 *a4, f32 *a5, f32 *a6)
     func_001E3DC8(a1, a4, a5);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001E3ED8);
+extern f32 D_00392CF8;
+extern f32 D_00392CFC;
+extern f32 D_00392D00;
+
+/* Retail 0x001E3ED8: wrap a float into [-limit, +limit] by subtracting or
+   adding the (possibly different) wrap constants. */
+f32 func_001E3ED8(f32 x)
+{
+    if (D_00392CF8 < x)
+        return x - D_00392CFC;
+    if (x > -D_00392CF8)
+        return x;
+    return x + D_00392D00;
+}
 
 extern volatile f32 D_00392D04;
 extern f32 D_00392D08;
@@ -25242,7 +27320,26 @@ void func_001E6F78(void) {
 
 INCLUDE_ASM(const s32, "core/main", func_001E6F80);
 
-INCLUDE_ASM(const s32, "core/main", func_001E7028);
+/* Retail 0x001E7028: set out's type byte to 21, then copy a 12-byte vector
+   from (arg0->+4)->+8->+0x1C + 0x3C when present, else zero out.
+   Returns the source node pointer, or 21 when there is no source. */
+s32 func_001E7028(u8 *arg0, u8 *out)
+{
+    u8 *p = *(u8 **)(arg0 + 4);
+    u8 *node;
+
+    *(u8 *)(out + 0xC) = 0x15;
+    p = *(u8 **)(p + 8);
+    if (p != 0) {
+        node = *(u8 **)(p + 0x1C);
+        *(S12 *)out = *(S12 *)(node + 0x3C);
+        return (s32)node;
+    }
+    *(u32 *)out = 0;
+    *(u32 *)(out + 4) = 0;
+    *(u32 *)(out + 8) = 0;
+    return 0x15;
+}
 
 #define F_SUM3V(x, y, z) ({                                     \
     float r_;                                                   \
@@ -26196,7 +28293,18 @@ void func_001F27C8(s32 a1, f32 *a2, f32 a3)
     }
 }
 
-INCLUDE_ASM(const s32, "core/main", func_001F2820);
+extern void F27C8_void(u8, f32 *, f32) __asm__("func_001F27C8");
+
+void func_001F2820(u8 a1, u8 *a2, f32 a3)
+{
+    f32 z = 0.0f;
+
+    *(f32 *)(a2 + 0) = z;
+    *(f32 *)(a2 + 4) = z;
+    *(f32 *)(a2 + 8) = z;
+    F27C8_void(a1, (f32 *)a2, a3);
+    a2[0xC] = 0x15;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001F2860);
 
@@ -28429,7 +30537,29 @@ s32 func_001FECD0(s32 a1, s32 a2)
 }
 
 
-INCLUDE_ASM(const s32, "core/main", func_001FED50);
+s32 func_001FED50(s32 a1, s32 a2)
+{
+    s32 l[8];
+    s32 v4 = 0;
+    s32 v19;
+    s32 v3;
+    s32 *p;
+
+    func_001F2F88(a1, &l[4]);
+    p = (s32 *)l[4];
+    if (*p == 2)
+        v4 = p[1];
+    a2 = func_001DF760(a1, a2, &l[0]);
+    v19 = l[0];
+    a2 = func_001DF760(a1, a2, &l[0]);
+    v3 = l[0];
+    if (v4 != 0 && *(s32 *)(v4 + 4) != 0)
+    {
+        *(u8 *)(*(s32 *)(v4 + 4) + 0x35) = v19;
+        *(u8 *)(*(s32 *)(v4 + 4) + 0x36) = v3;
+    }
+    return a2;
+}
 
 /* Byte-matching.  Same shape as func_001FCD28 with func_0011B4F0. */
 u8 *func_001FEDF8(s32 arg0, s32 arg1)
@@ -28538,7 +30668,28 @@ INCLUDE_ASM(const s32, "core/main", func_001FFE18);
 
 INCLUDE_ASM(const s32, "core/main", func_001FFF00);
 
-INCLUDE_ASM(const s32, "core/main", func_001FFF90);
+extern s32 D_00393AE0;
+extern u32 D_00383E28[];
+extern u32 D_00383E50[];
+
+/* Retail 0x001FFF90: decrement the reference count at D_00383E28[idx],
+   where idx = D_00393AE0 (or -1 when the slot is already retired). When the
+   count reaches zero the slot is retired and arg1 is returned; otherwise
+   the word from the parallel table D_00383E50[idx] is returned. */
+s32 func_001FFF90(s32 idx, s32 arg1)
+{
+    s32 n;
+
+    if (D_00393AE0 == 0)
+        return arg1;
+    idx = D_00393AE0 - 1;
+    n = (s32)(D_00383E28[idx] - 1);
+    D_00383E28[idx] = (u32)n;
+    if (n > 0)
+        return (s32)D_00383E50[idx];
+    D_00393AE0 = idx;
+    return arg1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_001FFFE8);
 
@@ -28736,13 +30887,97 @@ s32 func_00200950(u8 a1, s32 a2)
     return **(u32 **)(v3 + 16) + 104 * *(u8 *)(*(u32 *)(v3 + 16) + 6) + 12 * a1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_002009A0);
+/* Retail 0x002009A0: find a record whose +0x64 is non-zero and whose
+   +0x65 equals key; return its index, otherwise the record count. */
+u32 func_002009A0(u8 *arg0, u32 key)
+{
+    u8 *hdr = *(u8 **)(arg0 + 0x10);
+    u32 count = *(u8 *)(hdr + 4);
+    u8 *rec;
+    u32 i = 0;
 
-INCLUDE_ASM(const s32, "core/main", func_002009F8);
+    key &= 0xFF;
+    if (*(u8 *)(hdr + 5) != 0) {
+        rec = *(u8 **)hdr;
+        while ((u8)i < count) {
+            if (*(u8 *)(rec + 0x64) == 0) {
+                i++;
+            } else if (*(u8 *)(rec + 0x65) == key) {
+                return i;
+            } else {
+                i++;
+            }
+            rec += 0x68;
+        }
+    }
+    return count;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00200A58);
+/* Retail 0x002009F8: find a record whose +0x64 is non-zero, whose +0x65
+   equals key and whose +0x60 word equals tag; return its index, else the
+   record count. Each failed test increments the index in its delay slot. */
+u32 func_002009F8(u8 *arg0, u32 key, u32 tag)
+{
+    u8 *hdr = *(u8 **)(arg0 + 0x10);
+    u32 count = *(u8 *)(hdr + 4);
+    u8 *rec;
+    u32 i = 0;
 
-INCLUDE_ASM(const s32, "core/main", func_00200AA8);
+    key &= 0xFF;
+    if (*(u8 *)(hdr + 5) != 0) {
+        rec = *(u8 **)hdr;
+        while (i < count) {
+            if (*(u8 *)(rec + 0x64) == 0) {
+                i++;
+            } else if (*(u8 *)(rec + 0x65) != key) {
+                i++;
+            } else if (*(u32 *)(rec + 0x60) != tag) {
+                i++;
+            } else {
+                return i & 0xFF;
+            }
+            rec += 0x68;
+        }
+    }
+    return count;
+}
+
+/* Retail 0x00200A58: find the first 0x68-byte record whose byte at +0x64
+   is zero, among the records described by arg0->+0x10 (+4 count, +5 bound,
+   +0 base). Return the 0-based index, or the count when none matches. */
+u32 func_00200A58(u8 *arg0)
+{
+    u8 *hdr = *(u8 **)(arg0 + 0x10);
+    u32 count = *(u8 *)(hdr + 4);
+    u8 *rec;
+    u32 i = 0;
+
+    if (*(u8 *)(hdr + 5) < count && count != 0) {
+        rec = *(u8 **)hdr;
+        while (i < count) {
+            if (*(u8 *)(rec + 0x64) == 0)
+                return i & 0xFF;
+            i++;
+            rec += 0x68;
+        }
+    }
+    return count;
+}
+
+/* Retail 0x00200AA8: fill the five fields of a 0x68-byte record, then
+   zero-clear 0x60 bytes of it through func_00224B88. */
+s32 func_00200AA8(u8 *arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
+{
+    u8 *base = *(u8 **)(arg0 + 0x10);
+    u8 *rec = *(u8 **)base + ((u32)arg1 & 0xFF) * 0x68;
+
+    *(u8 *)(rec + 0x66) = D_00393AE7;
+    *(u8 *)(rec + 0x67) = D_00393AE6;
+    *(u8 *)(rec + 0x64) = (u8)arg4;
+    *(u32 *)(rec + 0x60) = (u32)arg3;
+    *(u8 *)(rec + 0x65) = (u8)arg2;
+    return func_00224B88(rec, 0, 0x60);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00200B28);
 
@@ -28879,9 +31114,29 @@ void func_00200EF8(u8 *arg0)
     }
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00200F20);
+s32 func_00200F20(u8 *arg0)
+{
+    s32 type = *(u8 *)(arg0 + 0xC);
 
-INCLUDE_ASM(const s32, "core/main", func_00200F60);
+    if (type == 8) {
+        *(s32 *)arg0 = (s32)*(f32 *)arg0;
+        *(u8 *)(arg0 + 0xC) = 6;
+        return 6;
+    }
+    return type;
+}
+
+s32 func_00200F60(u8 *arg0)
+{
+    s32 type = *(u8 *)(arg0 + 0xC);
+
+    if (type == 8) {
+        *(s32 *)arg0 = (s32)*(f32 *)arg0;
+        *(u8 *)(arg0 + 0xC) = 6;
+        return 6;
+    }
+    return type;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00200FA0);
 
@@ -28893,6 +31148,7 @@ void func_00201048(u8 *arg0, s32 arg1)
 
 INCLUDE_ASM(const s32, "core/main", func_00201068);
 
+/* Behavioral reconstruction (hy4-bfree-1123). */
 INCLUDE_ASM(const s32, "core/main", func_002010F0);
 
 INCLUDE_ASM(const s32, "core/main", func_00201150);
@@ -28942,7 +31198,25 @@ s32 func_00201B18(s32 a1, u8 a2, u16 a3)
     return v4 != 0;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00201B58);
+/* Retail 0x00201B58: word-table lookup. Index 0xFF selects the entry after
+   the last one (a1 + 4*count); other indices >= count fail. */
+s32 func_00201B58(u8 *arg0, u32 arg1)
+{
+    u32 n, idx;
+
+    idx = arg1 & 0xFF;
+    if (*arg0 == 0)
+        return 0;
+    n = *arg0;
+    if (idx >= n) {
+        if (idx != 0xFF)
+            return 0;
+        return *(s32 *)(arg0 + 4 * n);
+    }
+    if (idx == 0xFF)
+        return *(s32 *)(arg0 + 4 * n);
+    return *(s32 *)(arg0 + 4 * idx + 4);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00201BB0);
 
@@ -29303,7 +31577,16 @@ INCLUDE_ASM(const s32, "core/main", func_00206D98);
 
 INCLUDE_ASM(const s32, "core/main", func_00206F00);
 
-INCLUDE_ASM(const s32, "core/main", func_00206F68);
+/* Byte-matching: the null arm is a literal return 0 written first, so the
+   `bnel` keeps the field load in its delay slot. */
+extern s32 func_00206F00(s32, u16);
+s32 func_00206F68(u8 *a0, u16 a1)
+{
+    u8 *p = (u8 *)func_001E0EF0(a0);
+    if (p == 0)
+        return 0;
+    return func_00206F00(*(s32 *)(p + 0x50), a1);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00206FA8);
 
@@ -29425,7 +31708,7 @@ s32 func_002093A8(s32 arg0, s32 arg1, s32 *arg2)
 
 u8 *func_002093E0(u8 *unused, u8 *ret, u8 *out)
 {
-    *(s32 *)out = D_00253627;
+    *(s32 *)out = D_00253627[0];
     return ret;
 }
 
@@ -29766,7 +32049,18 @@ void func_0020B868(u8 *arg0, s16 arg1, s16 arg2, float arg3)
     *(float *)(base + arg2 * 0xC) = arg3;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0020B8A0);
+/* Retail 0x0020B8A0: read two halfwords from the 6-word block at
+   (arg0->+0xC)[4*a2]->+8 + 8*a3. Returns the block base pointer. */
+s32 func_0020B8A0(u8 *arg0, s32 a2, s32 a3, u16 *a4, u16 *a5)
+{
+    u8 *p = *(u8 **)(arg0 + 0xC) + a2 * 4;
+    u8 *q = *(u8 **)p;
+    s32 off = a3 * 8;
+
+    *a4 = *(u16 *)(q + off);
+    *a5 = *(u16 *)(q + off + 2);
+    return (s32)q;
+}
 
 /* Behavior-faithful, not byte-matching: same double indirection with the
    0x20-byte entry stride and the same size 0x2C; only $3/$6 are swapped. */
@@ -29900,7 +32194,17 @@ INCLUDE_ASM(const s32, "core/main", func_0020D798);
 
 INCLUDE_ASM(const s32, "core/main", func_0020D818);
 
-INCLUDE_ASM(const s32, "core/main", func_0020D8E8);
+/* Retail 0x0020D8E8: squared-distance test against the square of the sum
+   of the two float arguments. The self-dot uses the single-rounding
+   accumulator form (component-wise pairs). */
+s32 func_0020D8E8(f32 *a, f32 *b, f32 f0, f32 f1)
+{
+    f32 dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];
+    f32 d2 = F_DOT3(dx, dy, dz, dx, dy, dz);
+    f32 r = f0 + f1;
+
+    return d2 <= r * r;
+}
 
 s32 func_0020D940(f32 *a, f32 *b, f32 *c)
 {
@@ -29984,7 +32288,15 @@ INCLUDE_ASM(const s32, "core/main", func_0020EFF8);
 
 INCLUDE_ASM(const s32, "core/main", func_0020F0F0);
 
-INCLUDE_ASM(const s32, "core/main", func_0020F1E8);
+/* Retail 0x0020F1E8: same squared-distance test as func_0020D8E8. */
+s32 func_0020F1E8(f32 *a, f32 *b, f32 arg2)
+{
+    f32 dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2];
+    f32 d2 = F_DOT3(dx, dy, dz, dx, dy, dz);
+    f32 r2 = arg2 * arg2;
+
+    return d2 <= r2;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0020F238);
 
@@ -30093,6 +32405,9 @@ u8 *func_00211980(u8 *s, s32 c)
     return 0;
 }
 
+/* 0x002119C0 is a strrchr-like search over signed bytes, returning the
+   address of the last match or 0. Left as INCLUDE_ASM: the C form is 104 B
+   against the 96 B retail slot (three load-delay nops plus extra spills). */
 INCLUDE_ASM(const s32, "core/main", func_002119C0);
 
 s8 *func_00211A20(s8 *s, s32 a2)
@@ -30268,7 +32583,16 @@ INCLUDE_ASM(const s32, "core/main", func_00212348);
 
 INCLUDE_ASM(const s32, "core/main", func_002123E8);
 
-INCLUDE_ASM(const s32, "core/main", func_00212480);
+/* Behavioral reconstruction (hy4-bfree-1123). */
+s32 func_00212480(s32 a0)
+{
+    s32 state = *(s32 *)((u8 *)D_00386D18 + a0 * 16 + 0xC);
+    if (state == 1)
+        return func_00213848(a0);
+    if (state == 5)
+        return func_00212DD0(a0);
+    return -1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_002124E0);
 
@@ -30344,7 +32668,19 @@ s64 func_00212C78(s32 arg0)
 
 INCLUDE_ASM(const s32, "core/main", func_00212CA8);
 
-INCLUDE_ASM(const s32, "core/main", func_00212DD0);
+extern s32 D_00386D18[];
+
+/* Retail 0x00212DD0: round up (value>>11) when the low 11 bits are set,
+   then add the first word of the descriptor reached through +0x28. */
+s32 func_00212DD0(u32 arg0)
+{
+    u8 *p = (u8 *)D_00386D18[arg0 * 4];
+    s32 v = *(s32 *)(p + 8);
+    s32 n = (v >> 11) + ((v & 0x7FF) != 0);
+    u8 *q = (u8 *)D_00386D18[*(u32 *)(*(u32 *)(p + 0x28) + 8) * 4];
+
+    return n + *(s32 *)q;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00212E28);
 
@@ -30430,7 +32766,21 @@ s32 func_00213868(void)
     return -1;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_002138B0);
+/* Retail 0x002138B0: clear the four words of D_00386D18 entry idx
+   (idx < 15). Returns -1 for an out-of-range index, else 0. */
+s32 func_002138B0(u32 arg0)
+{
+    s32 *p;
+
+    if (arg0 >= 0xF)
+        return -1;
+    p = &D_00386D18[arg0 * 4];
+    p[1] = 0;
+    p[2] = 0;
+    p[3] = 0;
+    p[0] = 0;
+    return 0;
+}
 
 s32 *func_00213908(s32 *p, s32 value) { s32 *q = (s32 *)p[1]; q[9] = value; return q; }
 
@@ -30482,9 +32832,32 @@ u8 *func_002142E0(s32 *p, u8 value) { u8 *q = (u8 *)p[1]; q[0x29] = value; retur
 
 u8 func_002142F0(s32 *p) { u8 *object = (u8 *)p[1]; u8 value = object[0x2A]; object[0x29] = value; return value; }
 
-INCLUDE_ASM(const s32, "core/main", func_00214300);
+/* Retail masks the second argument with `andi $5,0xFF`, so the delta is a
+   plain u8.  The returned value is the UNTRUNCATED sum, even when the byte
+   that is stored wraps; only the store truncates. */
+s32 func_00214300(s32 *p, u8 delta)
+{
+    u8 *object = (u8 *)p[1];
+    s32 sum = object[0x29] + (s32)delta;
 
-INCLUDE_ASM(const s32, "core/main", func_00214330);
+    if ((s32)object[0x2A] < sum)
+        object[0x29] = object[0x2A];
+    else
+        object[0x29] = (u8)sum;
+    return sum;
+}
+
+/* Behavioral: saturating decrement of the byte at (a1->+4)->+0x29 by
+ * (a2 & 0xFF).  The `sb $0` in the blezl delay slot stores a 0 on BOTH paths;
+ * on the diff>0 path it is immediately replaced by the difference. */
+s32 func_00214330(u8 *a1, s32 a2)
+{
+    u8 *field = *(u8 **)(a1 + 4) + 0x29;
+    s32 diff = *field - (a2 & 0xFF);
+
+    *field = (diff > 0) ? diff : 0;
+    return *field;
+}
 
 s32 func_00214358(s32 *p) { return *((u8 *)p[1] + 0x2A); }
 
@@ -30492,9 +32865,36 @@ u8 *func_00214368(s32 *p, u8 value) { u8 *q = (u8 *)p[1]; q[0x2A] = value; retur
 
 u8 func_00214378(s32 *p) { u8 *object = (u8 *)p[1]; u8 value = object[0x2B]; object[0x2A] = value; return value; }
 
-INCLUDE_ASM(const s32, "core/main", func_00214388);
+/* Same saturating add as func_00214300, on the +0x2A byte, with +0x2B as
+   the clamp.  The maximum byte is unsigned (lbu on both operands). */
+s32 func_00214388(s32 *p, u8 delta)
+{
+    u8 *object = (u8 *)p[1];
+    s32 sum = object[0x2A] + (s32)delta;
 
-INCLUDE_ASM(const s32, "core/main", func_002143B8);
+    if ((s32)object[0x2B] < sum)
+        object[0x2A] = object[0x2B];
+    else
+        object[0x2A] = (u8)sum;
+    return sum;
+}
+
+/* Saturating decrement of the +0x2A byte, then re-apply the +0x29 ceiling
+   through func_00214300(p, 0).  The second call is observable (it can lower
+   the byte again), so it must stay.  Retail's `blezl` delay slot writes 0 on
+   the not-taken path as well; the final stored byte is the same either way. */
+s32 func_002143B8(s32 *p, u8 delta)
+{
+    u8 *object = (u8 *)p[1];
+    s32 diff = (s32)object[0x2A] - (s32)delta;
+
+    if (diff > 0)
+        object[0x2A] = (u8)diff;
+    else
+        object[0x2A] = 0;
+    func_00214300(p, 0);
+    return object[0x2A];
+}
 
 /* Byte-matching.  Two pointer hops from arg0+4, then a flag test at +0xD6
    before forwarding to func_00106D28 with a zero second argument. */
@@ -30508,7 +32908,19 @@ void func_00214408(u8 *arg0)
         func_00106D28(p, 0);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00214430);
+extern s32 func_0010EC88();
+
+void func_00214430(u8 *a1)
+{
+    u8 *v3;
+    s32 *p = *(s32 **)(a1 + 4);
+
+    v3 = *(u8 **)p;
+    if (*(u8 *)(v3 + 0xD6) != 0)
+        return;
+    func_00106D28((s32)v3, *(u8 *)(*(s32 *)(v3 + 4) + 0x1D));
+    func_0010EC88((s32)a1, (s16)(*(u16 *)(v3 + 0x6C) + 1));
+}
 
 u8 *func_002144A0(s16 a1)
 {
@@ -30520,9 +32932,33 @@ u8 *func_002144A0(s16 a1)
     return v;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_002144F8);
+/* Retail 0x002144F8: write three halfwords into the 6-word block at
+   (arg0->+4)[4*a2]->+8 + 6*a3. Returns the base pointer. */
+s32 func_002144F8(u8 *arg0, s32 a2, s32 a3, u16 a4, u16 a5, u16 a6)
+{
+    u8 *p = *(u8 **)(*(u32 *)(arg0 + 4) + (u32)a2 * 4);
+    u8 *q = *(u8 **)(p + 8);
+    s32 off = a3 * 6;
 
-INCLUDE_ASM(const s32, "core/main", func_00214548);
+    *(u16 *)(q + off) = a4;
+    *(u16 *)(q + off + 2) = a5;
+    *(u16 *)(q + off + 4) = a6;
+    return (s32)q;
+}
+
+/* Retail 0x00214548: read three halfwords from the 6-word block at
+   (arg0->+4)[4*a2]->+8 + 6*a3. Returns the base pointer. */
+s32 func_00214548(u8 *arg0, s32 a2, s32 a3, u16 *a4, u16 *a5, u16 *a6)
+{
+    u8 *p = *(u8 **)(*(u32 *)(arg0 + 4) + (u32)a2 * 4);
+    u8 *q = *(u8 **)(p + 8);
+    s32 off = a3 * 6;
+
+    *a4 = *(u16 *)(q + off);
+    *a5 = *(u16 *)(q + off + 2);
+    *a6 = *(u16 *)(q + off + 4);
+    return (s32)q;
+}
 
 void func_002145A0(u8 *a, s32 b, s32 val)
 {
@@ -30534,7 +32970,18 @@ void func_002145C0(u8 *a, s32 b, s32 *out)
     *out = *(s32 *)*(s32 *)(((b << 16) >> 14) + *(s32 *)(a + 4));
 }
 
-INCLUDE_ASM(const s32, "core/main", func_002145E0);
+/* Retail 0x002145E0: write two halfwords in the table entry reached by
+   (arg0->+4)[4*a2] and return that entry pointer. */
+s32 func_002145E0(u8 *arg0, s32 a2, s32 a3, u16 a4, u16 a5)
+{
+    u8 *p = *(u8 **)(*(u32 *)(arg0 + 4) + (u32)a2 * 4);
+    u8 *q = *(u8 **)p;
+    s32 off = a3 * 8;
+
+    *(u16 *)(q + off) = a4;
+    *(u16 *)(q + off + 2) = a5;
+    return (s32)p;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00214628);
 
@@ -31072,9 +33519,28 @@ u32 func_0021ABC8(f32 arg0)
 
 INCLUDE_ASM(const s32, "core/main", func_0021ABF0);
 
+/* 0x0021AD50 is copysignf: magnitude of arg0 with the sign bit of arg1.
+   Left as INCLUDE_ASM: this GCC always emits two extra register moves,
+   making the body 52 B against a 48 B retail slot. */
 INCLUDE_ASM(const s32, "core/main", func_0021AD50);
 
-INCLUDE_ASM(const s32, "core/main", func_0021AD80);
+/* D_00386F38 is outside the gp window; an array declaration forces the
+   lui/addiu absolute addressing that retail uses. */
+extern u32 D_00386F38[];
+
+/* Retail 0x0021AD80: call every function in the NULL-terminated dispatch
+   array whose cursor lives in D_00386F38, advancing the cursor each time. */
+void func_0021AD80(void)
+{
+    void (**p)(void) = (void (**)(void))D_00386F38[0];
+
+    while (*p != 0) {
+        void (*fn)(void) = *p;
+        p++;
+        D_00386F38[0] = (u32)p;
+        fn();
+    }
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0021ADD8);
 
@@ -32071,39 +34537,263 @@ void func_002218B0(s32 *arg1, s32 arg2)
 
 INCLUDE_ASM(const s32, "core/main", func_002218D0);
 
-INCLUDE_ASM(const s32, "core/main", func_00221980);
+/* Lazy singleton accessors: each owns a two-word global at 0x387D90+8*i.
+   word 0 = instance pointer, word 1 = default descriptor pointer. */
+extern s32 D_00391438[];
+extern volatile s32 D_00387D90[2];
+extern s32 D_00391370[];
+extern volatile s32 D_00387D98[2];
+extern s32 D_00391378[];
+extern volatile s32 D_00387DA0[2];
+extern s32 D_00391380[];
+extern volatile s32 D_00387DA8[2];
+extern s32 D_00391388[];
+extern volatile s32 D_00387DB0[2];
+extern s32 D_00391390[];
+extern volatile s32 D_00387DB8[2];
+extern s32 D_00391398[];
+extern volatile s32 D_00387DC0[2];
+extern s32 D_003913A0[];
+extern volatile s32 D_00387DC8[2];
+extern s32 D_003913A8[];
+extern volatile s32 D_00387DD0[2];
+extern s32 D_003913B0[];
+extern volatile s32 D_00387DD8[2];
+extern s32 D_003913B8[];
+extern volatile s32 D_00387DE0[2];
+extern s32 D_003913C0[];
+extern volatile s32 D_00387DE8[2];
+extern s32 D_003913C8[];
+extern volatile s32 D_00387DF0[2];
+extern s32 D_003913D0[];
+extern volatile s32 D_00387DF8[2];
+extern s32 D_003913D8[];
+extern volatile s32 D_00387E00[2];
+extern s32 D_003913E0[];
+extern volatile s32 D_00387E08[2];
+extern s32 D_003913E8[];
+extern volatile s32 D_00387E10[2];
+extern s32 D_003913F0[];
 
-INCLUDE_ASM(const s32, "core/main", func_002219B8);
 
-INCLUDE_ASM(const s32, "core/main", func_002219F0);
+s32 *func_00221980(void)
+{
+    volatile s32 *slot = D_00387D90;
 
-INCLUDE_ASM(const s32, "core/main", func_00221A28);
+    if (slot[0] == 0) {
+        slot[1] = (s32)D_00391438;
+        slot[0] = (s32)D_00391370;
+    }
+    return (s32 *)slot;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00221A60);
+s32 *func_002219B8(void)
+{
+    volatile s32 *slot = D_00387D98;
 
-INCLUDE_ASM(const s32, "core/main", func_00221A98);
+    if (slot[0] == 0) {
+        slot[1] = (s32)D_00391438;
+        slot[0] = (s32)D_00391378;
+    }
+    return (s32 *)slot;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00221AD0);
+s32 *func_002219F0(void)
+{
+    volatile s32 *slot = D_00387DA0;
 
-INCLUDE_ASM(const s32, "core/main", func_00221B08);
+    if (slot[0] == 0) {
+        slot[1] = (s32)D_00391438;
+        slot[0] = (s32)D_00391380;
+    }
+    return (s32 *)slot;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00221B40);
+s32 *func_00221A28(void)
+{
+    volatile s32 *slot = D_00387DA8;
 
-INCLUDE_ASM(const s32, "core/main", func_00221B78);
+    if (slot[0] == 0) {
+        slot[1] = (s32)D_00391438;
+        slot[0] = (s32)D_00391388;
+    }
+    return (s32 *)slot;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00221BB0);
+s32 *func_00221A60(void)
+{
+    volatile s32 *slot = D_00387DB0;
 
-INCLUDE_ASM(const s32, "core/main", func_00221BE8);
+    if (slot[0] == 0) {
+        slot[1] = (s32)D_00391438;
+        slot[0] = (s32)D_00391390;
+    }
+    return (s32 *)slot;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00221C20);
+s32 *func_00221A98(void)
+{
+    volatile s32 *slot = D_00387DB8;
 
-INCLUDE_ASM(const s32, "core/main", func_00221C58);
+    if (slot[0] == 0) {
+        slot[1] = (s32)D_00391438;
+        slot[0] = (s32)D_00391398;
+    }
+    return (s32 *)slot;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00221C90);
+s32 *func_00221AD0(void)
+{
+    volatile s32 *slot = D_00387DC0;
 
-INCLUDE_ASM(const s32, "core/main", func_00221CC8);
+    if (slot[0] == 0) {
+        slot[1] = (s32)D_00391438;
+        slot[0] = (s32)D_003913A0;
+    }
+    return (s32 *)slot;
+}
 
-INCLUDE_ASM(const s32, "core/main", func_00221D00);
+s32 *func_00221B08(void)
+{
+    volatile s32 *slot = D_00387DC8;
+
+    if (slot[0] == 0) {
+        slot[1] = (s32)D_00391438;
+        slot[0] = (s32)D_003913A8;
+    }
+    return (s32 *)slot;
+}
+
+s32 *func_00221B40(void)
+{
+    volatile s32 *slot = D_00387DD0;
+
+    if (slot[0] == 0) {
+        slot[1] = (s32)D_00391438;
+        slot[0] = (s32)D_003913B0;
+    }
+    return (s32 *)slot;
+}
+
+s32 *func_00221B78(void)
+{
+    volatile s32 *slot = D_00387DD8;
+
+    if (slot[0] == 0) {
+        slot[1] = (s32)D_00391438;
+        slot[0] = (s32)D_003913B8;
+    }
+    return (s32 *)slot;
+}
+
+s32 *func_00221BB0(void)
+{
+    volatile s32 *slot = D_00387DE0;
+
+    if (slot[0] == 0) {
+        slot[1] = (s32)D_00391438;
+        slot[0] = (s32)D_003913C0;
+    }
+    return (s32 *)slot;
+}
+
+s32 *func_00221BE8(void)
+{
+    volatile s32 *slot = D_00387DE8;
+
+    if (slot[0] == 0) {
+        slot[1] = (s32)D_00391438;
+        slot[0] = (s32)D_003913C8;
+    }
+    return (s32 *)slot;
+}
+
+s32 *func_00221C20(void)
+{
+    volatile s32 *slot = D_00387DF0;
+
+    if (slot[0] == 0) {
+        slot[1] = (s32)D_00391438;
+        slot[0] = (s32)D_003913D0;
+    }
+    return (s32 *)slot;
+}
+
+s32 *func_00221C58(void)
+{
+    volatile s32 *slot = D_00387DF8;
+
+    if (slot[0] == 0) {
+        slot[1] = (s32)D_00391438;
+        slot[0] = (s32)D_003913D8;
+    }
+    return (s32 *)slot;
+}
+
+s32 *func_00221C90(void)
+{
+    volatile s32 *slot = D_00387E00;
+
+    if (slot[0] == 0) {
+        slot[1] = (s32)D_00391438;
+        slot[0] = (s32)D_003913E0;
+    }
+    return (s32 *)slot;
+}
+
+s32 *func_00221CC8(void)
+{
+    volatile s32 *slot = D_00387E08;
+
+    if (slot[0] == 0) {
+        slot[1] = (s32)D_00391438;
+        slot[0] = (s32)D_003913E8;
+    }
+    return (s32 *)slot;
+}
+
+s32 *func_00221D00(void)
+{
+    volatile s32 *slot = D_00387E10;
+
+    if (slot[0] == 0) {
+        slot[1] = (s32)D_00391438;
+        slot[0] = (s32)D_003913F0;
+    }
+    return (s32 *)slot;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 s32 *func_00221288();
 s32 func_00220C90(s32, s32, s32);
@@ -32436,7 +35126,21 @@ s32 func_002236D0(s32 a1, s32 cb)
     return result;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_00223768);
+s32 func_00223768(s32 a1, s32 a2, s32 a3, s32 a4)
+{
+    s32 v6 = a3 * a2;
+    s32 v8[3];
+    u32 v10[4];
+
+    v10[0] = a1;
+    v8[0] = (s32)v10;
+    v8[1] = 1;
+    v10[1] = a3 * a2;
+    v8[2] = a3 * a2;
+    if (func_002232F8(a4, v8) == 0)
+        return a3;
+    return (v6 - v8[2]) / (u32)a2;
+}
 
 s32 func_00226760(void);
 
@@ -32676,7 +35380,22 @@ INCLUDE_ASM(const s32, "core/main", func_00226A34);
 
 INCLUDE_ASM(const s32, "core/main", func_00226B48);
 
-INCLUDE_ASM(const s32, "core/main", func_00226C80);
+/* Retail 0x00226C80: newlib strlwr using the ctype table at D_00391541
+   (bit 1 marks upper-case letters). The table index is the SIGNED char. */
+s8 *func_00226C80(s8 *arg0)
+{
+    s8 *p = arg0;
+    s32 c;
+
+    if (arg0 == 0)
+        return arg0;
+    while ((c = *p) != 0) {
+        if ((D_00391541[(s8)c] & 1) != 0)
+            *p = (s8)(c + 32);
+        p++;
+    }
+    return arg0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00226CD8);
 
@@ -32717,7 +35436,21 @@ s32 func_002275C0(s32 arg0, s32 arg1, s32 arg2)
     return func_00227388(*(s32 *)D_0038857C, arg0, arg1, arg2);
 }
 
-INCLUDE_ASM(const s32, "core/main", func_002275F8);
+/* Retail 0x002275F8: newlib strupr (bit 2 of D_00391541). */
+s8 *func_002275F8(s8 *arg0)
+{
+    s8 *p = arg0;
+    s32 c;
+
+    if (arg0 == 0)
+        return arg0;
+    while ((c = *p) != 0) {
+        if ((D_00391541[(s8)c] & 2) != 0)
+            *p = (s8)(c - 32);
+        p++;
+    }
+    return arg0;
+}
 
 s32 func_00227650(s32 a1, s32 *a2)
 {
@@ -33475,9 +36208,8 @@ s32 func_0022AA90(s32 arg0)
 
 INCLUDE_ASM(const s32, "core/main", func_0022AAB8);
 
-extern s32 func_0022E1D0();
-
-s32 func_0022AB38(s32 arg1)
+extern u64 func_0022E1D0();
+u64 func_0022AB38(s32 arg1)
 {
     return func_0022E1D0(arg1, 0);
 }
@@ -34221,9 +36953,474 @@ u32 func_0022D298(u64 arg0)
     return (0x7FF00000 - n) >> 31;
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0022D2D0);
+/* ---------------------------------------------------------------------
+ * func_0022D2D0 - newlib _strtod_r(): decimal string -> double (0xF00).
+ *
+ * Behavioural reconstruction from asm/nonmatchings/core/main/func_0022D2D0.s
+ * (plus tools/export pseudocode).  The body is David Gay's strtod as shipped
+ * in newlib, with these compile-time variants *off* (all confirmed from the
+ * listing): no hex-float parse (no 'x' test after the leading-zero skip), no
+ * Infinity/NaN parse (the `if (!nd)` tail has no character tests), no
+ * Avoid_Underflow / Sudden_Underflow / Honor_FLT_ROUNDS / SET_INEXACT /
+ * ROUND_BIASED.
+ *
+ * The EE core has no double-precision FPU, so a double is one 64-bit GPR and
+ * every arithmetic step is a soft-float helper call (same convention as
+ * _dtoa_r above):
+ *   func_0021DDB0 = a - b      func_0021DD58 = a + b
+ *   func_0021DE18 = a * b      func_0021E0C0 = a / b
+ *   func_0021E340 = 3-way compare        func_0021E390 = (double)(s32)
+ *   func_0021E448 = (s32)double          func_0021C5F8 = (double)(s64)
+ *   func_0022E7B8 = (s64)double          func_0022CD28 = _ulp
+ *   func_0022D0C0 = _ratio
+ *
+ * Bigint (mprec.c) layout, confirmed by _s2b/_Balloc/_dtoa_r:
+ *   +0x00 next  +0x04 _k  +0x08 _maxwds  +0x0C _sign  +0x10 _wds
+ *   +0x14 _x[1]  (32-bit limbs, Pack_32)
+ * Bcopy(x, y) is memcpy(&x->_sign, &y->_sign, y->_wds*4 + 8).
+ *
+ * Digit accumulators (confirmed from the register widths): `y` is a 32-bit
+ * unsigned running value of the first 9 digits (converted with the
+ * (double)(u32) expansion: __floatsidf plus +2^32 when negative), `z` is a
+ * 64-bit unsigned value of the next digits up to nd == 16 (converted with
+ * __floatdidf over (z>>1)|(z&1) doubled when negative).
+ *
+ * Two retail-only details, reproduced on purpose:
+ *  - ret0 does NOT clear `sign` (stock newlib does), so an input that stops
+ *    right after a '-' ("-", "-e", "-.") returns -0.0 here.
+ *  - an exponent with more than 8 digits is clamped to 9999999, not to the
+ *    stock newlib 19999, and there is no `L > 19999` test.
+ * --------------------------------------------------------------------- */
 
-s32 func_0022E1D0(s32 arg0, s32 arg1)
+extern u64 func_0021C5F8();        /* (double)(s64)   */
+extern u64 func_0021DDB0();        /* a - b           */
+extern s64 func_0022E7B8();        /* (s64)double     */
+extern u64 func_0022CD28();        /* _ulp(d)         */
+extern u64 func_0022D0C0();        /* _ratio(a, b)    */
+extern u64 D_00390CA0;             /* HUGE_VAL bits   */
+extern u64 D_00392140[];           /* tinytens[]: 1e-16 .. 9e-... */
+extern u64 D_00392228;             /* 0.4999999       */
+extern u64 D_00392230;             /* 0.5000001       */
+extern u64 D_00392238;             /* 0.4999999 / 2   */
+
+#define ST_HI(x) ((u32)((x) >> 32))
+#define ST_PK(hi) ((u64)(u32)(hi) << 32)
+
+u64 func_0022D2D0(u8 *ptr, const u8 *s00, u8 **se)
+{
+    s32 bb2, bb5, bbe, bd2, bd5, bbbits, bs2, c, dsign, e, e1, esign;
+    s32 i, j, k, nd, nd0, nf, nz, nz0, sign;
+    const u8 *s, *s0, *s1;
+    u64 aadj, adj, aadj1, rv, rv0;
+    s64 L;
+    u32 y;
+    u64 z;
+    u8 *bb, *bb1, *bd, *bd0, *bs, *delta;
+
+    bb = 0;
+    bd = 0;
+    bd0 = 0;
+    bs = 0;
+    delta = 0;
+    sign = 0;
+    nz0 = 0;
+    nz = 0;
+    rv = 0;
+    /* newlib spells this as a switch; retail's cc1 turns it into a 46-entry
+       jump table (jtbl_00392170) in the fixed data segment.  A table emitted
+       from this object would be a second copy in .main, so the dispatch is
+       written as an equivalent compare chain - same decisions, no .rodata. */
+    for (s = s00;; s++) {
+        c = *s;
+        if (c == '-') {
+            sign = 1;
+            c = *++s;
+            if (!c)
+                goto ret0;
+            goto break2;
+        }
+        if (c == '+') {
+            c = *++s;
+            if (!c)
+                goto ret0;
+            goto break2;
+        }
+        if (c == 0)
+            goto ret0;
+        if (c == ' ' || c == '\t' || c == '\n' || c == '\v' || c == '\f' ||
+            c == '\r')
+            continue;
+        goto break2;
+    }
+break2:
+    if (*s == '0') {
+        nz0 = 1;
+        while (*++s == '0')
+            ;
+        if (!*s)
+            goto ret;
+    }
+    s0 = s;
+    y = 0;
+    z = 0;
+    for (nd = nf = 0; (c = *s) >= '0' && c <= '9'; nd++, s++)
+        if (nd < 9)
+            y = 10 * y + c - '0';
+        else if (nd < 16)
+            z = 10 * z + c - '0';
+    nd0 = nd;
+    if (c == '.') {
+        c = *++s;
+        if (!nd) {
+            for (; c == '0'; c = *++s)
+                nz++;
+            if (c > '0' && c <= '9') {
+                s0 = s;
+                nf += nz;
+                nz = 0;
+                goto have_dig;
+            }
+            goto dig_done;
+        }
+        for (; c >= '0' && c <= '9'; c = *++s) {
+        have_dig:
+            nz++;
+            if (c -= '0') {
+                nf += nz;
+                for (i = 1; i < nz; i++)
+                    if (nd++ < 9)
+                        y *= 10;
+                    else if (nd <= 16)
+                        z *= 10;
+                if (nd++ < 9)
+                    y = 10 * y + c;
+                else if (nd <= 16)
+                    z = 10 * z + c;
+                nz = 0;
+            }
+        }
+    }
+dig_done:
+    e = 0;
+    if (c == 'e' || c == 'E') {
+        if (!nd && !nz && !nz0)
+            goto ret0;
+        s00 = s;
+        esign = 0;
+        switch (c = *++s) {
+        case '-':
+            esign = 1;
+            /* fall through */
+        case '+':
+            c = *++s;
+        }
+        if (c >= '0' && c <= '9') {
+            while (c == '0')
+                c = *++s;
+            if (c > '0' && c <= '9') {
+                L = c - '0';
+                s1 = s;
+                while ((c = *++s) >= '0' && c <= '9')
+                    L = 10 * L + c - '0';
+                if (s - s1 > 8)
+                    e = 9999999;
+                else
+                    e = (s32)L;
+                if (esign)
+                    e = -e;
+            } else {
+                e = 0;
+            }
+        } else {
+            s = s00;
+        }
+    }
+    if (!nd) {
+        if (!nz && !nz0) {
+        ret0:
+            s = s00;
+        }
+        goto ret;
+    }
+    e1 = e -= nf;
+
+    if (!nd0)
+        nd0 = nd;
+    k = nd < 16 ? nd : 16;
+    rv = func_0021E390((s32)y);
+    if ((s32)y < 0)
+        rv = func_0021DD58(rv, ST_PK(0x41F00000)); /* 2^32 */
+    if (k > 9) {
+        u64 t = func_0021DE18(D_00392050[k - 9], rv);
+        u64 dz;
+
+        if ((s64)z < 0) {
+            u64 half = func_0021C5F8((s64)((z >> 1) | (z & 1)));
+            dz = func_0021DD58(half, half);
+        } else {
+            dz = func_0021C5F8((s64)z);
+        }
+        rv = func_0021DD58(t, dz);
+    }
+    bd0 = 0;
+    if (nd <= 15) {
+        if (!e)
+            goto ret;
+        if (e > 0) {
+            if (e <= 22) {
+                rv = func_0021DE18(D_00392050[e], rv);
+                goto ret;
+            }
+            i = 15 - nd;
+            if (e <= 22 + i) {
+                e -= i;
+                rv = func_0021DE18(D_00392050[i], rv);
+                rv = func_0021DE18(D_00392050[e], rv);
+                goto ret;
+            }
+        } else if (e >= -22) {
+            rv = func_0021E0C0(rv, D_00392050[-e]);
+            goto ret;
+        }
+    }
+    e1 += nd - k;
+
+    if (e1 > 0) {
+        if ((i = e1 & 15) != 0)
+            rv = func_0021DE18(D_00392050[i], rv);
+        if ((e1 &= ~15) != 0) {
+            if (e1 > 308)
+                goto ovfl;
+            e1 >>= 4;
+            for (j = 0; e1 > 1; j++, e1 >>= 1)
+                if (e1 & 1)
+                    rv = func_0021DE18(D_00392118[j], rv);
+            rv = (rv & 0xFFFFFFFFULL) | ST_PK(ST_HI(rv) - 0x03500000);
+            rv = func_0021DE18(D_00392118[j], rv);
+            z = (u32)(ST_HI(rv) & 0x7FF00000);
+            if (z > 0x7CA00000)
+                goto ovfl;
+            if (z > 0x7C900000)
+                rv = (rv & 0xFFFFFFFFULL) | 0x7FEFFFFFFFFFFFFFULL;
+            else
+                rv = (rv & 0xFFFFFFFFULL) | ST_PK(ST_HI(rv) + 0x03500000);
+        }
+    } else if (e1 < 0) {
+        e1 = -e1;
+        if ((i = e1 & 15) != 0)
+            rv = func_0021E0C0(rv, D_00392050[i]);
+        if ((e1 >>= 4) != 0) {
+            if (e1 >= 32)
+                goto undfl;
+            for (j = 0; e1 > 1; j++, e1 >>= 1)
+                if (e1 & 1)
+                    rv = func_0021DE18(D_00392140[j], rv);
+            rv0 = rv;
+            rv = func_0021DE18(D_00392140[j], rv);
+            if (func_0021E340(rv, 0) == 0) {
+                rv = func_0021DD58(rv0, rv0);
+                rv = func_0021DE18(D_00392140[j], rv);
+                if (func_0021E340(rv, 0) == 0)
+                    goto undfl;
+                rv = 1; /* Tiny0/Tiny1, the smallest denormal */
+            }
+        }
+    }
+
+    /* The hard part: adjust rv until the digits in bd round correctly. */
+    bd0 = (u8 *)func_0022C3C0(ptr, s0, nd0, nd, y);
+    for (;;) {
+        bd = (u8 *)func_0022C1D0(ptr, *(s32 *)(bd0 + 0x04));
+        func_002249D4(bd + 0x0C, bd0 + 0x0C, *(s32 *)(bd0 + 0x10) * 4 + 8);
+        bb = (u8 *)func_0022CF40(ptr, rv, &bbe, &bbbits);
+        bs = (u8 *)func_0022C650(ptr, 1);
+        if (e >= 0) {
+            bb2 = 0;
+            bb5 = 0;
+            bd2 = e;
+            bd5 = e;
+        } else {
+            bb2 = -e;
+            bb5 = -e;
+            bd2 = 0;
+            bd5 = 0;
+        }
+        if (bbe >= 0)
+            bb2 += bbe;
+        else
+            bd2 -= bbe;
+        bs2 = bb2;
+        j = bbe;
+        i = j + bbbits - 1; /* logb(rv) */
+        if (i < -1022)
+            j += 53 + 1022; /* denormal */
+        else
+            j = 54 - bbbits;
+        bb2 += j;
+        bd2 += j;
+        i = bb2 < bd2 ? bb2 : bd2;
+        if (i > bs2)
+            i = bs2;
+        if (i > 0) {
+            bb2 -= i;
+            bd2 -= i;
+            bs2 -= i;
+        }
+        if (bb5 > 0) {
+            bs = (u8 *)func_0022C8B8(ptr, bs, bb5);
+            bb1 = (u8 *)func_0022C688(ptr, bs, bb);
+            func_0022C278(ptr, bb);
+            bb = bb1;
+        }
+        if (bb2 > 0)
+            bb = (u8 *)func_0022C9B8(ptr, bb, bb2);
+        if (bd5 > 0)
+            bd = (u8 *)func_0022C8B8(ptr, bd, bd5);
+        if (bd2 > 0)
+            bd = (u8 *)func_0022C9B8(ptr, bd, bd2);
+        if (bs2 > 0)
+            bs = (u8 *)func_0022C9B8(ptr, bs, bs2);
+        delta = (u8 *)func_0022CB98(ptr, bb, bd);
+        dsign = *(s32 *)(delta + 0x0C);
+        *(s32 *)(delta + 0x0C) = 0;
+        i = func_0022CB30(delta, bs);
+        if (i < 0) {
+            /* Error is less than half an ulp: special case of mantissa a
+               power of two.  Retail only tests dsign and the mantissa. */
+            if (dsign || (rv & 0xFFFFFFFFFFFFFULL) != 0)
+                break;
+            delta = (u8 *)func_0022C9B8(ptr, delta, 1);
+            if (func_0022CB30(delta, bs) > 0)
+                goto drop_down;
+            break;
+        }
+        if (i == 0) {
+            /* exactly half-way between two doubles */
+            if (dsign) {
+                if ((rv & 0xFFFFFFFFFFFFFULL) == 0xFFFFFFFFFFFFFULL) {
+                    /* boundary case -- increment exponent.  Retail has no
+                       Big0/Big1 overflow test here and no `dsign = 0`. */
+                    rv = ST_PK((ST_HI(rv) & 0x7FF00000) + 0x00100000);
+                    break;
+                }
+            } else if ((rv & 0xFFFFFFFFFFFFFULL) == 0) {
+            drop_down:
+                /* boundary case -- decrement exponent */
+                L = (s64)(ST_HI(rv) & 0x7FF00000) - 0x00100000;
+                rv = ST_PK((u32)L | 0x000FFFFF) | 0xFFFFFFFFULL;
+                break;
+            }
+            if ((rv & 1) == 0)
+                break;
+            if (dsign) {
+                rv = func_0021DD58(func_0022CD28(rv), rv);
+                break;
+            } else {
+                rv = func_0021DDB0(rv, func_0022CD28(rv));
+                if (func_0021E340(rv, 0) == 0)
+                    goto undfl;
+                break;
+            }
+        }
+        aadj = func_0022D0C0(delta, bs);
+        if (func_0021E340(aadj, ST_PK(0x40000000)) <= 0) {
+            if (dsign) {
+                aadj = ST_PK(0x3FF00000);
+                aadj1 = aadj;
+            } else if ((rv & 0xFFFFFFFFFFFFFULL) != 0) {
+                if (rv == 1)
+                    goto undfl;
+                aadj = ST_PK(0x3FF00000);
+                aadj1 = ST_PK(0xBFF00000);
+            } else {
+                /* special case -- power of FLT_RADIX to be rounded down */
+                if (func_0021E340(aadj, ST_PK(0x3FF00000)) < 0)
+                    aadj = ST_PK(0x3FE00000);
+                else
+                    aadj = func_0021DE18(aadj, ST_PK(0x3FE00000));
+                aadj1 = func_0021DDB0(0, aadj);
+            }
+        } else {
+            aadj = func_0021DE18(aadj, ST_PK(0x3FE00000));
+            aadj1 = dsign ? aadj : func_0021DDB0(0, aadj);
+        }
+        y = ST_HI(rv) & 0x7FF00000;
+
+        /* Check for overflow. */
+        if (y == 0x7FE00000) {
+            rv0 = rv;
+            rv = (rv & 0xFFFFFFFFULL) | ST_PK(ST_HI(rv) - 0x03500000);
+            adj = func_0021DE18(aadj1, func_0022CD28(rv));
+            rv = func_0021DD58(adj, rv);
+            if ((ST_HI(rv) & 0x7FF00000) > 0x7C9FFFFF) {
+                if (rv0 == 0x7FEFFFFFFFFFFFFFULL)
+                    goto ovfl;
+                rv = (rv & 0xFFFFFFFFULL) | 0x7FEFFFFFFFFFFFFFULL;
+                goto cont;
+            }
+            rv = (rv & 0xFFFFFFFFULL) | ST_PK(ST_HI(rv) + 0x03500000);
+        } else {
+            /* Compute adj so that the IEEE rounding rules will correctly
+               round rv + adj in some half-way cases. */
+            if (y <= 0x03400000 && func_0021E340(aadj, ST_PK(0x3FF00000)) > 0) {
+                aadj1 = func_0021E390((s32)func_0021E448(
+                    func_0021DD58(aadj, ST_PK(0x3FE00000))));
+                if (!dsign)
+                    aadj1 = func_0021DDB0(0, aadj1);
+            }
+            adj = func_0021DE18(aadj1, func_0022CD28(rv));
+            rv = func_0021DD58(adj, rv);
+        }
+        z = (u32)(ST_HI(rv) & 0x7FF00000);
+        if ((u64)y == z) {
+            /* Can we stop now? */
+            L = func_0022E7B8(aadj);
+            aadj = func_0021DDB0(aadj, func_0021C5F8(L));
+            if (dsign || (rv & 0xFFFFFFFFFFFFFULL) != 0) {
+                /* The tolerances below are conservative. */
+                if (func_0021E340(aadj, D_00392228) < 0)
+                    break;
+                if (func_0021E340(aadj, D_00392230) > 0)
+                    break;
+            } else if (func_0021E340(aadj, D_00392238) < 0) {
+                break;
+            }
+        }
+    cont:
+        func_0022C278(ptr, bb);
+        func_0022C278(ptr, bd);
+        func_0022C278(ptr, bs);
+        func_0022C278(ptr, delta);
+    }
+
+ovfl:
+    *(s32 *)ptr = 34; /* ERANGE */
+    rv = D_00390CA0;  /* +/-HUGE_VAL */
+    if (bd0)
+        goto retfree;
+    goto ret;
+undfl:
+    *(s32 *)ptr = 34; /* ERANGE */
+    rv = 0;
+    if (bd0)
+        goto retfree;
+    goto ret;
+retfree:
+    func_0022C278(ptr, bb);
+    func_0022C278(ptr, bd);
+    func_0022C278(ptr, bs);
+    func_0022C278(ptr, bd0);
+    func_0022C278(ptr, delta);
+ret:
+    if (se != 0)
+        *se = (u8 *)s;
+    return sign ? func_0021DDB0(0, rv) : rv;
+}
+#undef ST_HI
+#undef ST_PK
+
+/* strtod(): a double return, i.e. 64 bits in $2/$3, not a 32-bit int. */
+u64 func_0022E1D0(s32 arg0, s32 arg1)
 {
     return func_0022D2D0(*(s32 *)D_0038857C, arg0, arg1);
 }

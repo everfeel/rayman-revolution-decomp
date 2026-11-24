@@ -13,9 +13,9 @@ This project originally started with the goal of achieving a byte-matching decom
 # Rayman Revolution (PAL) decompilation project
 
 <!-- BEGIN GENERATED PROGRESS -->
-![Progress: 3,043 byte-matches, 118 implemented, 2,484 not implemented](progress/progress.svg)
+![Progress: 3,070 byte-matches, 264 implemented, 2,311 not implemented](progress/progress.svg)
 
-**Byte-match:** 3,043 · **Implemented:** 118 · **Not implemented:** 2,484.
+**Byte-match:** 3,070 · **Implemented:** 264 · **Not implemented:** 2,311.
 <!-- END GENERATED PROGRESS -->
 
 This is a decompilation of the PAL PlayStation 2 main executable, `SLES_500.44`. The goal is to recover the executable as buildable C source while preserving the original game's behavior, and ultimately to match the retail executable byte for byte. These goals can be pursued in stages: a behaviorally faithful C implementation is valuable even before it matches the original machine code.
@@ -64,11 +64,13 @@ To compare the whole main image:
 .\.venv\Scripts\python.exe tools\compare.py image build\SLES_500.44.elf
 ```
 
-Whole-image comparison covers the main load image, not DVP overlays. C functions smaller than their retail size are padded with trailing nops to retain later addresses; larger functions are not truncated or padded.
+Whole-image comparison covers the main load image, not DVP overlays. C functions smaller than their retail size are padded with trailing nops to retain later addresses; the build reassembles and checks sizes until that padding stabilizes. Larger functions are not truncated or padded.
+
+The build compiles C functions as independent units and reuses their cached objects when their source, flags, headers, toolchain, and relevant overrides are unchanged. Changing a function or its override rebuilds only that function; fallback retail assembly is cached in groups. Use `tools\build.py --no-cache` to force every function unit and fallback assembly group to rebuild.
 
 ### Temporary assembly overrides
 
-To test whether a C implementation causes a runtime issue, list its symbol in the root `asm_overrides.txt`, one function per line. Blank lines and `#` comments are ignored. The build substitutes that function's retail assembly from `asm/nonmatchings/` without changing its C definition. Remove the symbol from the file to restore the C implementation. The build reports the active overrides; progress results describe the linked binary, so overridden functions appear as byte-matching.
+To test whether a C implementation causes a runtime issue, list its symbol in the root `asm_overrides.txt`, one function per line. Blank lines and `#` comments are ignored. The build substitutes that function's retail assembly from `asm/nonmatchings/` without changing its C definition. Remove the symbol from the file to restore the C implementation. The build reports the active overrides; linked-binary progress results show overridden functions as byte-matching.
 
 ## Local dashboard and playground
 
@@ -177,7 +179,7 @@ The tracker assigns each function one status:
 - **Implemented** — C or edited assembly replaces the retail fallback, but the result does not byte-match. This status does not mean the implementation behaves incorrectly.
 - **Not implemented** — the function still uses its retail assembly fallback.
 
-After a successful build, the project refreshes `progress\main_status.html`, `progress\functions.csv`, `progress\progress.svg`, and the generated progress block in this README. The dashboard has one progress bar and matching status filters. The dashboard and CSV also show the last detected source edit (UTC) for implemented and byte-matching functions. Existing implementations receive a timestamp when tracking is first initialized; later source edits update it, and returning to the assembly fallback clears it. Use the sort menu to order by newest or oldest source edit, or restore the original function order. Timestamp history is stored in `progress\.function_source_timestamps.json`.
+After a successful build, the project refreshes `progress\main_status.html`, `progress\functions.csv`, `progress\progress.svg`, Timestamp history is stored in `progress\.function_source_timestamps.json`.
 
 The local dashboard adds assembly comparison and playground features. The static HTML report is useful for browsing the inventory; GitHub displays its source rather than running its interactive features. The `progress\functions.csv` file provides the same per-function information for scripts.
 

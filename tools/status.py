@@ -24,6 +24,8 @@ REPORT_DIR = ROOT / "progress"
 HTML_REPORT = REPORT_DIR / "main_status.html"
 CSV_REPORT = REPORT_DIR / "functions.csv"
 SVG_REPORT = REPORT_DIR / "progress.svg"
+IMPLEMENTED_NONMATCHING_REPORT = REPORT_DIR / "implemented-nonmatching.txt"
+ASM_OVERRIDE_FILE = ROOT / "asm_overrides.txt"
 SOURCE_BASELINE = REPORT_DIR / ".function_source_baseline.json"
 SOURCE_TIMESTAMPS = REPORT_DIR / ".function_source_timestamps.json"
 README = ROOT / "README.md"
@@ -510,6 +512,102 @@ def write_csv(rows):
                     "source_edited_at": row["source_edited_at"],
                 }
             )
+
+
+def configured_asm_overrides():
+    if not ASM_OVERRIDE_FILE.is_file():
+        return set()
+
+    symbols = set()
+    for line_number, line in enumerate(
+        ASM_OVERRIDE_FILE.read_text(encoding="ascii").splitlines(), start=1
+    ):
+        symbol = line.split("#", 1)[0].strip()
+        if not symbol:
+            continue
+        if not FUNCTION_NAME.fullmatch(symbol):
+            raise ValueError(
+                f"{ASM_OVERRIDE_FILE.name}:{line_number}: "
+                f"expected a function symbol, got {symbol!r}"
+            )
+        symbols.add(symbol)
+    return symbols
+
+
+def update_implemented_nonmatching_report(rows, overridden_functions):
+    current_functions = {}
+    function_statuses = {row["name"]: row["status"] for row in rows}
+    for row in rows:
+        if row["status"] != "NOT MATCHING" and not (
+            row["status"] == "MATCHING"
+            and row["name"] in overridden_functions
+        ):
+            continue
+        edited_at = row["source_edited_at"]
+        if not isinstance(edited_at, str) or not edited_at:
+            raise ValueError(
+                f"{row['name']}: implemented function has no source edit timestamp"
+            )
+        try:
+            timestamp = datetime.fromisoformat(edited_at.replace("Z", "+00:00"))
+        except ValueError as error:
+            raise ValueError(
+                f"{row['name']}: invalid source edit timestamp {edited_at!r}"
+            ) from error
+        if timestamp.tzinfo is None:
+            raise ValueError(
+                f"{row['name']}: source edit timestamp has no timezone"
+            )
+        current_functions[row["name"]] = timestamp
+
+    report_exists = IMPLEMENTED_NONMATCHING_REPORT.is_file()
+    existing_lines = (
+        IMPLEMENTED_NONMATCHING_REPORT.read_text(encoding="utf-8").splitlines()
+        if report_exists
+        else []
+    )
+    existing_symbols = {
+        line.strip()
+        for line in existing_lines
+        if FUNCTION_NAME.fullmatch(line.strip())
+    }
+    new_functions = (
+        set(current_functions)
+        if not report_exists
+        else set(current_functions) - existing_symbols
+    )
+    retained_lines = []
+    retained_symbols = set()
+    for line in existing_lines:
+        symbol = line.strip()
+        if FUNCTION_NAME.fullmatch(symbol):
+            if (
+                function_statuses.get(symbol) == "NOT STARTED"
+                or (
+                    function_statuses.get(symbol) == "MATCHING"
+                    and symbol not in overridden_functions
+                )
+                or symbol in new_functions
+                or symbol in retained_symbols
+            ):
+                continue
+            retained_symbols.add(symbol)
+            retained_lines.append(line)
+        elif symbol and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", symbol):
+            retained_lines.append(line)
+
+    new_lines = sorted(
+        new_functions,
+        key=lambda name: (current_functions[name], name),
+        reverse=True,
+    )
+    report_lines = [*new_lines, *retained_lines]
+    report = "\n".join(report_lines)
+    if report_lines:
+        report += "\n"
+    IMPLEMENTED_NONMATCHING_REPORT.write_text(
+        report, encoding="utf-8", newline="\n"
+    )
 
 
 def update_readme_progress(counts):
@@ -1749,12 +1847,16 @@ def main():
         inventory = function_inventory()
         implementations = project_implementations(inventory)
         rows = compare_functions(retail, build, inventory, implementations)
-        update_source_timestamps(rows, function_source_fingerprints(inventory))
+        rows = update_source_timestamps(
+            rows, function_source_fingerprints(inventory)
+        )
+        overridden_functions = configured_asm_overrides()
         counts = summary(rows)
         now = datetime.now().astimezone()
         generated_at = f"{now:%Y-%m-%d}"
         REPORT_DIR.mkdir(parents=True, exist_ok=True)
         write_csv(rows)
+        update_implemented_nonmatching_report(rows, overridden_functions)
         write_html(rows, counts, generated_at)
         write_svg(counts)
         update_readme_progress(counts)
@@ -1767,6 +1869,10 @@ def main():
     )
     print(f"Dashboard: {HTML_REPORT.relative_to(ROOT)}")
     print(f"CSV: {CSV_REPORT.relative_to(ROOT)}")
+    print(
+        "Implemented non-byte-matching functions: "
+        f"{IMPLEMENTED_NONMATCHING_REPORT.relative_to(ROOT)}"
+    )
     return 0
 
 

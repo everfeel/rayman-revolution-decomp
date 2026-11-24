@@ -2443,7 +2443,17 @@ INCLUDE_ASM(const s32, "core/main", func_00106770);
 
 INCLUDE_ASM(const s32, "core/main", func_00106868);
 
-INCLUDE_ASM(const s32, "core/main", func_00106B98);
+/* Behavioral: mode dispatch.  a2==2 -> 2; a2>=3 -> 0; a2==0 -> 1;
+ * a2==1 -> func_0010E638(*(a1+4)+0x18, a1) followed by
+ * func_00113198(*a1 + 0xB0). */
+s32 func_00106B98(u8 *a1, u8 a2)
+{
+    if (a2 == 1) {
+        func_0010E638(*(void **)(*(u32 *)(a1 + 4) + 0x18), a1);
+        return func_00113198(*(u32 *)a1 + 0xB0);
+    }
+    return (a2 == 2) ? 2 : (a2 == 0);
+}
 
 void func_00106C00(void) {
 }
@@ -2894,9 +2904,41 @@ INCLUDE_ASM(const s32, "core/main", func_00108A58);
 
 INCLUDE_ASM(const s32, "core/main", func_00108C30);
 
-INCLUDE_ASM(const s32, "core/main", func_00108CC0);
+/* Behavioral: for (u8)a2 < 5, call func_0012A860(v->+0x1C) where
+ * v = *(a1+8), then tail-call func_00224B88(v, 0, 0x1C).  Otherwise return
+ * 0 (the slti result). */
+extern void func_0012A860(void *arg);
 
-INCLUDE_ASM(const s32, "core/main", func_00108D20);
+s32 func_00108CC0(u8 *a1, s32 a2)
+{
+    u8 mode = a2 & 0xFF;
+
+    if (mode < 5) {
+        void *v = *(void **)(a1 + 8);
+        func_0012A860(*(void **)((u8 *)v + 0x1C));
+        return func_00224B88(v, 0, 0x1C);
+    }
+    return mode < 5;
+}
+
+/* Behavioral: mode dispatch on (u8)a2.  2 -> 2, >=3 -> 0, 0 -> 1;
+ * 1 -> test bit 0x40000 of (*(a1+8))->+0x1C->+0xC and, when set, tail-call
+ * func_00108C30(v), otherwise return 0. */
+extern s32 func_00108C30(void *v);
+
+s32 func_00108D20(u8 *a1, u8 mode)
+{
+    u8 *v;
+
+    if (mode == 2)
+        return 2;
+    if (mode != 1)
+        return mode == 0;
+    v = *(u8 **)(a1 + 8);
+    if (!(*(u32 *)(*(u32 *)(v + 0x1C) + 0xC) & 0x40000))
+        return 0;
+    return func_00108C30(v);
+}
 
 INCLUDE_ASM(const s32, "core/main", func_00108D70);
 
@@ -3673,7 +3715,35 @@ s32 func_0010AB70(s32 *p)
 
 INCLUDE_ASM(const s32, "core/main", func_0010AB88);
 
-INCLUDE_ASM(const s32, "core/main", func_0010AC00);
+/* Retail 0x0010AC00: arg0->+0 is a header pointer `p`; p->+0 is the first
+   node `q` and p->+8 is the node count. Walk the q list (next at +0, id at
+   +0xC) and return count-1 down to 0 for a matching id, else -1.
+   NOTE: the count lives at p+8 (not arg0+8) and the walk starts at q=[p],
+   both confirmed by `lw $2,0x8($4)` / `lw $3,0x0($4)` in the retail listing. */
+s32 func_0010AC00(u8 *arg0, s32 arg1)
+{
+    u8 *p;
+    u8 *q;
+    s32 index;
+
+    if (arg0 == 0)
+        goto fail;
+    p = *(u8 **)arg0;
+    if (p == 0)
+        goto fail;
+    q = *(u8 **)p;
+    if (q == 0)
+        goto fail;
+    index = *(s32 *)(p + 8) - 1;
+    do {
+        if (*(s32 *)(q + 0xC) == arg1)
+            return index;
+        q = *(u8 **)q;
+        index--;
+    } while (q != 0);
+fail:
+    return -1;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0010AC50);
 
@@ -3868,7 +3938,25 @@ void func_0010B828(void)
 
 s32 func_0010B850(void) { return D_00392FD8 != -1; }
 
-INCLUDE_ASM(const s32, "core/main", func_0010B860);
+/* Behavioral: reset two actor-world structures and their link pointers.
+ * Returns &D_00394788 (left over in $2 from the address setup). */
+extern u32 D_00394788[];
+extern u32 D_00394798[];
+
+void func_0010B860(void)
+{
+    D_00394788[0] = 0;
+    D_00394798[0] = 0;
+    D_00392FDC = &D_00394788;
+    D_00392FE0 = &D_00394798;
+    D_00254018[0] = 0;
+    D_00254018[2] = 0;
+    D_00394788[1] = 0;
+    D_00394788[2] = 0;
+    D_00394798[1] = 0;
+    D_00394798[2] = 0;
+    D_00254018[1] = 0;
+}
 
 void func_0010B8A8(void)
 {
@@ -4071,8 +4159,59 @@ void func_0010CA70(void)
 void func_0010CA98(void) {
 }
 
-INCLUDE_ASM(const s32, "core/main", func_0010CAA0);
+/* Retail 0x0010CAA0 / 0x0010CB00: look up a morph record by its two 16-bit
+ * keys.  `state+0x00` points at the manager; `manager+0x28` is the record
+ * array, cached back into `state+0x04` on *every* call (even when the count
+ * is zero).  `manager+0x48` is the u16 count, records are 8 bytes apart,
+ * with +0x01 = amount, +0x02 = key1, +0x04 = key2.  CAA0 returns the amount;
+ * CB00 returns the record pointer.  Both return 0 when nothing matches.
+ * key2 is masked to 16 bits by the retail `andi` at function entry, while
+ * key1 is compared against the full incoming word. */
+typedef struct {
+    u8 pad0;
+    u8 amount;
+    u16 key1;
+    u16 key2;
+    u16 pad6;
+} MorphRecord;
 
-INCLUDE_ASM(const s32, "core/main", func_0010CB00);
+typedef struct {
+    u8 *manager;                        /* +0x00 */
+    u8 *cachedRecords;                  /* +0x04 */
+} MorphCursor;
+
+u8 func_0010CAA0(MorphCursor *state, u32 key1, u32 key2)
+{
+    u8 *mgr = state->manager;
+    u8 *records = *(u8 **)(mgr + 0x28);
+    u16 count = *(u16 *)(mgr + 0x48);
+    u32 i;
+
+    state->cachedRecords = records;
+    key2 &= 0xFFFF;
+    for (i = 0; i < count; i++) {
+        MorphRecord *r = (MorphRecord *)(records + i * 8);
+        if (r->key1 == key1 && r->key2 == key2)
+            return r->amount;
+    }
+    return 0;
+}
+
+u8 *func_0010CB00(MorphCursor *state, u32 key1, u32 key2)
+{
+    u8 *mgr = state->manager;
+    u8 *records = *(u8 **)(mgr + 0x28);
+    u16 count = *(u16 *)(mgr + 0x48);
+    u32 i;
+
+    state->cachedRecords = records;
+    key2 &= 0xFFFF;
+    for (i = 0; i < count; i++) {
+        MorphRecord *r = (MorphRecord *)(records + i * 8);
+        if (r->key1 == key1 && r->key2 == key2)
+            return (u8 *)r;
+    }
+    return 0;
+}
 
 INCLUDE_ASM(const s32, "core/main", func_0010CB60);

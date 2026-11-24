@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Build the main Rayman Revolution ELF with the configured SN Systems SDK."""
 
+import argparse
 import hashlib
+import json
 import re
 import shlex
 import subprocess
@@ -10,10 +12,18 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from compare import Elf32LE
+from function_units import AssemblyFunctionUnit, CFunctionUnit, iter_function_units
 
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build"
+OBJECT_CACHE = BUILD / ".object_cache.json"
+FUNCTION_UNIT_DIR = BUILD / "function_units"
+# Keep this fingerprint stable across cache-only changes. Bump it when the
+# generated assembly or object layout rules change.
+BUILD_PIPELINE_FINGERPRINT = (
+    "7288743a5059ec2bffacded557f6d5d7378ffdb9298cc4bbf32f4cba18e32c26"
+)
 COMPILER = (
     ROOT
     / "toolchain"
@@ -41,6 +51,11 @@ FUNCTION_HEADER = re.compile(
 )
 C_FUNCTION = re.compile(r"(?m)^\s*\.ent\s+(func_[0-9A-Fa-f]{8})\s*$")
 FUNCTION_SYMBOL = re.compile(r"func_[0-9A-Fa-f]{8}\Z")
+AUTO_PADDING = re.compile(
+    r"(?m)^([ \t]*)# BUILD_PADDING (func_[0-9A-Fa-f]{8})\r?\n"
+    r"\1\.space ([0-9]+), 0\r?\n"
+)
+MAX_PADDING_PASSES = 8
 JUMP_TABLE_LABEL = re.compile(
     r"(?m)^[ \t]*jlabel[ \t]+([.$A-Za-z_][.$A-Za-z_0-9]*)[ \t]*$"
 )
@@ -428,13 +443,22 @@ def pad_undersized_functions(assembly_path, object_path, retail_sizes):
     assembly = assembly_path.read_text(encoding="utf-8")
     functions = C_FUNCTION.findall(assembly)
     if not functions:
-        return assembly, 0, 0, []
+        return assembly, set(), 0, []
     if len(functions) != len(set(functions)):
         raise ValueError(f"{assembly_path}: duplicate C function entries")
 
+    padding_values = {}
+    for match in AUTO_PADDING.finditer(assembly):
+        name = match.group(2)
+        if name in padding_values:
+            raise ValueError(f"{assembly_path}: duplicate build padding for {name}")
+        if name not in functions:
+            raise ValueError(f"{assembly_path}: padding marker for missing {name}")
+        padding_values[name] = int(match.group(3))
+
     object_elf = Elf32LE(object_path)
-    padded = 0
-    total_padding = 0
+    adjusted = set()
+    padding_delta = 0
     oversized = []
     for name in functions:
         retail_size = retail_sizes.get(name)
@@ -445,39 +469,70 @@ def pad_undersized_functions(assembly_path, object_path, retail_sizes):
             raise ValueError(
                 f"{object_path}: {name} has no nonempty function symbol"
             )
-        padding = retail_size - symbol["size"]
-        if padding < 0:
+        current_padding = padding_values.get(name, 0)
+        match = next(
+            (
+                item
+                for item in AUTO_PADDING.finditer(assembly)
+                if item.group(2) == name
+            ),
+            None,
+        )
+        padding = current_padding + retail_size - symbol["size"]
+        if padding < 0 and match is None:
             # The C function is larger than retail's. A few bytes are harmless
             # when they fit the alignment gap before the next retail function;
             # anything larger shifts every later symbol, so report it here
             # instead of letting the linker fail with a confusing overlap.
             oversized.append((name, symbol["size"], retail_size))
             continue
-        if padding == 0:
+        if padding == current_padding:
             continue
-        if padding % 4:
+        if padding < 0:
+            padding = 0
+        if padding % 4 or current_padding % 4:
             raise ValueError(
-                f"{name}: required padding of {padding} bytes is not instruction-aligned"
+                f"{name}: required padding adjustment is not instruction-aligned"
             )
 
-        end_pattern = re.compile(
-            rf"(?m)^([ \t]*)\.end[ \t]+{re.escape(name)}[ \t]*$"
-        )
-        matches = list(end_pattern.finditer(assembly))
-        if len(matches) != 1:
-            raise ValueError(
-                f"{assembly_path}: expected one .end for {name}, found {len(matches)}"
+        if match:
+            replacement = (
+                f"{match.group(1)}# BUILD_PADDING {name}\n"
+                f"{match.group(1)}.space {padding}, 0\n"
+                if padding
+                else ""
             )
-        match = matches[0]
-        replacement = (
-            f"{match.group(1)}.space {padding}, 0\n"
-            f"{match.group(0)}"
-        )
-        assembly = assembly[:match.start()] + replacement + assembly[match.end():]
-        padded += 1
-        total_padding += padding
+            assembly = (
+                assembly[:match.start()]
+                + replacement
+                + assembly[match.end():]
+            )
+        elif padding:
+            end_pattern = re.compile(
+                rf"(?m)^([ \t]*)\.end[ \t]+{re.escape(name)}[ \t]*$"
+            )
+            matches = list(end_pattern.finditer(assembly))
+            if len(matches) != 1:
+                raise ValueError(
+                    f"{assembly_path}: expected one .end for {name}, "
+                    f"found {len(matches)}"
+                )
+            end_match = matches[0]
+            replacement = (
+                f"{end_match.group(1)}# BUILD_PADDING {name}\n"
+                f"{end_match.group(1)}.space {padding}, 0\n"
+                f"{end_match.group(0)}"
+            )
+            assembly = (
+                assembly[:end_match.start()]
+                + replacement
+                + assembly[end_match.end():]
+            )
 
-    return assembly, padded, total_padding, oversized
+        adjusted.add(name)
+        padding_delta += padding - current_padding
+
+    return assembly, adjusted, padding_delta, oversized
 
 
 def compile_c_source(
@@ -492,12 +547,6 @@ def compile_c_source(
     if C_FRONTEND is None:
         frontend_command = [str(COMPILER), *common_flags, "-S"]
     else:
-        # A bare cc1 does not preprocess and takes no driver options: run the
-        # real driver's preprocessor first (cached by content), then hand the
-        # .i file to the frontend.
-        compiler_input = preprocessed_source(source, common_flags, log)
-        if compiler_input is None:
-            return None
         frontend_command = [
             str(C_FRONTEND),
             *[flag for flag in common_flags if not flag.startswith("-Wa")],
@@ -517,6 +566,9 @@ def compile_c_source(
 
     try:
         enable_assembler_reordering(assembly_path)
+        c_functions = set(
+            C_FUNCTION.findall(assembly_path.read_text(encoding="utf-8"))
+        )
         applied_overrides = apply_asm_overrides(assembly_path, asm_overrides)
         auto_symbols = auto_symbol_definitions()
         symbol_addresses = {
@@ -558,10 +610,23 @@ def compile_c_source(
         return None
 
     try:
-        assembly, padded, padding_bytes, oversized = pad_undersized_functions(
-            assembly_path, object_path, function_sizes
-        )
-        if padded:
+        padded_functions = set()
+        padding_bytes = 0
+        for padding_pass in range(MAX_PADDING_PASSES + 1):
+            assembly, padded, added_padding, oversized = pad_undersized_functions(
+                assembly_path, object_path, function_sizes
+            )
+            padded_functions.update(padded)
+            padding_bytes += added_padding
+            if not padded:
+                break
+            if padding_pass == MAX_PADDING_PASSES:
+                fail(
+                    f"could not stabilize function padding in "
+                    f"{relative.as_posix()} after {MAX_PADDING_PASSES} passes"
+                )
+                return None
+
             assembly_path.write_text(assembly, encoding="utf-8", newline="\n")
             if not compile_source(
                 assemble,
@@ -577,7 +642,523 @@ def compile_c_source(
     if extra_sections:
         EXTRA_SECTIONS.append((relative.as_posix(), extra_sections))
 
-    return padded, padding_bytes, applied_overrides, oversized
+    return (
+        len(padded_functions),
+        padding_bytes,
+        applied_overrides,
+        oversized,
+        c_functions,
+    )
+
+
+def file_sha256(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def shared_object_fingerprint(function_sizes):
+    digest = hashlib.sha256()
+    files = [
+        Path(__file__),
+        Path(__file__).with_name("function_units.py"),
+        COMPILER,
+        LINKER_SCRIPT,
+        ROOT / "undefined_syms_auto.txt",
+        BUILD / "gp_externs.inc",
+    ]
+    if C_FRONTEND is not None:
+        files.append(Path(C_FRONTEND))
+    files.extend(path for path in (ROOT / "include").rglob("*") if path.is_file())
+    files.extend(
+        path
+        for path in (ROOT / "src").rglob("*")
+        if path.is_file() and path.suffix.lower() in {".h", ".inc", ".inl", ".def"}
+    )
+    files.extend(
+        path for path in (ROOT / "src" / "asm").rglob("*") if path.is_file()
+    )
+    for path in sorted(set(files)):
+        try:
+            path_label = path.relative_to(ROOT).as_posix()
+        except ValueError:
+            path_label = str(path.resolve())
+        digest.update(path_label.encode("utf-8") + b"\0")
+        file_digest = (
+            BUILD_PIPELINE_FINGERPRINT
+            if path.resolve() == Path(__file__).resolve()
+            else file_sha256(path)
+        )
+        digest.update(file_digest.encode("ascii") + b"\0")
+    for name, size in sorted(function_sizes.items()):
+        digest.update(f"{name}:{size}\n".encode("ascii"))
+    for name, address in auto_symbol_definitions():
+        digest.update(f"{name}:{address}\n".encode("ascii"))
+    digest.update(str(C_FRONTEND).encode("utf-8"))
+    return digest.hexdigest()
+
+
+def c_object_fingerprint(
+    source, flags, functions, overrides, shared_fingerprint
+):
+    relative = source.relative_to(ROOT)
+    assembly_path = BUILD / "c-input" / relative.with_suffix(".s")
+    digest = hashlib.sha256()
+    digest.update(shared_fingerprint.encode("ascii"))
+    digest.update(relative.as_posix().encode("utf-8") + b"\0")
+    digest.update(source.read_bytes())
+    digest.update(json.dumps(flags, separators=(",", ":")).encode("utf-8"))
+    for name in sorted(functions & overrides.keys()):
+        override_path = ROOT / overrides[name]
+        digest.update(name.encode("ascii") + b"\0")
+        digest.update(overrides[name].encode("utf-8") + b"\0")
+        digest.update(file_sha256(override_path).encode("ascii") + b"\0")
+    return digest.hexdigest(), assembly_path
+
+
+def load_object_cache():
+    if not OBJECT_CACHE.is_file():
+        return {}
+    try:
+        cache = json.loads(OBJECT_CACHE.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        print(
+            f"build: warning: ignoring unreadable object cache: {error}",
+            file=sys.stderr,
+        )
+        return {}
+    if not isinstance(cache, dict) or any(
+        not isinstance(key, str)
+        or not isinstance(entry, dict)
+        or not all(
+            isinstance(entry.get(field), str)
+            for field in ("fingerprint", "assembly_sha256", "object_sha256")
+        )
+        or not isinstance(entry.get("functions"), list)
+        or any(
+            not isinstance(name, str) or not FUNCTION_SYMBOL.fullmatch(name)
+            for name in entry["functions"]
+        )
+        for key, entry in cache.items()
+    ):
+        print("build: warning: ignoring malformed object cache", file=sys.stderr)
+        return {}
+    return cache
+
+
+def save_object_cache(cache):
+    temporary_path = OBJECT_CACHE.with_name(OBJECT_CACHE.name + ".tmp")
+    temporary_path.write_text(
+        json.dumps(cache, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    temporary_path.replace(OBJECT_CACHE)
+
+
+def cached_c_compile_result(
+    source,
+    object_path,
+    flags,
+    function_sizes,
+    overrides,
+    shared_fingerprint,
+    cache,
+):
+    relative = source.relative_to(ROOT).as_posix()
+    entry = cache.get(relative)
+    if entry is None:
+        return None
+    functions = set(entry["functions"])
+    fingerprint, assembly_path = c_object_fingerprint(
+        source, flags, functions, overrides, shared_fingerprint
+    )
+    if (
+        entry["fingerprint"] != fingerprint
+        or not object_path.is_file()
+        or not assembly_path.is_file()
+    ):
+        return None
+    try:
+        if (
+            entry["assembly_sha256"] != file_sha256(assembly_path)
+            or entry["object_sha256"] != file_sha256(object_path)
+        ):
+            return None
+    except OSError:
+        return None
+
+    assembly = assembly_path.read_text(encoding="utf-8")
+    padding_matches = list(AUTO_PADDING.finditer(assembly))
+    padded_functions = {match.group(2) for match in padding_matches}
+    padding_bytes = sum(int(match.group(3)) for match in padding_matches)
+    object_elf = Elf32LE(object_path)
+    oversized = []
+    for name in functions:
+        retail_size = function_sizes.get(name)
+        if retail_size is None:
+            continue
+        symbol = object_elf.symbol(name)
+        if symbol["type"] != 2 or symbol["size"] <= 0:
+            raise ValueError(f"{object_path}: {name} has no nonempty function symbol")
+        if symbol["size"] > retail_size:
+            oversized.append((name, symbol["size"], retail_size))
+
+    extra_sections = extra_data_sections(object_path)
+    if extra_sections:
+        EXTRA_SECTIONS.append((relative, extra_sections))
+    applied_overrides = functions & overrides.keys()
+    return len(padded_functions), padding_bytes, applied_overrides, oversized
+
+
+def update_object_cache(
+    source, object_path, flags, functions, overrides, shared_fingerprint, cache
+):
+    fingerprint, assembly_path = c_object_fingerprint(
+        source, flags, functions, overrides, shared_fingerprint
+    )
+    cache[source.relative_to(ROOT).as_posix()] = {
+        "fingerprint": fingerprint,
+        "assembly_sha256": file_sha256(assembly_path),
+        "object_sha256": file_sha256(object_path),
+        "functions": sorted(functions),
+    }
+
+
+def function_unit_fingerprint(
+    module, unit, flags, overrides, shared_fingerprint
+):
+    relative = (
+        FUNCTION_UNIT_DIR
+        / module.path.relative_to(ROOT).stem
+        / f"{unit.name}.i"
+    ).relative_to(ROOT)
+    digest = hashlib.sha256()
+    digest.update(shared_fingerprint.encode("ascii"))
+    digest.update(relative.as_posix().encode("utf-8") + b"\0")
+    digest.update(unit.source_digest.encode("ascii"))
+    digest.update(json.dumps(flags, separators=(",", ":")).encode("utf-8"))
+    if unit.name in overrides:
+        override_path = ROOT / overrides[unit.name]
+        digest.update(unit.name.encode("ascii") + b"\0")
+        digest.update(overrides[unit.name].encode("utf-8") + b"\0")
+        digest.update(file_sha256(override_path).encode("ascii") + b"\0")
+    return digest.hexdigest()
+
+
+def function_unit_source_sha256(unit):
+    digest = hashlib.sha256()
+    for part in unit.prefix_parts:
+        digest.update(part.encode("utf-8"))
+    digest.update(unit.body.encode("utf-8"))
+    for part in unit.postlude_parts:
+        digest.update(part.encode("utf-8"))
+    return digest.hexdigest()
+
+
+def cache_file_matches(entry, path, key_prefix):
+    if not path.is_file():
+        return False
+    stat = path.stat()
+    size_key = f"{key_prefix}_size"
+    modified_key = f"{key_prefix}_mtime_ns"
+    if (
+        entry.get(size_key) == stat.st_size
+        and entry.get(modified_key) == stat.st_mtime_ns
+    ):
+        return True
+    expected_hash = entry.get(f"{key_prefix}_sha256")
+    if not expected_hash or expected_hash != file_sha256(path):
+        return False
+    entry[size_key] = stat.st_size
+    entry[modified_key] = stat.st_mtime_ns
+    return True
+
+
+def cached_function_unit_result(
+    cache, key, fingerprint, unit, object_path, overrides
+):
+    entry = cache.get(key)
+    if (
+        entry is None
+        or entry.get("unit_fingerprint") != fingerprint
+        or entry.get("unit_source_digest") != unit.source_digest
+        or not isinstance(entry.get("unit_metrics"), dict)
+        or not cache_file_matches(entry, object_path, "object")
+    ):
+        return None
+    metrics = entry["unit_metrics"]
+    if (
+        not isinstance(metrics.get("padded_functions"), int)
+        or not isinstance(metrics.get("padding_bytes"), int)
+        or not isinstance(metrics.get("oversized"), list)
+        or not isinstance(metrics.get("extra_sections"), dict)
+    ):
+        return None
+    extra_sections = metrics["extra_sections"]
+    if extra_sections:
+        EXTRA_SECTIONS.append(
+            (key, {name: int(size) for name, size in extra_sections.items()})
+        )
+    applied_overrides = {unit.name} if unit.name in overrides else set()
+    oversized = [tuple(item) for item in metrics["oversized"]]
+    return (
+        metrics["padded_functions"],
+        metrics["padding_bytes"],
+        applied_overrides,
+        oversized,
+    )
+
+
+def store_function_unit_metadata(
+    cache,
+    key,
+    fingerprint,
+    unit,
+    result,
+    assembly_path,
+    object_path,
+):
+    entry = cache[key]
+    extra_sections = extra_data_sections(object_path)
+    entry["unit_fingerprint"] = fingerprint
+    entry["unit_source_digest"] = unit.source_digest
+    entry["unit_metrics"] = {
+        "padded_functions": result[0],
+        "padding_bytes": result[1],
+        "oversized": [list(item) for item in result[3]],
+        "extra_sections": extra_sections,
+    }
+    for prefix, path in (
+        ("assembly", assembly_path),
+        ("object", object_path),
+    ):
+        stat = path.stat()
+        entry[f"{prefix}_size"] = stat.st_size
+        entry[f"{prefix}_mtime_ns"] = stat.st_mtime_ns
+
+
+def compile_function_unit(
+    module,
+    unit,
+    flags,
+    log,
+    function_sizes,
+    overrides,
+    shared_fingerprint,
+    cache,
+    no_cache,
+):
+    module_path = module.path.relative_to(ROOT)
+    source_path = FUNCTION_UNIT_DIR / module_path.stem / f"{unit.name}.i"
+    object_path = source_path.with_suffix(".o")
+    assembly_path = (
+        BUILD
+        / "c-input"
+        / source_path.relative_to(ROOT).with_suffix(".s")
+    )
+    cache_key = source_path.relative_to(ROOT).as_posix()
+
+    cache_hit = False
+    metadata_needs_update = False
+    result = None
+    if not no_cache:
+        fingerprint = function_unit_fingerprint(
+            module, unit, flags, overrides, shared_fingerprint
+        )
+        result = cached_function_unit_result(
+            cache, cache_key, fingerprint, unit, object_path, overrides
+        )
+        if result is None:
+            entry = cache.get(cache_key)
+            if entry is not None and not entry.get("unit_fingerprint"):
+                if (
+                    source_path.is_file()
+                    and function_unit_source_sha256(unit)
+                    == file_sha256(source_path)
+                ):
+                    result = cached_c_compile_result(
+                        source_path,
+                        object_path,
+                        flags,
+                        function_sizes,
+                        overrides,
+                        shared_fingerprint,
+                        cache,
+                    )
+                    metadata_needs_update = result is not None
+        cache_hit = result is not None
+    if result is None:
+        source_path.parent.mkdir(parents=True, exist_ok=True)
+        source_path.write_text(unit.source(), encoding="utf-8", newline="\n")
+        result = compile_c_source(
+            source_path,
+            object_path,
+            flags,
+            log,
+            function_sizes,
+            overrides,
+        )
+        if result is None:
+            return None, False, None
+        if not no_cache:
+            update_object_cache(
+                source_path,
+                object_path,
+                flags,
+                result[4],
+                overrides,
+                shared_fingerprint,
+                cache,
+            )
+            metadata_needs_update = True
+    compiled_functions = set(result[4]) if len(result) > 4 else {unit.name}
+    if compiled_functions != {unit.name}:
+        fail(
+            f"{source_path.relative_to(ROOT).as_posix()} generated "
+            f"{sorted(compiled_functions)}, expected only {unit.name}"
+        )
+        return None, cache_hit, None
+    if not no_cache and metadata_needs_update:
+        store_function_unit_metadata(
+            cache,
+            cache_key,
+            fingerprint,
+            unit,
+            result,
+            assembly_path,
+            object_path,
+        )
+    for generated_path in (source_path, assembly_path):
+        if generated_path.is_file():
+            generated_path.unlink()
+    return object_path, cache_hit, result
+
+
+def assembly_unit_fingerprint(module, units, flags, shared_fingerprint):
+    digest = hashlib.sha256()
+    digest.update(str(shared_fingerprint).encode("ascii"))
+    digest.update(module.path.relative_to(ROOT).as_posix().encode("utf-8") + b"\0")
+    digest.update(json.dumps(flags, separators=(",", ":")).encode("utf-8"))
+    for unit in units:
+        path = ROOT / unit.include_path
+        digest.update(unit.name.encode("ascii") + b"\0")
+        digest.update(unit.include_path.encode("utf-8") + b"\0")
+        digest.update(file_sha256(path).encode("ascii") + b"\0")
+    return digest.hexdigest()
+
+
+def cached_assembly_unit(cache, key, fingerprint, source_path, object_path):
+    entry = cache.get(key)
+    if (
+        entry is None
+        or entry["fingerprint"] != fingerprint
+        or not source_path.is_file()
+        or not object_path.is_file()
+    ):
+        return False
+    try:
+        return (
+            entry["assembly_sha256"] == file_sha256(source_path)
+            and entry["object_sha256"] == file_sha256(object_path)
+        )
+    except OSError:
+        return False
+
+
+def update_assembly_unit_cache(
+    cache, key, fingerprint, source_path, object_path, units
+):
+    cache[key] = {
+        "fingerprint": fingerprint,
+        "assembly_sha256": file_sha256(source_path),
+        "object_sha256": file_sha256(object_path),
+        "functions": [unit.name for unit in units],
+    }
+
+
+def compile_assembly_units(
+    module, units, flags, log, cache, shared_fingerprint, no_cache
+):
+    relative = module.path.relative_to(ROOT)
+    first = units[0].name
+    source_path = (
+        FUNCTION_UNIT_DIR
+        / relative.stem
+        / f"asm_{first}.s"
+    )
+    object_path = source_path.with_suffix(".o")
+    source_path.parent.mkdir(parents=True, exist_ok=True)
+    source_path.write_text(
+        '\t.include "include/macro.inc"\n'
+        + "".join(
+            f'\t.set noreorder\n\t.include "{unit.include_path}"\n\t.set reorder\n'
+            for unit in units
+        ),
+        encoding="utf-8",
+        newline="\n",
+    )
+    flags = list(flags)
+    key = f"asm:{relative.as_posix()}:{first}"
+    fingerprint = assembly_unit_fingerprint(
+        module, units, flags, shared_fingerprint
+    )
+    if not no_cache and cached_assembly_unit(
+        cache, key, fingerprint, source_path, object_path
+    ):
+        return object_path, True
+    if not compile_assembly_source(source_path, object_path, flags, log):
+        return None, False
+    update_assembly_unit_cache(
+        cache, key, fingerprint, source_path, object_path, units
+    )
+    return object_path, False
+
+
+def link_module_objects(module, unit_objects, log):
+    module_output = BUILD / "function_modules" / f"{module.path.stem}.o"
+    module_output.parent.mkdir(parents=True, exist_ok=True)
+    inputs = list(unit_objects)
+    if not inputs:
+        raise ValueError(f"{module.path.name}: no function objects were generated")
+
+    level = 0
+    while len(inputs) > 64:
+        next_inputs = []
+        for group_index, start in enumerate(range(0, len(inputs), 64)):
+            output = (
+                BUILD
+                / "function_modules"
+                / f"{module.path.stem}.part{level}.{group_index}.o"
+            )
+            group = inputs[start:start + 64]
+            if not compile_source(
+                [
+                    str(LINKER),
+                    "-r",
+                    "-o",
+                    str(output),
+                    *(str(path) for path in group),
+                ],
+                f"partial link {module.path.name} group {group_index}",
+                log,
+            ):
+                return None
+            next_inputs.append(output)
+        inputs = next_inputs
+        level += 1
+
+    if not compile_source(
+        [
+            str(LINKER),
+            "-r",
+            "-o",
+            str(module_output),
+            *(str(path) for path in inputs),
+        ],
+        f"partial link {module.path.name}",
+        log,
+    ):
+        return None
+    return module_output
 
 
 def assembly_input(source):
@@ -819,6 +1400,14 @@ def report_oversized_functions(oversized, retail_sizes):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="rebuild every function unit and fallback assembly group",
+    )
+    args = parser.parse_args()
+
     if not COMPILER.is_file():
         return fail(f"SDK compiler/assembler not found: {COMPILER}")
     if not LINKER.is_file():
@@ -843,12 +1432,18 @@ def main():
     try:
         function_sizes = retail_function_sizes()
         asm_overrides = load_asm_overrides()
+        object_cache = {} if args.no_cache else load_object_cache()
+        shared_fingerprint = (
+            None if args.no_cache else shared_object_fingerprint(function_sizes)
+        )
     except (OSError, UnicodeError, ValueError) as error:
         return fail(f"could not read build function inputs: {error}")
     padded_functions = 0
     padding_bytes = 0
     applied_asm_overrides = set()
     oversized_functions = []
+    cache_hits = 0
+    cache_misses = 0
 
     try:
         modules, global_flags = source_modules()
@@ -859,26 +1454,115 @@ def main():
         relative = source.relative_to(ROOT)
         object_path = BUILD / relative.parent / f"{source.name}.o"
         if source.suffix == ".c":
-            compile_result = compile_c_source(
-                source,
-                object_path,
-                [*common_flags, *c_flags(module, global_flags)],
-                LOG,
-                function_sizes,
-                asm_overrides,
-            )
-            if compile_result is None:
+            module_flags = [*common_flags, *c_flags(module, global_flags)]
+            preprocessed = preprocessed_source(source, module_flags, LOG)
+            if preprocessed is None:
                 return 1
-            padded_functions += compile_result[0]
-            padding_bytes += compile_result[1]
-            oversized_functions.extend(compile_result[3])
-            duplicate_overrides = applied_asm_overrides & compile_result[2]
-            if duplicate_overrides:
-                return fail(
-                    "multiple C modules define overridden functions: "
-                    + ", ".join(sorted(duplicate_overrides))
+            try:
+                units = list(
+                    iter_function_units(
+                        preprocessed.read_text(encoding="utf-8")
+                    )
                 )
-            applied_asm_overrides.update(compile_result[2])
+            except (OSError, UnicodeError, ValueError) as error:
+                return fail(
+                    f"could not split C functions in "
+                    f"{relative.as_posix()}: {error}"
+                )
+
+            ordered_items = []
+            assembly_run = []
+            for unit in units:
+                if isinstance(unit, AssemblyFunctionUnit):
+                    assembly_run.append(unit)
+                    continue
+                if assembly_run:
+                    ordered_items.append(assembly_run)
+                    assembly_run = []
+                ordered_items.append(unit)
+            if assembly_run:
+                ordered_items.append(assembly_run)
+
+            unit_objects = []
+            for item in ordered_items:
+                if isinstance(item, list):
+                    try:
+                        run_object, cache_hit = compile_assembly_units(
+                            module,
+                            item,
+                            [
+                                *common_flags,
+                                *assembly_flags((), module.flags),
+                            ],
+                            LOG,
+                            object_cache,
+                            shared_fingerprint,
+                            args.no_cache,
+                        )
+                    except (OSError, UnicodeError, ValueError) as error:
+                        return fail(
+                            f"could not compile retail assembly units in "
+                            f"{relative.as_posix()}: {error}"
+                        )
+                    if cache_hit:
+                        cache_hits += 1
+                    else:
+                        cache_misses += 1
+                    if run_object is None:
+                        return 1
+                    unit_objects.append(run_object)
+                    continue
+
+                try:
+                    unit_object, cache_hit, compile_result = compile_function_unit(
+                        module,
+                        item,
+                        module_flags,
+                        LOG,
+                        function_sizes,
+                        asm_overrides,
+                        shared_fingerprint,
+                        object_cache,
+                        args.no_cache,
+                    )
+                except (OSError, UnicodeError, ValueError) as error:
+                    return fail(
+                        f"could not compile {item.name} in "
+                        f"{relative.as_posix()}: {error}"
+                    )
+                if unit_object is None or compile_result is None:
+                    return 1
+                if cache_hit:
+                    cache_hits += 1
+                else:
+                    cache_misses += 1
+                padded_functions += compile_result[0]
+                padding_bytes += compile_result[1]
+                oversized_functions.extend(compile_result[3])
+                duplicate_overrides = (
+                    applied_asm_overrides & compile_result[2]
+                )
+                if duplicate_overrides:
+                    return fail(
+                        "multiple C modules define overridden functions: "
+                        + ", ".join(sorted(duplicate_overrides))
+                    )
+                applied_asm_overrides.update(compile_result[2])
+                unit_objects.append(unit_object)
+
+            module_object = link_module_objects(module, unit_objects, LOG)
+            if module_object is None:
+                return 1
+            objects.append(module_object)
+            if not args.no_cache:
+                try:
+                    save_object_cache(object_cache)
+                except (OSError, UnicodeError, ValueError) as error:
+                    print(
+                        f"build: warning: could not save function object cache: "
+                        f"{error}",
+                        file=sys.stderr,
+                    )
         elif not compile_assembly_source(
             source,
             object_path,
@@ -886,8 +1570,14 @@ def main():
             LOG,
         ):
             return 1
-        objects.append(object_path)
+        else:
+            objects.append(object_path)
 
+    if not args.no_cache:
+        print(
+            f"Function object cache: reused {cache_hits}, rebuilt {cache_misses} "
+            f"of {cache_hits + cache_misses} units."
+        )
     if report_oversized_functions(oversized_functions, function_sizes):
         return 1
     report_extra_sections(EXTRA_SECTIONS)
